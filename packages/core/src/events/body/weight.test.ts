@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { WEIGHT_LOGGED, weightLoggedEventSchema } from './weight.js';
+import { WEIGHT_LOGGED, weightLoggedEventSchema } from './weight';
 
 const validWeightEvent = {
   id: '11111111-1111-1111-1111-111111111111',

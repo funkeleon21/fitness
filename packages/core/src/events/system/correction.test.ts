@@ -4,7 +4,7 @@ import {
   EVENT_RETRACTED,
   eventCorrectedEventSchema,
   eventRetractedEventSchema,
-} from './correction.js';
+} from './correction';
 
 const baseEnvelope = {
   id: '11111111-1111-1111-1111-111111111111',

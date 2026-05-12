@@ -1,11 +1,11 @@
-import { WEIGHT_LOGGED, type WeightLoggedEvent } from './body/weight.js';
-import type { EventSource } from './envelope.js';
+import { WEIGHT_LOGGED, type WeightLoggedEvent } from './body/weight';
+import type { EventSource } from './envelope';
 import {
   EVENT_CORRECTED,
   EVENT_RETRACTED,
   type EventCorrectedEvent,
   type EventRetractedEvent,
-} from './system/correction.js';
+} from './system/correction';
 
 export interface NewWeightLoggedInput {
   user_id: string;

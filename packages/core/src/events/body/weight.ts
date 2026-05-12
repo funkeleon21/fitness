@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { eventEnvelopeSchema } from '../envelope.js';
+import { eventEnvelopeSchema } from '../envelope';
 
 export const WEIGHT_LOGGED = 'weight_logged' as const;
 

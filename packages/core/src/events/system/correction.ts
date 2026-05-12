@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { eventEnvelopeSchema } from '../envelope.js';
+import { eventEnvelopeSchema } from '../envelope';
 
 export const EVENT_CORRECTED = 'event_corrected' as const;
 export const EVENT_RETRACTED = 'event_retracted' as const;
