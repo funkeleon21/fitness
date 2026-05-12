@@ -66,9 +66,17 @@ pnpm test            # Vitest, alle Packages
 pnpm build           # Alle Packages
 ```
 
+## Git-Workflow
+
+1. **Nie direkt auf `main` pushen** — main ist branch-protected (Force-Push und Delete verboten, Status-Check `lint · typecheck · test · build` ist required).
+2. **Jede Änderung als PR** auf einem Feature-Branch (`feat/*`, `fix/*`, `chore/*`).
+3. **Auto-Merge mit Squash:** nach PR-Open `gh pr merge <n> --auto --squash`. Mergt automatisch sobald CI grün ist. Branch wird nach Merge gelöscht.
+4. **Wenn der Branch hinter main ist:** `gh pr update-branch <n>` (Branch-Protection läuft im strict-Modus).
+5. **Vercel** deployt automatisch auf jeden Push: PR-Branches als Preview, `main` als Production. URLs: `fitness-web-self-three.vercel.app` (Prod), `fitness-web-git-<branch>-funkeleon21s-projects.vercel.app` (Preview).
+
 ## Aktueller Stand
 
-Phase 0 + Phase 1 (Gewicht) durchgestochen. Supabase-Projekt `cjwgisdobzztljizrnfn` (eu-west-1) mit `events`-Tabelle + RLS aktiv. Web-App hat Magic-Link-Login, Trend-Sparkline mit 7d-SMA, manuelle Eintrag-/Korrektur-/Retraction-Flows. Offen: Vercel-Verknüpfung, NL-Ingestion (Phase 2). Siehe [docs/roadmap.md](docs/roadmap.md).
+Phase 0 komplett, Phase 1 (Gewicht) durchgestochen. Supabase `cjwgisdobzztljizrnfn` (eu-west-1) mit `events`-Tabelle + RLS aktiv. Web-App mit Demo-Login (Leon/Leonie via `signInWithPassword`), Labor-Design v2, manuelle Eintrag-/Korrektur-/Retraction-Flows live. Live unter `fitness-web-self-three.vercel.app`. Offen: NL-Ingestion (Phase 2), echte `ai_interpretation`-Events (Phase 6). Siehe [docs/roadmap.md](docs/roadmap.md).
 
 ## Was nicht reingehört
 
