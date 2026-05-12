@@ -26,10 +26,20 @@ export function HomeScreen({
   onOpenLog: _onOpenLog,
   onOpenInsight: _onOpenInsight,
 }: HomeScreenProps) {
+  // Volle Viewport-Höhe, unten Platz für die fixed TabBar (≈80px) plus iOS-Safe-Area.
   return (
     <div
-      className="screen-content"
-      style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        width: '100%',
+        maxWidth: 460,
+        margin: '0 auto',
+        height: '100dvh',
+        minHeight: 0,
+        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 80px)',
+        boxSizing: 'border-box',
+      }}
     >
       <TopBar initials={initials} />
       <Chat userName={userName} />
@@ -41,11 +51,12 @@ function TopBar({ initials }: { initials: string }) {
   return (
     <div
       style={{
-        padding: '60px 22px 12px',
+        padding: 'calc(env(safe-area-inset-top, 0px) + 18px) 22px 12px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         borderBottom: '0.5px solid var(--hairline)',
+        flexShrink: 0,
       }}
     >
       <Avatar initials={initials} />
