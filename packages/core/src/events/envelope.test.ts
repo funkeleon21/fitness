@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { eventEnvelopeSchema } from './envelope.js';
+import { eventEnvelopeSchema } from './envelope';
 
 const validEnvelope = {
   id: '11111111-1111-1111-1111-111111111111',

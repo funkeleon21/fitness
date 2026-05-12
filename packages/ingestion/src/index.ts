@@ -1,2 +1,2 @@
-export * from './commands/log-weight.js';
-export * from './commands/correct-event.js';
+export * from './commands/log-weight';
+export * from './commands/correct-event';
