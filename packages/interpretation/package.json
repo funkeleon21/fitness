@@ -15,7 +15,7 @@
   "scripts": {
     "build": "tsc -b",
     "clean": "rm -rf dist",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "typecheck": "tsc -b --emitDeclarationOnly"
   },
   "dependencies": {

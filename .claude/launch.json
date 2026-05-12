@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web (Next.js)",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@fitness/web", "dev"],
+      "port": 3000
+    },
+    {
+      "name": "drizzle-studio",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@fitness/db", "db:studio"],
+      "port": 4983
+    }
+  ]
+}

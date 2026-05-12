@@ -45,6 +45,16 @@ packages/interpretation  KI-Analysen, Hypothesen, ai_interpretation-Events
 
 Code/Identifier auf Englisch. Doku, Commits, UI-Texte und Kommunikation mit dem Nutzer auf **Deutsch**.
 
+## Arbeitsweise
+
+1. **Bei Unsicherheit nachfragen.** Nicht raten, nicht heimlich eine Annahme zementieren. Lieber eine kurze Rückfrage als 30 Minuten in die falsche Richtung. Gilt besonders für: Architektur-Entscheidungen, neue Abhängigkeiten, irreversible Aktionen (DB-Migrationen, Force-Push, Branch-Löschung), grobe UI-Richtungswechsel.
+2. **Empfehlung + Begründung + Alternativen.** Wenn eine Entscheidung ansteht, gib zuerst die Empfehlung mit kurzer Begründung („was ich vorschlage und warum"), dann mindestens 2–3 echte Alternativen mit ihren Trade-offs. Nie nur die Empfehlung präsentieren, als wäre sie der einzige Weg.
+3. **Format dafür:**
+   - **Empfehlung:** … *Warum:* …
+   - **Alternative A:** … *Trade-off:* …
+   - **Alternative B:** … *Trade-off:* …
+4. **Keine stillen Annahmen bei Mehrdeutigkeit.** Wenn der Auftrag mehrere plausible Lesarten zulässt, lieber eine Klärungsfrage stellen, als die falsche Hälfte umzusetzen.
+
 ## Befehle
 
 ```bash
@@ -58,7 +68,7 @@ pnpm build           # Alle Packages
 
 ## Aktueller Stand
 
-Phase 0 (Fundament). Doku + Scaffolding stehen. Nächste konkrete Schritte siehe [docs/roadmap.md](docs/roadmap.md) Phase 0 + Phase 1.
+Phase 0 + Phase 1 (Gewicht) durchgestochen. Supabase-Projekt `cjwgisdobzztljizrnfn` (eu-west-1) mit `events`-Tabelle + RLS aktiv. Web-App hat Magic-Link-Login, Trend-Sparkline mit 7d-SMA, manuelle Eintrag-/Korrektur-/Retraction-Flows. Offen: Vercel-Verknüpfung, NL-Ingestion (Phase 2). Siehe [docs/roadmap.md](docs/roadmap.md).
 
 ## Was nicht reingehört
 
