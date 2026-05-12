@@ -29,3 +29,7 @@ yarn-error.log*
 .tsbuildinfo
 
 .vercel
+
+# Claude Code lokale Session-Daten, aber launch.json mit checken
+.claude/*
+!.claude/launch.json

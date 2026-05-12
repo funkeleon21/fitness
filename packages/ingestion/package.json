@@ -15,11 +15,13 @@
   "scripts": {
     "build": "tsc -b",
     "clean": "rm -rf dist",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "typecheck": "tsc -b --emitDeclarationOnly"
   },
   "dependencies": {
     "@fitness/core": "workspace:*",
+    "@fitness/db": "workspace:*",
+    "@supabase/supabase-js": "^2.45.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {

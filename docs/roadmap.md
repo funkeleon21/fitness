@@ -11,25 +11,16 @@ Das Grundprinzip: **Vertikale Durchstiche durch alle Schichten** mit jeweils ein
 **Ziel:** Solide, ehrliche Grundlage.
 
 - [x] Vision, Prinzipien, Architektur-Docs
-- [ ] Monorepo-Setup (pnpm workspaces, TS Project References)
-- [ ] Ordnerstruktur
-- [ ] CLAUDE.md (knapp, mit Verweisen auf docs/)
-- [ ] Supabase-Projekt anlegen (Dev + später Prod), Connection-Strings + Anon-Key sichern
+- [x] Monorepo-Setup (pnpm workspaces, TS Project References)
+- [x] Ordnerstruktur
+- [x] CLAUDE.md (knapp, mit Verweisen auf docs/)
+- [x] Supabase-Projekt angelegt (`cjwgisdobzztljizrnfn`, eu-west-1), Connection-Strings + publishable Key gesichert
 - [ ] Vercel-Projekt mit Repo verknüpfen, Preview-Deployments aktiv
-- [ ] Drizzle einrichten (Schema + Migrations gegen Supabase Postgres)
-- [ ] RLS-Default-Policy konfiguriert (eigene-Zeilen-Only auf allen User-Tabellen)
-- [ ] Erste ADRs schriftlich:
-  - ADR-0001: Event Sourcing als Kernpattern
-  - ADR-0002: Postgres + JSONB als Speicher
-  - ADR-0003: KI als Event-Quelle, nicht DB-Schreiber
-  - ADR-0004: Korrekturen als neue Events
-  - ADR-0005: Monorepo mit pnpm workspaces
-  - ADR-0006: Vercel als Hosting
-  - ADR-0007: Supabase als Postgres + Auth + Storage
-  - ADR-0008: Drizzle als alleinige Migrations-Quelle (inkl. RLS-Policies)
-  - ADR-0009: RLS ab Tag 1, auch bei Single-User-Betrieb
+- [x] Drizzle eingerichtet (Schema + Migrations gegen Supabase Postgres)
+- [x] RLS-Default-Policy konfiguriert (eigene-Zeilen-Only auf `events`)
+- [x] Erste ADRs schriftlich (0001–0009)
 
-**Abschlusskriterium:** Repo lässt sich klonen, `pnpm install` und `pnpm build` laufen durch. Eine Test-Migration läuft erfolgreich gegen Supabase. Preview-Deployment auf Vercel ist erreichbar.
+**Abschlusskriterium:** Repo lässt sich klonen, `pnpm install`, `pnpm typecheck`, `pnpm test` und `pnpm build` laufen durch. Migration auf Supabase angewendet. Vercel-Preview steht noch aus.
 
 ---
 
@@ -37,12 +28,14 @@ Das Grundprinzip: **Vertikale Durchstiche durch alle Schichten** mit jeweils ein
 
 **Ziel:** Eine einzige Domäne komplett durch alle Schichten. Beweist die Architektur.
 
-- [ ] Event-Envelope-Schema in `packages/core` (TypeScript-Typen + Zod-Validierung)
-- [ ] Postgres-Schema (`events`-Tabelle) in `packages/db`, mit Drizzle
-- [ ] Ingestion: `weight_logged` aus Freitext (vorerst kein NL, einfach Zahleneingabe)
-- [ ] Projection: aktueller Stand + Zeitreihe + 7d/14d Bewegungsdurchschnitt
-- [ ] Minimal-UI: Eingabe + Chart
-- [ ] Korrektur-Flow (`event_corrected`)
+- [x] Event-Envelope-Schema in `packages/core` (TypeScript-Typen + Zod-Validierung)
+- [x] Postgres-Schema (`events`-Tabelle) in `packages/db`, mit Drizzle
+- [x] Ingestion: `weight_logged` aus Zahleneingabe (NL kommt in Phase 2)
+- [x] Projection: aktueller Stand + Zeitreihe + 7d/14d Bewegungsdurchschnitt
+- [x] Minimal-UI: Eingabe + Chart (Trend default; Sparkline mit 7d-SMA-Overlay)
+- [x] Korrektur-Flow (`event_corrected`, `event_retracted`)
+
+**Offen für echte Abnahme:** Erstes Gewicht über die UI eintragen, Trend prüfen, einen Eintrag korrigieren und einen zurückziehen — verifiziert end-to-end mit RLS.
 
 **Abschlusskriterium:** Ich kann täglich mein Gewicht eintragen, sehe den Trend, kann korrigieren — und der Event-Log zeigt eine ehrliche Geschichte.
 
