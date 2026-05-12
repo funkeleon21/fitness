@@ -50,10 +50,14 @@ body {
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
   background: var(--bg);
+  /* iOS: keine elastic overscroll-Effekte, kein Pull-to-Refresh innerhalb der App */
+  overscroll-behavior-y: contain;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
   min-height: 100vh;
+  min-height: 100dvh;
   background: radial-gradient(120% 80% at 50% 0%, #f1ead7 0%, #ebe3cf 60%, #e3dac2 100%);
 }
 
@@ -178,7 +182,7 @@ select {
 .tabbar {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  padding: 8px 8px 24px;
+  padding: 8px 8px calc(env(safe-area-inset-bottom, 0px) + 12px);
   background: linear-gradient(to top, rgba(239, 232, 215, 0.96) 60%, rgba(239, 232, 215, 0));
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
