@@ -3,6 +3,8 @@
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, type UIMessage } from 'ai';
 import { type FormEvent, useEffect, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Icon } from './Icon';
 
 const SUGGESTED: { label: string; prompt: string }[] = [
@@ -246,20 +248,13 @@ function MessageBubble({ role, text }: { role: UIMessage['role']; text: string }
         {isUser ? 'Du' : 'Labor'}
       </div>
       <div
-        style={{
-          maxWidth: '88%',
-          padding: '12px 16px',
-          borderRadius: isUser ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-          background: isUser ? 'var(--ink)' : 'var(--surface)',
-          color: isUser ? 'var(--bg)' : 'var(--ink)',
-          border: isUser ? 'none' : '0.5px solid var(--hairline)',
-          fontSize: 15,
-          lineHeight: 1.5,
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-word',
-        }}
+        className={isUser ? 'chat-bubble chat-bubble-user' : 'chat-bubble chat-bubble-assistant'}
       >
-        {text || ' '}
+        {isUser ? (
+          <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{text || ' '}</span>
+        ) : (
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{text || ' '}</ReactMarkdown>
+        )}
       </div>
     </div>
   );
