@@ -1,16 +1,10 @@
 # Fitness
 
-Persönliches, wissenschaftlich fundiertes KI-System für Körper, Ernährung und Performance.
-
-Kein klassischer Kalorientracker — ein langfristig lernendes System, das Daten interpretiert statt nur sammelt.
+Persönliches, wissenschaftlich fundiertes KI-System für Körper, Ernährung und Performance. Kein klassischer Tracker.
 
 ## Doku
 
-- [Vision](docs/vision.md) — das langfristige „Warum"
-- [Prinzipien](docs/principles.md) — 10 Entscheidungs-Filter
-- [Architektur](docs/architecture.md) — Schichten, Datenfluss, Disziplinen
-- [Roadmap](docs/roadmap.md) — Phasen und bewusste Anti-Roadmap
-- [Architecture Decisions](docs/decisions/README.md) — ADRs
+[Vision](docs/vision.md) · [Architektur](docs/architecture.md) · [Event-Modell](docs/event-model.md) · [ADRs](docs/decisions/README.md)
 
 ## Struktur
 
@@ -19,8 +13,7 @@ apps/web                 Next.js PWA
 packages/core            Event-Typen, Domain-Logik (framework-frei)
 packages/db              Drizzle-Schema, Migrationen, Projektionen
 packages/ingestion       Sprache/Foto → Event
-packages/interpretation  KI-Analysen, Hypothesen
-docs/                    Vision, Prinzipien, Architektur, ADRs
+packages/interpretation  KI-Analysen, Chat-Tools
 ```
 
 ## Setup
@@ -34,19 +27,11 @@ pnpm dev                              # http://localhost:3000
 
 Voraussetzungen: Node ≥ 20, pnpm ≥ 9.
 
-### Datenbank
+## Datenbank
 
-Supabase-Projekt: `cjwgisdobzztljizrnfn` (eu-west-1).
 Schema-Änderungen ausschliesslich via Drizzle:
 
 ```bash
-# Neue Migration aus Schema-Änderung generieren
-pnpm --filter @fitness/db db:generate
-
-# Anwenden (DATABASE_URL in .env.local nötig — Postgres-URI aus Supabase-Dashboard)
-pnpm --filter @fitness/db db:migrate
+pnpm --filter @fitness/db db:generate   # Migration aus Schema-Änderung
+pnpm --filter @fitness/db db:migrate    # Anwenden (DATABASE_URL nötig)
 ```
-
-### Auth
-
-Login per Magic-Link-Email (Supabase Default). Redirect-URL `http://localhost:3000/auth/callback` ist im Supabase-Dashboard zu erlauben (Auth → URL Configuration), bevor sich der erste Nutzer registriert.
