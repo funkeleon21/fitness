@@ -153,9 +153,15 @@ importers:
       '@fitness/db':
         specifier: workspace:*
         version: link:../db
+      '@fitness/ingestion':
+        specifier: workspace:*
+        version: link:../ingestion
       '@supabase/supabase-js':
         specifier: ^2.45.0
         version: 2.105.4
+      ai:
+        specifier: ^6.0.177
+        version: 6.0.177(zod@3.25.76)
       zod:
         specifier: ^3.23.0
         version: 3.25.76

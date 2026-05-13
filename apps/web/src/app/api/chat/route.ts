@@ -1,8 +1,8 @@
 import { serverEnv } from '@/lib/env';
 import { createClient } from '@/lib/supabase/server';
 import { createAnthropic } from '@ai-sdk/anthropic';
-import { buildUserContext, renderContextForPrompt } from '@fitness/interpretation';
-import { type UIMessage, convertToModelMessages, streamText } from 'ai';
+import { buildChatTools, buildUserContext, renderContextForPrompt } from '@fitness/interpretation';
+import { type UIMessage, convertToModelMessages, stepCountIs, streamText } from 'ai';
 
 // Langdock blockiert Browser-Anfragen — dieser Handler ist die einzige
 // Brücke zwischen Client und Langdock. Der API-Key bleibt server-only.
@@ -22,7 +22,13 @@ Stil:
 - Du-Form.
 
 Datenzugriff:
-Unten findest du den aktuellen Stand des Nutzers — soweit erfasst. Beziehe dich darauf, wenn relevant. Wo eine Domäne als „noch keine Daten" markiert ist, sag das offen statt zu raten. Andere Daten als unten gelistet hast du nicht.`;
+Unten findest du den aktuellen Stand des Nutzers — soweit erfasst. Beziehe dich darauf, wenn relevant. Wo eine Domäne als „noch keine Daten" markiert ist, sag das offen statt zu raten. Andere Daten als unten gelistet hast du nicht.
+
+Tool-Use (Schreibzugriff):
+- Wenn der Nutzer ein Gewicht mitteilt („heute morgen 84,1", „84,3 kg"), nutze log_weight. Leite occurred_at aus dem Kontext ab („heute morgen" → heute, früher Vormittag). Confidence ehrlich angeben (hoch bei klaren Zahlen, niedriger bei mehrdeutigen Eingaben).
+- Wenn der Nutzer einen Eintrag korrigieren oder zurückziehen will: erst list_recent_weight_entries aufrufen, dann den richtigen Eintrag finden, dann correct_weight bzw. retract_weight. Bei Mehrdeutigkeit lieber nachfragen.
+- Nach erfolgreicher Aktion: knappe Bestätigung mit dem konkreten Wert und — falls sinnvoll — Einordnung in den Trend (z.B. „dein 7d-Schnitt steht jetzt bei …"). Keine Floskeln, keine Wiederholung der Frage.
+- Bei reinen Fragen ohne klare Eintrag-Absicht: keine Tools aufrufen, einfach antworten.`;
 
 export async function POST(req: Request) {
   try {
@@ -45,6 +51,8 @@ export async function POST(req: Request) {
       ? `${BASE_SYSTEM_PROMPT}\n\n${contextBlock}`
       : BASE_SYSTEM_PROMPT;
 
+    const tools = buildChatTools({ client: supabase, userId: user.id });
+
     const { LANGDOCK_API_KEY } = serverEnv();
     const langdock = createAnthropic({
       baseURL: 'https://api.langdock.com/anthropic/eu/v1',
@@ -56,6 +64,9 @@ export async function POST(req: Request) {
       model: langdock('claude-sonnet-4-6-default'),
       system: systemPrompt,
       messages: modelMessages,
+      tools,
+      // Tool-Loop: max. 5 Schritte pro Anfrage (z.B. list_recent → correct → text)
+      stopWhen: stepCountIs(5),
     });
 
     return result.toUIMessageStreamResponse();
