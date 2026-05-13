@@ -13,7 +13,6 @@ Diese Datei ist Navigations-Index. Inhalt steht in [docs/](docs/).
 | Architektur (5 Schichten, Datenfluss, Disziplinen) | [docs/architecture.md](docs/architecture.md) |
 | Phasen + bewusste Anti-Roadmap | [docs/roadmap.md](docs/roadmap.md) |
 | Architecture Decision Records (ADRs) | [docs/decisions/](docs/decisions/) |
-| Skills (Workflow-Anleitungen) | [.claude/skills/](.claude/skills/) — z.B. [chat-domain-integration](.claude/skills/chat-domain-integration/SKILL.md) bei neuer Domäne/Projektion |
 
 ## Code-Layout
 
@@ -55,6 +54,10 @@ Code/Identifier auf Englisch. Doku, Commits, UI-Texte und Kommunikation mit dem 
    - **Alternative A:** … *Trade-off:* …
    - **Alternative B:** … *Trade-off:* …
 4. **Keine stillen Annahmen bei Mehrdeutigkeit.** Wenn der Auftrag mehrere plausible Lesarten zulässt, lieber eine Klärungsfrage stellen, als die falsche Hälfte umzusetzen.
+
+## Skills
+
+Workflow-Anleitungen in [.claude/skills/](.claude/skills/) — bei neuer Aufgabe kurz prüfen, ob ein Skill triggert (z.B. [chat-domain-integration](.claude/skills/chat-domain-integration/SKILL.md) bei neuer Domäne/Projektion). Nicht als Pflichtlektüre, sondern als Optionspool.
 
 ## Befehle
 
