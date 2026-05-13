@@ -1,7 +1,13 @@
 import { Dashboard } from '@/components/Dashboard';
-import type { DashboardData, MealPoint, NutritionData } from '@/components/types';
+import type { DashboardData, MealPoint, MealTemplateView, NutritionData } from '@/components/types';
 import { createClient } from '@/lib/supabase/server';
-import { type MealDataPoint, getMealProjection, getWeightProjection } from '@fitness/db';
+import {
+  type MealDataPoint,
+  type MealTemplate,
+  getMealProjection,
+  getWeightProjection,
+  listMealTemplates,
+} from '@fitness/db';
 import { redirect } from 'next/navigation';
 
 function deriveNameAndInitials(email: string | undefined): { name: string; initials: string } {
@@ -27,6 +33,19 @@ function mealToPoint(m: MealDataPoint): MealPoint {
   };
 }
 
+function templateToView(t: MealTemplate): MealTemplateView {
+  return {
+    id: t.id,
+    label: t.label,
+    kcal: t.kcal,
+    protein_g: t.protein_g,
+    carbs_g: t.carbs_g,
+    fat_g: t.fat_g,
+    usage_count: t.usage_count,
+    last_used_at: t.last_used_at ? t.last_used_at.toISOString() : null,
+  };
+}
+
 export default async function HomePage() {
   const supabase = await createClient();
   const {
@@ -34,9 +53,10 @@ export default async function HomePage() {
   } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  const [weight, meals] = await Promise.all([
+  const [weight, meals, templates] = await Promise.all([
     getWeightProjection(supabase, user.id),
     getMealProjection(supabase, user.id),
+    listMealTemplates(supabase, user.id),
   ]);
 
   const data: DashboardData = {
@@ -65,7 +85,17 @@ export default async function HomePage() {
     recent: meals.recent.map(mealToPoint),
   };
 
+  const mealTemplates: MealTemplateView[] = templates.map(templateToView);
+
   const { name, initials } = deriveNameAndInitials(user.email);
 
-  return <Dashboard data={data} nutrition={nutrition} userName={name} initials={initials} />;
+  return (
+    <Dashboard
+      data={data}
+      nutrition={nutrition}
+      mealTemplates={mealTemplates}
+      userName={name}
+      initials={initials}
+    />
+  );
 }
