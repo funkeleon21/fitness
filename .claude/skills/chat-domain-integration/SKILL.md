@@ -62,7 +62,7 @@ export async function get<Domain>Context(
 ): Promise<UserContextSection> {
   const projection = await get<Domain>Projection(client, userId);
 
-  // 1) Wenn keine Daten: ehrlich sagen, nicht raten (Prinzip 7).
+  // 1) Wenn keine Daten: ehrlich sagen, nicht raten (CLAUDE.md Disziplin 4).
   if (/* Empty-Check passend zur Projektion */) {
     return {
       domain: '<bereich>.<name>', // z.B. 'nutrition.meals', 'training.sessions'
@@ -192,14 +192,14 @@ Ohne diese Einträge fällt die UI auf den Tool-Namen zurück (z.B. `log_meal au
 
 ## Stil-Konventionen für `summary`
 
-Diese Konventionen folgen direkt aus [docs/principles.md](../../../docs/principles.md):
+Folgen direkt aus den CLAUDE.md-Disziplinen 3 (Trend statt Tageswert) und 4 (Unsicherheit aussprechen):
 
-- **Trend vor Einzelwert** (Prinzip 3). Wenn nur ein einzelner Tageswert vorliegt, sag das offen — bastle keine Pseudo-Aussage.
-- **Knapp**: 3–6 Zeilen pro Domäne reichen. Der System-Prompt darf nicht zur Geschichte werden — sonst leidet Latenz und Qualität.
-- **Mit Datenbasis**: „Datenbasis: N Einträge, ältester am …" — der Chat muss die Reichweite kennen, um Konfidenz aussprechen zu können (Prinzip 7).
+- **Trend vor Einzelwert**. Wenn nur ein einzelner Tageswert vorliegt, sag das offen — bastle keine Pseudo-Aussage.
+- **Knapp**: 3–6 Zeilen pro Domäne reichen. Der System-Prompt darf nicht zur Geschichte werden.
+- **Mit Datenbasis**: „Datenbasis: N Einträge, ältester am …" — der Chat muss die Reichweite kennen, um Konfidenz aussprechen zu können.
 - **Deutsche Formatierung**: Komma als Dezimaltrennzeichen, Datum als `dd.mm.yyyy`.
 - **`available: false`**: ein Satz reicht. Der Chat erkennt daran, dass er nichts erfinden soll.
-- **Keine Geheimnisse / PII / Rohtexte** im summary — nur aggregierte Werte. `raw_input`-Texte gehören nicht in den Prompt.
+- **Keine Geheimnisse / PII / Rohtexte** — nur aggregierte Werte. `raw_input`-Texte gehören nicht in den Prompt.
 
 ## Was NICHT zu diesem Skill gehört
 
@@ -214,10 +214,10 @@ Diese Konventionen folgen direkt aus [docs/principles.md](../../../docs/principl
 - **„Letzte Korrektur ersetzt alles" bei Multi-Field-Domänen** — eine spätere kcal-Korrektur überschreibt eine frühere label-Korrektur. Multi-Field-Domains brauchen Field-wise Overlay.
 - **Projektion direkt mit Supabase-Client koppeln** ohne reine `project<Domain>Events`-Funktion — verhindert Unit-Tests ohne DB-Mock und brennt das Bug-Risiko aus 0.2/0.3/0.4 in eine ungetestete Stelle ein.
 - **Sektion direkt in den Chat-Endpoint einbauen** statt über `packages/interpretation` — bricht das Pattern und macht den Endpoint zur Sammelstelle aller Domänen.
-- **Rohe Event-Listen ausgeben** statt aggregierter Trends — verletzt Prinzip 3 (Trend statt Tageswert) und sprengt das Token-Budget.
-- **Erfundene Defaults**, wenn keine Daten vorliegen (z.B. „typisches Gewicht ist 80 kg") — verletzt Prinzip 7 (wissenschaftliche Ehrlichkeit).
+- **Rohe Event-Listen ausgeben** statt aggregierter Trends — verletzt CLAUDE.md Disziplin 3 (Trend statt Tageswert) und sprengt das Token-Budget.
+- **Erfundene Defaults**, wenn keine Daten vorliegen (z.B. „typisches Gewicht ist 80 kg") — verletzt CLAUDE.md Disziplin 4 (Unsicherheit aussprechen).
 - **Tools, die direkt in `events` schreiben**, statt den Ingestion-Command aus `@fitness/ingestion` aufzurufen — bricht Disziplin „Schreiben nur via Ingestion-Pipeline" (CLAUDE.md).
-- **Tool ohne `confidence`-Parameter im inputSchema** für KI-extrahierte Eingaben — verletzt Architektur-Disziplin „Konfidenz ist Pflichtfeld auf jedem KI-erzeugten Event" (`architecture.md` §3).
+- **Tool ohne `confidence`-Parameter im inputSchema** für KI-extrahierte Eingaben — verletzt die KI-Provenance-Pflichtfelder ([event-model.md](../../../docs/event-model.md#ki-provenance)).
 - **`log_X`-Tool ohne dazugehöriges `list_recent_X_entries`-Tool**, wenn auch Korrektur/Retraction angeboten werden — der LLM hat sonst keine Quelle für die `event_id`.
 - **Schreib-Tool ohne `needsApproval: true`** — verletzt die Disziplin „keine stillen DB-Schreibvorgänge". Der Nutzer muss jede Aktion in der UI bestätigen können. Nur Lese-Tools (`list_recent_*`, Aggregations-Lookups) dürfen ohne Approval laufen.
 - **Approval-Bestätigung im LLM-Text doppeln** („soll ich speichern?") — die UI macht das. Doppelt nervt und vermittelt dem Nutzer, er sei auf den LLM angewiesen.
