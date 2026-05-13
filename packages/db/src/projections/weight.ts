@@ -26,10 +26,11 @@ export interface WeightProjection {
   trend7dChangeKg: number | null;
 }
 
-interface RawEventRow {
+export interface WeightProjectionEventRow {
   id: string;
   type: string;
   occurred_at: string;
+  recorded_at: string;
   source: string;
   confidence: number | null;
   raw_input: string | null;
@@ -48,31 +49,47 @@ function pointsInWindow(points: WeightDataPoint[], days: number, now: Date): Wei
   return points.filter((p) => p.occurred_at.getTime() >= cutoff);
 }
 
-export async function getWeightProjection(
-  client: SupabaseClient,
-  userId: string,
+function timestamp(value: string): number {
+  const t = new Date(value).getTime();
+  return Number.isFinite(t) ? t : 0;
+}
+
+function compareEventLogOrder(a: WeightProjectionEventRow, b: WeightProjectionEventRow): number {
+  const byRecordedAt = timestamp(a.recorded_at) - timestamp(b.recorded_at);
+  if (byRecordedAt !== 0) return byRecordedAt;
+  return a.id.localeCompare(b.id);
+}
+
+function compareSeriesOrder(a: WeightDataPoint, b: WeightDataPoint): number {
+  const byOccurredAt = a.occurred_at.getTime() - b.occurred_at.getTime();
+  if (byOccurredAt !== 0) return byOccurredAt;
+  return a.event_id.localeCompare(b.event_id);
+}
+
+export function projectWeightEvents(
+  rows: WeightProjectionEventRow[],
   now: Date = new Date(),
-): Promise<WeightProjection> {
-  const { data, error } = await client
-    .from('events')
-    .select('id, type, occurred_at, source, confidence, raw_input, payload')
-    .eq('user_id', userId)
-    .in('type', [WEIGHT_LOGGED, EVENT_CORRECTED, EVENT_RETRACTED])
-    .order('occurred_at', { ascending: true });
+): WeightProjection {
+  type MutablePoint = WeightDataPoint & { retracted: boolean };
+  type Correction = {
+    id: string;
+    weight_event_id: string;
+    kg: number;
+    order: number;
+  };
 
-  if (error) throw new Error(`getWeightProjection failed: ${error.message}`);
+  const pointsById = new Map<string, MutablePoint>();
+  const correctionTargetById = new Map<string, string>();
+  const corrections: Correction[] = [];
+  const retractedCorrectionIds = new Set<string>();
 
-  const rows = (data ?? []) as RawEventRow[];
+  const orderedRows = [...rows].sort(compareEventLogOrder);
 
-  // Build a map: weightEventId -> { kg, occurred_at, ..., correctedKg?, retracted? }
-  type Mutable = WeightDataPoint & { retracted: boolean };
-  const byId = new Map<string, Mutable>();
-
-  for (const row of rows) {
+  for (const [order, row] of orderedRows.entries()) {
     if (row.type === WEIGHT_LOGGED) {
       const parsed = weightLoggedPayloadSchema.safeParse(row.payload);
       if (!parsed.success) continue;
-      byId.set(row.id, {
+      pointsById.set(row.id, {
         event_id: row.id,
         occurred_at: new Date(row.occurred_at),
         kg: parsed.data.kg,
@@ -82,27 +99,66 @@ export async function getWeightProjection(
         corrected: false,
         retracted: false,
       });
-    } else if (row.type === EVENT_CORRECTED) {
+      continue;
+    }
+
+    if (row.type === EVENT_CORRECTED) {
       const parsed = eventCorrectedPayloadSchema.safeParse(row.payload);
       if (!parsed.success) continue;
-      const target = byId.get(parsed.data.corrects_event_id);
-      if (!target) continue;
+      const targetId = parsed.data.corrects_event_id;
+      const weightEventId = pointsById.has(targetId)
+        ? targetId
+        : correctionTargetById.get(targetId);
+      if (!weightEventId) continue;
+
       const newKg = parsed.data.new_payload.kg;
-      if (typeof newKg === 'number') {
-        target.kg = newKg;
-        target.corrected = true;
-      }
-    } else if (row.type === EVENT_RETRACTED) {
+      if (typeof newKg !== 'number') continue;
+
+      correctionTargetById.set(row.id, weightEventId);
+      corrections.push({
+        id: row.id,
+        weight_event_id: weightEventId,
+        kg: newKg,
+        order,
+      });
+      continue;
+    }
+
+    if (row.type === EVENT_RETRACTED) {
       const parsed = eventRetractedPayloadSchema.safeParse(row.payload);
       if (!parsed.success) continue;
-      const target = byId.get(parsed.data.retracts_event_id);
-      if (!target) continue;
-      target.retracted = true;
+      const targetId = parsed.data.retracts_event_id;
+
+      const point = pointsById.get(targetId);
+      if (point) {
+        point.retracted = true;
+        continue;
+      }
+
+      if (correctionTargetById.has(targetId)) {
+        retractedCorrectionIds.add(targetId);
+      }
     }
   }
 
+  const activeCorrectionsByWeightId = new Map<string, Correction>();
+  for (const correction of corrections) {
+    if (retractedCorrectionIds.has(correction.id)) continue;
+    const current = activeCorrectionsByWeightId.get(correction.weight_event_id);
+    if (!current || correction.order > current.order) {
+      activeCorrectionsByWeightId.set(correction.weight_event_id, correction);
+    }
+  }
+
+  for (const [weightEventId, correction] of activeCorrectionsByWeightId) {
+    const point = pointsById.get(weightEventId);
+    if (!point) continue;
+    point.kg = correction.kg;
+    point.corrected = true;
+  }
+
   const series: WeightDataPoint[] = [];
-  for (const point of byId.values()) {
+  for (const point of pointsById.values()) {
     if (point.retracted) continue;
     series.push({
       event_id: point.event_id,
@@ -114,7 +170,7 @@ export async function getWeightProjection(
       corrected: point.corrected,
     });
   }
-  series.sort((a, b) => a.occurred_at.getTime() - b.occurred_at.getTime());
+  series.sort(compareSeriesOrder);
 
   const latest = series.length > 0 ? (series[series.length - 1] ?? null) : null;
   const last7 = pointsInWindow(series, 7, now);
@@ -132,4 +188,22 @@ export async function getWeightProjection(
   }
 
   return { series, latest, trend7d, trend14d, trend7dChangeKg };
+}
+
+export async function getWeightProjection(
+  client: SupabaseClient,
+  userId: string,
+  now: Date = new Date(),
+): Promise<WeightProjection> {
+  const { data, error } = await client
+    .from('events')
+    .select('id, type, occurred_at, recorded_at, source, confidence, raw_input, payload')
+    .eq('user_id', userId)
+    .in('type', [WEIGHT_LOGGED, EVENT_CORRECTED, EVENT_RETRACTED])
+    .order('recorded_at', { ascending: true })
+    .order('id', { ascending: true });
+
+  if (error) throw new Error(`getWeightProjection failed: ${error.message}`);
+
+  return projectWeightEvents((data ?? []) as WeightProjectionEventRow[], now);
 }
