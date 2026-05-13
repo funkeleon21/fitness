@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { logMealAction } from '@/app/actions';
+import { useEffect, useId, useState, useTransition } from 'react';
 import { Icon } from '../Icon';
 
 export type LogMode = 'voice' | 'photo' | 'text' | 'meal' | 'answer';
@@ -10,7 +11,7 @@ interface LogSheetProps {
   onClose: () => void;
 }
 
-type Stage = 'recording' | 'capturing' | 'input' | 'processing' | 'review';
+type DemoStage = 'recording' | 'capturing' | 'input' | 'processing' | 'review';
 
 interface ParsedMeal {
   label: string;
@@ -22,9 +23,235 @@ interface ParsedMeal {
 }
 
 export function LogSheet({ mode, onClose }: LogSheetProps) {
-  const initialStage: Stage =
+  return (
+    <button
+      type="button"
+      className="sheet-backdrop"
+      onClick={onClose}
+      aria-label="Schließen"
+      style={{ border: 'none', cursor: 'default', padding: 0 }}
+    >
+      <div
+        className="sheet"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+        // biome-ignore lint/a11y/useSemanticElements: bottom-sheet without native <dialog> lifecycle
+        role="dialog"
+        aria-modal="true"
+      >
+        <div className="sheet-handle" />
+        <div className="row-between" style={{ marginBottom: 8 }}>
+          <div className="h-card" style={{ fontSize: 22 }}>
+            {mode === 'voice' && 'Sprach-Log'}
+            {mode === 'photo' && 'Foto-Log'}
+            {mode === 'text' && 'Text-Log'}
+            {mode === 'meal' && 'Mahlzeit erfassen'}
+            {mode === 'answer' && 'Kurze Rückfrage'}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="pressable"
+            aria-label="Schließen"
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: '50%',
+              background: 'var(--surface-2)',
+              border: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--ink-3)',
+              cursor: 'pointer',
+            }}
+          >
+            <Icon name="x" size={16} />
+          </button>
+        </div>
+
+        {mode === 'meal' && <MealForm onDone={onClose} />}
+        {mode !== 'meal' && <DemoFlow mode={mode} onClose={onClose} />}
+      </div>
+    </button>
+  );
+}
+
+function MealForm({ onDone }: { onDone: () => void }) {
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [advanced, setAdvanced] = useState(false);
+  const labelId = useId();
+  const kcalId = useId();
+
+  return (
+    <form
+      action={(formData) => {
+        setError(null);
+        startTransition(async () => {
+          try {
+            await logMealAction(formData);
+            onDone();
+          } catch (e) {
+            setError(e instanceof Error ? e.message : 'Konnte nicht speichern.');
+          }
+        });
+      }}
+      style={{ padding: '4px 0 8px', display: 'flex', flexDirection: 'column', gap: 12 }}
+    >
+      <Field htmlFor={labelId} label="Was hast du gegessen?">
+        <input
+          id={labelId}
+          name="label"
+          type="text"
+          required
+          maxLength={200}
+          placeholder="z.B. Skyr mit Beeren und Mandeln"
+          className="text-input"
+          style={{ fontSize: 15 }}
+        />
+      </Field>
+
+      <Field htmlFor={kcalId} label="Kalorien (kcal)">
+        <input
+          id={kcalId}
+          name="kcal"
+          type="text"
+          inputMode="decimal"
+          required
+          placeholder="z.B. 420"
+          className="text-input"
+          style={{ fontSize: 15 }}
+        />
+      </Field>
+
+      <button
+        type="button"
+        onClick={() => setAdvanced((a) => !a)}
+        className="pressable"
+        style={{
+          background: 'transparent',
+          border: 'none',
+          padding: 0,
+          color: 'var(--ink-3)',
+          fontSize: 12,
+          fontFamily: 'var(--mono)',
+          letterSpacing: '0.04em',
+          textAlign: 'left',
+          cursor: 'pointer',
+        }}
+      >
+        {advanced ? '− Makros ausblenden' : '+ Makros eingeben (optional)'}
+      </button>
+
+      {advanced && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+          <MacroField name="protein_g" label="Protein g" />
+          <MacroField name="carbs_g" label="Kohlenh. g" />
+          <MacroField name="fat_g" label="Fett g" />
+        </div>
+      )}
+
+      {error && (
+        <div
+          style={{
+            color: 'var(--amber)',
+            fontSize: 12,
+            fontFamily: 'var(--mono)',
+            letterSpacing: '0.04em',
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      <button
+        type="submit"
+        disabled={pending}
+        className="pressable btn-primary"
+        style={{ width: '100%', marginTop: 4, padding: '14px', opacity: pending ? 0.6 : 1 }}
+      >
+        {pending ? 'Speichere…' : 'Speichern'}
+      </button>
+
+      <div
+        style={{
+          fontFamily: 'var(--mono)',
+          fontSize: 10,
+          color: 'var(--ink-4)',
+          letterSpacing: '0.06em',
+          textAlign: 'center',
+        }}
+      >
+        QUELLE: MANUELL · KI-EXTRAKTION FOLGT
+      </div>
+    </form>
+  );
+}
+
+function Field({
+  htmlFor,
+  label,
+  children,
+}: {
+  htmlFor: string;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <label
+        htmlFor={htmlFor}
+        style={{
+          fontFamily: 'var(--mono)',
+          fontSize: 11,
+          color: 'var(--ink-3)',
+          letterSpacing: '0.06em',
+        }}
+      >
+        {label.toUpperCase()}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+function MacroField({ name, label }: { name: string; label: string }) {
+  const id = useId();
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <label
+        htmlFor={id}
+        style={{
+          fontFamily: 'var(--mono)',
+          fontSize: 10,
+          color: 'var(--ink-4)',
+          letterSpacing: '0.04em',
+        }}
+      >
+        {label.toUpperCase()}
+      </label>
+      <input
+        id={id}
+        name={name}
+        type="text"
+        inputMode="decimal"
+        placeholder="–"
+        className="text-input"
+        style={{ fontSize: 14, padding: '10px 12px' }}
+      />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Demo-Flow (Voice/Photo/Text/Answer) — bleibt Mock bis Phase 2 (NL-Ingestion)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function DemoFlow({ mode, onClose }: { mode: LogMode; onClose: () => void }) {
+  const initialStage: DemoStage =
     mode === 'voice' ? 'recording' : mode === 'photo' ? 'capturing' : 'input';
-  const [stage, setStage] = useState<Stage>(initialStage);
+  const [stage, setStage] = useState<DemoStage>(initialStage);
   const [text, setText] = useState('');
   const [parsed, setParsed] = useState<ParsedMeal | null>(null);
 
@@ -58,85 +285,33 @@ export function LogSheet({ mode, onClose }: LogSheetProps) {
   }, [mode, stage, text]);
 
   return (
-    <button
-      type="button"
-      className="sheet-backdrop"
-      onClick={onClose}
-      aria-label="Schließen"
-      style={{ border: 'none', cursor: 'default', padding: 0 }}
-    >
+    <>
+      {mode === 'voice' && stage === 'recording' && <VoiceRecording />}
+      {mode === 'photo' && stage === 'capturing' && <PhotoCapture />}
+      {stage === 'processing' && <Processing />}
+      {mode === 'text' && stage === 'input' && (
+        <TextInputBlock value={text} onChange={setText} onContinue={() => setStage('processing')} />
+      )}
+      {mode === 'answer' && stage === 'input' && (
+        <AnswerInput value={text} onChange={setText} onContinue={onClose} />
+      )}
+      {stage === 'review' && parsed && (
+        <ReviewParsed parsed={parsed} onConfirm={onClose} onEdit={() => setStage('input')} />
+      )}
+
       <div
-        className="sheet"
-        onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => e.stopPropagation()}
-        // biome-ignore lint/a11y/useSemanticElements: bottom-sheet without native <dialog> lifecycle
-        role="dialog"
-        aria-modal="true"
+        style={{
+          marginTop: 14,
+          fontFamily: 'var(--mono)',
+          fontSize: 10,
+          color: 'var(--ink-4)',
+          letterSpacing: '0.06em',
+          textAlign: 'center',
+        }}
       >
-        <div className="sheet-handle" />
-        <div className="row-between" style={{ marginBottom: 8 }}>
-          <div className="h-card" style={{ fontSize: 22 }}>
-            {mode === 'voice' && 'Sprach-Log'}
-            {mode === 'photo' && 'Foto-Log'}
-            {mode === 'text' && 'Text-Log'}
-            {mode === 'meal' && 'Mahlzeit hinzufügen'}
-            {mode === 'answer' && 'Kurze Rückfrage'}
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="pressable"
-            aria-label="Schließen"
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: '50%',
-              background: 'var(--surface-2)',
-              border: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--ink-3)',
-              cursor: 'pointer',
-            }}
-          >
-            <Icon name="x" size={16} />
-          </button>
-        </div>
-
-        {mode === 'voice' && stage === 'recording' && <VoiceRecording />}
-        {mode === 'photo' && stage === 'capturing' && <PhotoCapture />}
-        {stage === 'processing' && <Processing />}
-        {(mode === 'text' || mode === 'meal') && stage === 'input' && (
-          <TextInputBlock
-            value={text}
-            onChange={setText}
-            onContinue={() => setStage('processing')}
-          />
-        )}
-        {mode === 'answer' && stage === 'input' && (
-          <AnswerInput value={text} onChange={setText} onContinue={onClose} />
-        )}
-        {stage === 'review' && parsed && (
-          <ReviewParsed parsed={parsed} onConfirm={onClose} onEdit={() => setStage('input')} />
-        )}
-
-        {/* Hint footer for placeholder flows */}
-        <div
-          style={{
-            marginTop: 14,
-            fontFamily: 'var(--mono)',
-            fontSize: 10,
-            color: 'var(--ink-4)',
-            letterSpacing: '0.06em',
-            textAlign: 'center',
-          }}
-        >
-          {/* TODO: live data — currently placeholder. Ingestion-Pipeline (Phase 2) folgt. */}
-          DEMO · INGESTION FOLGT IN PHASE 2
-        </div>
+        DEMO · KI-INGESTION FOLGT IN PHASE 2
       </div>
-    </button>
+    </>
   );
 }
 
