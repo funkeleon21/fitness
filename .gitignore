@@ -30,6 +30,8 @@ yarn-error.log*
 
 .vercel
 
-# Claude Code lokale Session-Daten, aber launch.json mit checken
+# Claude Code lokale Session-Daten, aber launch.json + Projekt-Skills mit checken
 .claude/*
 !.claude/launch.json
+!.claude/skills/
+!.claude/skills/**

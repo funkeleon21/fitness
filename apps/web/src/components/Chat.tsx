@@ -9,17 +9,19 @@ import { Icon } from './Icon';
 
 const SUGGESTED: { label: string; prompt: string }[] = [
   {
-    label: 'Was sollte ich heute beobachten?',
-    prompt: 'Was sollte ich heute besonders an meinem Körper oder Verhalten beobachten?',
-  },
-  {
-    label: 'Hilf mir, meinen Trend einzuordnen',
+    label: 'Wie deutest du meinen Gewichtstrend?',
     prompt:
-      'Mein Gewicht schwankt seit Wochen leicht hoch und runter. Wie ordne ich das ein — Trend oder Rauschen?',
+      'Schau dir meine Gewichtsdaten an. Was siehst du im 7- und 14-Tage-Schnitt — eher Trend oder eher Rauschen?',
   },
   {
-    label: 'Was unterscheidet dich von einem Tracker?',
-    prompt: 'Was kannst du, was ein klassischer Kalorientracker oder eine Fitness-App nicht kann?',
+    label: 'Was ist Signal, was ist Rauschen?',
+    prompt:
+      'Wie unterscheide ich bei meinem Gewicht echte Veränderung von normalen Tages- und Wochenschwankungen?',
+  },
+  {
+    label: 'Was sollte ich heute beobachten?',
+    prompt:
+      'Was wäre — auf Basis dessen, was du über mich weißt — heute besonders wert zu beobachten?',
   },
 ];
 
@@ -218,7 +220,7 @@ export function Chat({ userName }: { userName: string }) {
             letterSpacing: '0.04em',
           }}
         >
-          Sonnet 4.6 · ohne Datenzugriff (folgt)
+          Sonnet 4.6 · sieht deine Gewichtsdaten
         </p>
       </div>
     </div>
