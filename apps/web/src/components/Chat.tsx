@@ -36,7 +36,7 @@ const SUGGESTED: { label: string; prompt: string }[] = [
 export function Chat({ userName }: { userName: string }) {
   const router = useRouter();
   const [input, setInput] = useState('');
-  const { messages, sendMessage, status, error, stop } = useChat({
+  const { messages, sendMessage, status, error, stop, addToolApprovalResponse } = useChat({
     transport: new DefaultChatTransport({ api: '/api/chat' }),
     // Nach jeder fertigen Antwort die Server-Komponenten neu laden, damit
     // Tab-Wechsel zu Body/Insights frische Projektionen sieht (z.B. nachdem
@@ -45,6 +45,10 @@ export function Chat({ userName }: { userName: string }) {
       router.refresh();
     },
   });
+
+  const handleApproval = (id: string, approved: boolean) => {
+    addToolApprovalResponse({ id, approved });
+  };
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const isBusy = status === 'submitted' || status === 'streaming';
@@ -98,7 +102,7 @@ export function Chat({ userName }: { userName: string }) {
         ) : (
           <>
             {messages.map((m) => (
-              <MessageBubble key={m.id} role={m.role} parts={m.parts} />
+              <MessageBubble key={m.id} role={m.role} parts={m.parts} onApproval={handleApproval} />
             ))}
             {status === 'submitted' && <ThinkingDots />}
             {error && (
@@ -234,7 +238,15 @@ export function Chat({ userName }: { userName: string }) {
   );
 }
 
-function MessageBubble({ role, parts }: { role: UIMessage['role']; parts: UIMessage['parts'] }) {
+function MessageBubble({
+  role,
+  parts,
+  onApproval,
+}: {
+  role: UIMessage['role'];
+  parts: UIMessage['parts'];
+  onApproval: (id: string, approved: boolean) => void;
+}) {
   const isUser = role === 'user';
 
   // Wenn parts (z.B. ganz am Anfang des Streamings) noch keinen Text enthält,
@@ -284,7 +296,7 @@ function MessageBubble({ role, parts }: { role: UIMessage['role']; parts: UIMess
             );
           }
           if (isToolUIPart(p)) {
-            return <ToolCard key={key} part={p} />;
+            return <ToolCard key={key} part={p} onApproval={onApproval} />;
           }
           return null;
         })}
@@ -293,7 +305,13 @@ function MessageBubble({ role, parts }: { role: UIMessage['role']; parts: UIMess
   );
 }
 
-function ToolCard({ part }: { part: ToolUIPart | DynamicToolUIPart }) {
+function ToolCard({
+  part,
+  onApproval,
+}: {
+  part: ToolUIPart | DynamicToolUIPart;
+  onApproval: (id: string, approved: boolean) => void;
+}) {
   const toolName = getToolOrDynamicToolName(part);
 
   // Internes Lese-Tool — der Nutzer braucht keine Karte, der Text vom Assistant
@@ -310,7 +328,30 @@ function ToolCard({ part }: { part: ToolUIPart | DynamicToolUIPart }) {
     done: toolName,
   };
 
-  if (part.state === 'input-streaming' || part.state === 'input-available') {
+  // Bestätigung: der LLM hat das Tool aufgerufen, aber wir warten auf "go".
+  // Bis der Nutzer klickt, wird NICHTS in die Datenbank geschrieben.
+  if (part.state === 'approval-requested') {
+    return (
+      <ApprovalCard
+        toolName={toolName}
+        input={part.input}
+        onApprove={() => onApproval(part.approval.id, true)}
+        onDeny={() => onApproval(part.approval.id, false)}
+      />
+    );
+  }
+
+  // Bestätigung abgelehnt — wir zeigen das, damit klar ist, dass nichts passiert ist.
+  if (part.state === 'approval-responded' && part.approval.approved === false) {
+    return <ToolChip state="error">Nicht gespeichert — abgebrochen</ToolChip>;
+  }
+
+  // Zugestimmt, Ausführung läuft.
+  if (
+    part.state === 'input-streaming' ||
+    part.state === 'input-available' ||
+    part.state === 'approval-responded'
+  ) {
     return <ToolChip state="running">{config.running}</ToolChip>;
   }
   if (part.state === 'output-available') {
@@ -330,6 +371,100 @@ function ToolCard({ part }: { part: ToolUIPart | DynamicToolUIPart }) {
     );
   }
   return null;
+}
+
+function ApprovalCard({
+  toolName,
+  input,
+  onApprove,
+  onDeny,
+}: {
+  toolName: string;
+  input: unknown;
+  onApprove: () => void;
+  onDeny: () => void;
+}) {
+  const summary = formatApprovalSummary(toolName, input);
+  return (
+    <div
+      style={{
+        marginBottom: 8,
+        padding: '14px 16px',
+        borderRadius: 14,
+        background: 'var(--surface-2)',
+        border: '0.5px solid var(--hairline-strong)',
+      }}
+    >
+      <div
+        style={{
+          fontFamily: 'var(--mono)',
+          fontSize: 10,
+          letterSpacing: '0.10em',
+          color: 'var(--ink-4)',
+          textTransform: 'uppercase',
+          marginBottom: 6,
+        }}
+      >
+        Bestätigung
+      </div>
+      <div
+        style={{
+          fontFamily: 'var(--serif)',
+          fontSize: 16,
+          color: 'var(--ink)',
+          lineHeight: 1.35,
+          marginBottom: 12,
+        }}
+      >
+        {summary}
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button
+          type="button"
+          onClick={onDeny}
+          className="pressable btn-secondary"
+          style={{ flex: 1, padding: '10px 12px', fontSize: 13 }}
+        >
+          Abbrechen
+        </button>
+        <button
+          type="button"
+          onClick={onApprove}
+          className="pressable btn-primary"
+          style={{ flex: 2, padding: '10px 12px', fontSize: 13 }}
+        >
+          Ja, speichern
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function formatApprovalSummary(toolName: string, input: unknown): string {
+  if (typeof input !== 'object' || input === null) return `${toolName} ausführen?`;
+  const obj = input as { kg?: unknown; occurred_at?: unknown };
+  const kg = typeof obj.kg === 'number' ? `${obj.kg.toFixed(1).replace('.', ',')} kg` : null;
+  const when = formatApprovalTime(obj.occurred_at);
+
+  if (toolName === 'log_weight' && kg) {
+    return when ? `${kg} eintragen — ${when}` : `${kg} eintragen — jetzt`;
+  }
+  if (toolName === 'correct_weight' && kg) {
+    return `Eintrag korrigieren auf ${kg}`;
+  }
+  if (toolName === 'retract_weight') {
+    return 'Eintrag zurückziehen';
+  }
+  return `${toolName} ausführen?`;
+}
+
+function formatApprovalTime(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  const date = d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+  const time = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  return `${date} ${time}`;
 }
 
 const TOOL_LABELS: Record<string, { running: string; done: string }> = {

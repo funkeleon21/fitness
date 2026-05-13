@@ -7,7 +7,7 @@ import type { ChatToolset } from '../types';
 export const weightTools: ChatToolset = ({ client, userId }) => ({
   log_weight: tool({
     description:
-      'Trage einen Gewichts-Eintrag des Nutzers ein. Verwende dies, wenn der Nutzer sein aktuelles Gewicht mitteilt (z.B. "heute morgen 84,1", "ich wiege 80,5 kg"). Antworte nach Erfolg knapp mit dem gespeicherten Wert und ordne ihn ggf. in den Trend ein.',
+      'Trage einen Gewichts-Eintrag des Nutzers ein. Verwende dies, wenn der Nutzer sein aktuelles Gewicht mitteilt (z.B. "heute morgen 84,1", "ich wiege 80,5 kg"). Der Nutzer muss den Eintrag explizit bestätigen — das passiert in der UI, nicht im Chat. Antworte nach Erfolg knapp mit dem gespeicherten Wert und ordne ihn ggf. in den Trend ein.',
     inputSchema: z.object({
       kg: z.number().positive().max(500).describe('Gewicht in kg, z.B. 84.1'),
       occurred_at: z
@@ -23,6 +23,7 @@ export const weightTools: ChatToolset = ({ client, userId }) => ({
         .max(1)
         .describe('Deine Konfidenz, dass dieser Wert korrekt extrahiert wurde (0–1).'),
     }),
+    needsApproval: true,
     execute: async ({ kg, occurred_at, confidence }) => {
       const occurredAt = occurred_at ? new Date(occurred_at) : new Date();
       const result = await logWeight(client, {
@@ -69,7 +70,7 @@ export const weightTools: ChatToolset = ({ client, userId }) => ({
 
   correct_weight: tool({
     description:
-      'Korrigiere einen bestehenden Gewichts-Eintrag. Nutze list_recent_weight_entries zuerst, um die korrekte event_id zu erhalten. Bei Mehrdeutigkeit ("der letzte" obwohl zwei am selben Tag) lieber nachfragen.',
+      'Korrigiere einen bestehenden Gewichts-Eintrag. Nutze list_recent_weight_entries zuerst, um die korrekte event_id zu erhalten. Bei Mehrdeutigkeit ("der letzte" obwohl zwei am selben Tag) lieber nachfragen. Der Nutzer bestätigt die Korrektur über die UI bevor sie geschrieben wird.',
     inputSchema: z.object({
       event_id: z.string().uuid().describe('UUID des zu korrigierenden Eintrags.'),
       kg: z.number().positive().max(500).describe('Der korrigierte Wert in kg.'),
@@ -78,6 +79,7 @@ export const weightTools: ChatToolset = ({ client, userId }) => ({
         .nullable()
         .describe('Optional: Grund der Korrektur (z.B. "Tippfehler"). null wenn nicht angegeben.'),
     }),
+    needsApproval: true,
     execute: async ({ event_id, kg, reason }) => {
       await correctEvent(client, {
         user_id: userId,
@@ -92,7 +94,7 @@ export const weightTools: ChatToolset = ({ client, userId }) => ({
 
   retract_weight: tool({
     description:
-      'Ziehe einen Gewichts-Eintrag zurück (Soft-Delete). Der Eintrag verschwindet aus Trends, bleibt aber im Event-Log. Nutze list_recent_weight_entries zuerst.',
+      'Ziehe einen Gewichts-Eintrag zurück (Soft-Delete). Der Eintrag verschwindet aus Trends, bleibt aber im Event-Log. Nutze list_recent_weight_entries zuerst. Der Nutzer bestätigt die Aktion über die UI bevor sie geschrieben wird.',
     inputSchema: z.object({
       event_id: z.string().uuid().describe('UUID des zurückzuziehenden Eintrags.'),
       reason: z
@@ -100,6 +102,7 @@ export const weightTools: ChatToolset = ({ client, userId }) => ({
         .nullable()
         .describe('Optional: Grund (z.B. "versehentlich eingetragen"). null wenn nicht angegeben.'),
     }),
+    needsApproval: true,
     execute: async ({ event_id, reason }) => {
       await retractEvent(client, {
         user_id: userId,
