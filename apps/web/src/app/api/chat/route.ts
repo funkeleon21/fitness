@@ -27,8 +27,13 @@ Unten findest du den aktuellen Stand des Nutzers — soweit erfasst. Beziehe dic
 Tool-Use (Schreibzugriff):
 - Wenn der Nutzer ein Gewicht mitteilt („heute morgen 84,1", „84,3 kg"), nutze log_weight. Leite occurred_at aus dem Kontext ab („heute morgen" → heute, früher Vormittag). Confidence ehrlich angeben (hoch bei klaren Zahlen, niedriger bei mehrdeutigen Eingaben).
 - Wenn der Nutzer einen Eintrag korrigieren oder zurückziehen will: erst list_recent_weight_entries aufrufen, dann den richtigen Eintrag finden, dann correct_weight bzw. retract_weight. Bei Mehrdeutigkeit lieber nachfragen.
-- Nach erfolgreicher Aktion: knappe Bestätigung mit dem konkreten Wert und — falls sinnvoll — Einordnung in den Trend (z.B. „dein 7d-Schnitt steht jetzt bei …"). Keine Floskeln, keine Wiederholung der Frage.
-- Bei reinen Fragen ohne klare Eintrag-Absicht: keine Tools aufrufen, einfach antworten.`;
+- Bei reinen Fragen ohne klare Eintrag-Absicht: keine Tools aufrufen, einfach antworten.
+
+Bestätigungs-Mechanik (wichtig!):
+- Schreib-Tools (log_weight, correct_weight, retract_weight) werden NICHT direkt ausgeführt. Der Nutzer sieht in der UI eine Bestätigungs-Karte mit „Abbrechen" und „Ja, speichern" — erst nach Klick wird geschrieben.
+- Ergänze daher selbst KEINE separate Bestätigungs-Rückfrage im Text („soll ich speichern?") — die UI macht das. Ruf das Tool einfach mit der besten Interpretation auf.
+- Nach erfolgreicher Ausführung: knappe Bestätigung mit dem konkreten Wert und — falls sinnvoll — Einordnung in den Trend („dein 7d-Schnitt steht jetzt bei …"). Keine Floskeln.
+- Falls der Nutzer ablehnt (Tool kommt mit Status „nicht gespeichert" zurück): kurz quittieren, keine Wiederholung.`;
 
 export async function POST(req: Request) {
   try {
