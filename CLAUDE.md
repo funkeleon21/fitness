@@ -47,7 +47,10 @@ Code/Identifier auf Englisch. Doku, Commits, UI-Texte und Kommunikation mit dem 
 
 ## Skills
 
-[.claude/skills/](.claude/skills/) — bei neuer Aufgabe prüfen, ob ein Skill triggert (z.B. [chat-domain-integration](.claude/skills/chat-domain-integration/SKILL.md) bei neuer Domäne/Projektion). Optionspool, kein Pflichtlesestoff.
+[.claude/skills/](.claude/skills/) — bei neuer Aufgabe prüfen, ob ein Skill triggert. Vorhanden:
+
+- [chat-domain-integration](.claude/skills/chat-domain-integration/SKILL.md) — bei neuer Domäne/Projektion
+- [doc-keeper](.claude/skills/doc-keeper/SKILL.md) — feuert automatisch vor `gh pr create` (via Hook); prüft Doc-Drift
 
 ## Befehle
 
