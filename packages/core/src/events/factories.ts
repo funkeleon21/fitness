@@ -1,5 +1,6 @@
 import { WEIGHT_LOGGED, type WeightLoggedEvent } from './body/weight';
 import type { EventSource } from './envelope';
+import { MEAL_LOGGED, type MealItem, type MealLoggedEvent } from './nutrition/meal';
 import {
   EVENT_CORRECTED,
   EVENT_RETRACTED,
@@ -28,6 +29,42 @@ export function createWeightLogged(input: NewWeightLoggedInput): WeightLoggedEve
     confidence: input.confidence ?? null,
     raw_input: input.raw_input ?? null,
     payload: { kg: input.kg },
+  };
+}
+
+export interface NewMealLoggedInput {
+  user_id: string;
+  label: string;
+  kcal: number;
+  protein_g?: number;
+  carbs_g?: number;
+  fat_g?: number;
+  items?: MealItem[];
+  occurred_at: Date;
+  source: EventSource;
+  raw_input?: string | null;
+  confidence?: number | null;
+}
+
+export function createMealLogged(input: NewMealLoggedInput): MealLoggedEvent {
+  return {
+    id: crypto.randomUUID(),
+    user_id: input.user_id,
+    type: MEAL_LOGGED,
+    version: 1,
+    occurred_at: input.occurred_at,
+    recorded_at: new Date(),
+    source: input.source,
+    confidence: input.confidence ?? null,
+    raw_input: input.raw_input ?? null,
+    payload: {
+      label: input.label,
+      kcal: input.kcal,
+      ...(input.protein_g !== undefined ? { protein_g: input.protein_g } : {}),
+      ...(input.carbs_g !== undefined ? { carbs_g: input.carbs_g } : {}),
+      ...(input.fat_g !== undefined ? { fat_g: input.fat_g } : {}),
+      ...(input.items !== undefined ? { items: input.items } : {}),
+    },
   };
 }
 

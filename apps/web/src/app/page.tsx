@@ -1,7 +1,7 @@
 import { Dashboard } from '@/components/Dashboard';
-import type { DashboardData } from '@/components/types';
+import type { DashboardData, MealPoint, NutritionData } from '@/components/types';
 import { createClient } from '@/lib/supabase/server';
-import { getWeightProjection } from '@fitness/db';
+import { type MealDataPoint, getMealProjection, getWeightProjection } from '@fitness/db';
 import { redirect } from 'next/navigation';
 
 function deriveNameAndInitials(email: string | undefined): { name: string; initials: string } {
@@ -12,6 +12,21 @@ function deriveNameAndInitials(email: string | undefined): { name: string; initi
   return { name, initials };
 }
 
+function mealToPoint(m: MealDataPoint): MealPoint {
+  return {
+    event_id: m.event_id,
+    occurred_at: m.occurred_at.toISOString(),
+    label: m.label,
+    kcal: m.kcal,
+    protein_g: m.protein_g,
+    carbs_g: m.carbs_g,
+    fat_g: m.fat_g,
+    source: m.source,
+    confidence: m.confidence,
+    corrected: m.corrected,
+  };
+}
+
 export default async function HomePage() {
   const supabase = await createClient();
   const {
@@ -19,29 +34,38 @@ export default async function HomePage() {
   } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  const projection = await getWeightProjection(supabase, user.id);
+  const [weight, meals] = await Promise.all([
+    getWeightProjection(supabase, user.id),
+    getMealProjection(supabase, user.id),
+  ]);
 
   const data: DashboardData = {
-    series: projection.series.map((p) => ({
+    series: weight.series.map((p) => ({
       event_id: p.event_id,
       occurred_at: p.occurred_at.toISOString(),
       kg: p.kg,
       corrected: p.corrected,
     })),
-    latest: projection.latest
+    latest: weight.latest
       ? {
-          event_id: projection.latest.event_id,
-          occurred_at: projection.latest.occurred_at.toISOString(),
-          kg: projection.latest.kg,
-          corrected: projection.latest.corrected,
+          event_id: weight.latest.event_id,
+          occurred_at: weight.latest.occurred_at.toISOString(),
+          kg: weight.latest.kg,
+          corrected: weight.latest.corrected,
         }
       : null,
-    trend7d: projection.trend7d,
-    trend14d: projection.trend14d,
-    trend7dChangeKg: projection.trend7dChangeKg,
+    trend7d: weight.trend7d,
+    trend14d: weight.trend14d,
+    trend7dChangeKg: weight.trend7dChangeKg,
+  };
+
+  const nutrition: NutritionData = {
+    today: meals.today.map(mealToPoint),
+    todayTotals: meals.todayTotals,
+    recent: meals.recent.map(mealToPoint),
   };
 
   const { name, initials } = deriveNameAndInitials(user.email);
 
-  return <Dashboard data={data} userName={name} initials={initials} />;
+  return <Dashboard data={data} nutrition={nutrition} userName={name} initials={initials} />;
 }
