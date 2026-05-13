@@ -33,6 +33,7 @@ pnpm workspaces, TypeScript Project References, Biome, Vitest. Next.js auf Verce
 2. **Schreiben nur via Ingestion-Pipeline** — nie direkt in `events`.
 3. **Trend statt Tageswert** — UI defaults auf Bewegungsdurchschnitte, nicht Einzelpunkte.
 4. **Unsicherheit aussprechen** — keine gerundeten Einzelzahlen ohne Konfidenz/Range.
+5. **Neue Migration sofort gegen Prod-DB anwenden** — jede neue Datei unter `packages/db/migrations/` direkt via Supabase-MCP `apply_migration` auf Projekt `cjwgisdobzztljizrnfn` ausführen, bevor der PR gemerged wird. Workflow: [.claude/skills/db-migration/SKILL.md](.claude/skills/db-migration/SKILL.md). Drift-Check: [.github/workflows/migration-drift.yml](.github/workflows/migration-drift.yml).
 
 Weitere harte Regeln in ADRs: Append-only ([0001](docs/decisions/0001-event-sourcing.md), [0004](docs/decisions/0004-korrekturen-als-events.md)), KI schreibt Events nicht Projektionen ([0003](docs/decisions/0003-ki-als-event-quelle.md)), RLS überall ([0009](docs/decisions/0009-rls-ab-tag-1.md)), Drizzle alleinige Migrations-Quelle ([0008](docs/decisions/0008-drizzle-migrations.md)), Projektions-Replay-Pattern ([0010](docs/decisions/0010-projektionen-replay-pattern.md)).
 
@@ -50,6 +51,7 @@ Code/Identifier auf Englisch. Doku, Commits, UI-Texte und Kommunikation mit dem 
 [.claude/skills/](.claude/skills/) — bei neuer Aufgabe prüfen, ob ein Skill triggert. Vorhanden:
 
 - [chat-domain-integration](.claude/skills/chat-domain-integration/SKILL.md) — bei neuer Domäne/Projektion
+- [db-migration](.claude/skills/db-migration/SKILL.md) — bei neuer Drizzle-Migration; wendet sie sofort gegen Prod-DB an
 - [doc-keeper](.claude/skills/doc-keeper/SKILL.md) — feuert automatisch vor `gh pr create` (via Hook); prüft Doc-Drift
 
 ## Befehle
