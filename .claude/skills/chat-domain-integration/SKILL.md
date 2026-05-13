@@ -1,27 +1,31 @@
 ---
 name: chat-domain-integration
-description: Use when adding a new domain or event type to this Fitness project (e.g. meal_logged, training_logged, sleep_logged, body_measurement), creating a new projection in packages/db, or when explicitly asked to wire an existing domain into the Labor chat assistant. Ensures the new variable becomes visible to the chat by adding a UserContextSection to packages/interpretation. Without this, the chat is blind to the new domain even after events flow into the database.
+description: Use when adding a new domain or event type to this Fitness project (e.g. meal_logged, training_logged, sleep_logged, body_measurement), creating a new projection in packages/db, adding a new ingestion command, or when explicitly asked to wire an existing domain into the Labor chat assistant. Ensures the new variable is both READABLE (UserContextSection) and WRITABLE (ChatToolset) by the chat. Without this, the chat is blind to the new domain — even after events flow into the database — or cannot help the user log into it.
 ---
 
 # Chat-Domain-Integration
 
-Wenn eine neue Variable (Mahlzeit, Training, Schlaf, Maße …) im System landet, muss der Chat sie sehen. Sonst ist sie für den Assistenten unsichtbar — egal wie viele Events der Nutzer hat.
+Wenn eine neue Variable (Mahlzeit, Training, Schlaf, Maße …) im System landet, muss der Chat sie **sehen** (Read) **und** **eintragen können** (Write). Beides hat ein eigenes Pattern in `packages/interpretation`. Solange du nur eines anschließt, ist die Domäne im Chat halbgebacken.
 
 ## Wann diesen Skill anwenden
 
 - Du legst einen neuen Event-Typ in `packages/core/src/events/<bereich>/<name>.ts` an.
 - Du baust eine neue Projektion in `packages/db/src/projections/<name>.ts`.
-- Der Nutzer sagt sinngemäß „der Chat soll auch <X> sehen / mitnehmen / berücksichtigen".
+- Du fügst einen neuen Ingestion-Command in `packages/ingestion/src/commands/` hinzu (z.B. `logMeal`).
+- Der Nutzer sagt sinngemäß „der Chat soll auch <X> sehen / mitnehmen / eintragen können".
 
 ## Warum es nötig ist
 
-Der Chat-Endpoint in `apps/web/src/app/api/chat/route.ts` baut seinen System-Prompt mit `buildUserContext()` aus `@fitness/interpretation`. `buildUserContext()` iteriert über eine zentrale `PROVIDERS`-Liste — jeder Provider liefert eine `UserContextSection` für eine Domäne.
+Der Chat-Endpoint in `apps/web/src/app/api/chat/route.ts` baut zwei Dinge aus `@fitness/interpretation`:
 
-**Solange eine Domäne nicht in dieser Liste steht, sieht der Chat sie nicht.** Egal wie sauber die Events, Projektionen und UI dafür gebaut sind.
+1. **Lesen — UserContext:** `buildUserContext()` iteriert über eine `PROVIDERS`-Liste — jeder Provider liefert eine `UserContextSection` für eine Domäne. Wird in den System-Prompt gerendert.
+2. **Schreiben — ChatTools:** `buildChatTools()` iteriert über eine `TOOLSETS`-Liste — jedes Set liefert AI-SDK-Tools (z.B. `log_weight`, `correct_weight`, `retract_weight`). Der Chat ruft sie via Function-Calling auf.
 
-## Schritte
+**Solange eine Domäne nicht in beiden Listen steht, ist sie für den Chat halb unsichtbar.** Egal wie sauber die Events, Projektionen und UI dafür gebaut sind.
 
-### 1. Provider-Funktion anlegen
+## Schritte — Teil A: LESEN (UserContextSection)
+
+### A1. Provider-Funktion anlegen
 
 Datei: `packages/interpretation/src/context/sections/<domain>.ts`
 
@@ -75,7 +79,7 @@ export async function get<Domain>Context(
 
 Vorlage: [packages/interpretation/src/context/sections/weight.ts](../../../packages/interpretation/src/context/sections/weight.ts).
 
-### 2. In die Registry eintragen
+### A2. In die Context-Registry eintragen
 
 Datei: `packages/interpretation/src/context/build.ts`
 
@@ -90,7 +94,74 @@ const PROVIDERS: UserContextProvider[] = [
 
 Die Reihenfolge in `PROVIDERS` bestimmt die Reihenfolge im gerenderten System-Prompt.
 
-### 3. Verifizieren
+## Schritte — Teil B: SCHREIBEN (ChatToolset)
+
+Nur nötig, wenn der Nutzer per Chat in diese Domäne eintragen / korrigieren / zurückziehen können soll. Reine Beobachtungs-Domänen (z.B. „Wearable-Sync-Status") brauchen das nicht.
+
+### B1. Tool-Set anlegen
+
+Datei: `packages/interpretation/src/tools/sets/<domain>.ts`
+
+```ts
+import { log<Domain>, correct<Domain>, retract<Domain> } from '@fitness/ingestion';
+import { tool } from 'ai';
+import { z } from 'zod';
+import type { ChatToolset } from '../types';
+
+export const <domain>Tools: ChatToolset = ({ client, userId }) => ({
+  log_<domain>: tool({
+    description: 'Trage ein <Domain>-Event ein. Verwende dies, wenn der Nutzer ...',
+    inputSchema: z.object({
+      /* Domain-spezifische Felder, mit .describe() pro Feld */
+      confidence: z.number().min(0).max(1).describe('Deine Konfidenz, dass die Extraktion korrekt war (0-1).'),
+    }),
+    execute: async (input) => {
+      const result = await log<Domain>(client, {
+        user_id: userId,
+        /* Felder */
+        source: 'ai-extracted',
+        confidence: input.confidence,
+      });
+      return { ok: true, event_id: result.event_id, /* relevante Echos */ };
+    },
+  }),
+
+  // Optional: list_recent_<domain>_entries als Lese-Tool, damit
+  // correct/retract die richtige event_id finden.
+});
+```
+
+Vorlage: [packages/interpretation/src/tools/sets/weight.ts](../../../packages/interpretation/src/tools/sets/weight.ts).
+
+### B2. In die Tools-Registry eintragen
+
+Datei: `packages/interpretation/src/tools/build.ts`
+
+```ts
+import { <domain>Tools } from './sets/<domain>';
+
+const TOOLSETS: ChatToolset[] = [weightTools, <domain>Tools];
+```
+
+**Tool-Namen müssen über alle Sets hinweg eindeutig sein** — also `log_meal` nicht `log`, `log_training` nicht `log_session`.
+
+### B3. UI-Anzeige für die neuen Tool-Namen
+
+Datei: `apps/web/src/components/Chat.tsx`, Konstante `TOOL_LABELS`.
+
+Pro Schreib-Tool ein Eintrag:
+
+```ts
+const TOOL_LABELS: Record<string, { running: string; done: string }> = {
+  log_weight: { running: 'Gewicht speichern…', done: 'Gewicht gespeichert' },
+  log_<domain>: { running: '<Anzeigename> speichern…', done: '<Anzeigename> gespeichert' },
+  // ...
+};
+```
+
+Ohne Eintrag fällt die Chat-UI auf den Tool-Namen als Label zurück (z.B. `log_meal…`) — funktional, aber unschön.
+
+## Verifizieren
 
 - `pnpm typecheck` — muss grün
 - `pnpm lint` — muss grün
@@ -110,12 +181,15 @@ Diese Konventionen folgen direkt aus [docs/principles.md](../../../docs/principl
 
 ## Was NICHT zu diesem Skill gehört
 
-- **Tool-Use / Function-Calls** (z.B. `log_meal`-Tool im Chat). Das ist Schritt 2 der Chat-Erweiterung, ein eigener Workflow.
 - **Schema-Migrationen / RLS-Policies** (siehe [ADR-0008](../../../docs/decisions/0008-drizzle-migrations.md), [ADR-0009](../../../docs/decisions/0009-rls-ab-tag-1.md)).
-- **UI-Komponenten** für die neue Domäne. Der Chat braucht keine UI-Änderung, sobald die Section in der Registry steht.
+- **Volle UI-Tabs** für die neue Domäne (Body-/Nutrition-/Training-Screens). Der Chat funktioniert vollständig ohne neue UI, sobald Context und Tools registriert sind.
+- **Event-Schemas und Ingestion-Commands** selbst — die müssen vorher existieren. Dieser Skill schließt sie nur an den Chat an.
 
 ## Anti-Muster
 
 - **Sektion direkt in den Chat-Endpoint einbauen** statt über `packages/interpretation` — bricht das Pattern und macht den Endpoint zur Sammelstelle aller Domänen.
 - **Rohe Event-Listen ausgeben** statt aggregierter Trends — verletzt Prinzip 3 (Trend statt Tageswert) und sprengt das Token-Budget.
 - **Erfundene Defaults**, wenn keine Daten vorliegen (z.B. „typisches Gewicht ist 80 kg") — verletzt Prinzip 7 (wissenschaftliche Ehrlichkeit).
+- **Tools, die direkt in `events` schreiben**, statt den Ingestion-Command aus `@fitness/ingestion` aufzurufen — bricht Disziplin „Schreiben nur via Ingestion-Pipeline" (CLAUDE.md).
+- **Tool ohne `confidence`-Parameter im inputSchema** für KI-extrahierte Eingaben — verletzt Architektur-Disziplin „Konfidenz ist Pflichtfeld auf jedem KI-erzeugten Event" (`architecture.md` §3).
+- **`log_X`-Tool ohne dazugehöriges `list_recent_X_entries`-Tool**, wenn auch Korrektur/Retraction angeboten werden — der LLM hat sonst keine Quelle für die `event_id`.

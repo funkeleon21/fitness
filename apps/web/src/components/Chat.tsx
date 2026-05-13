@@ -1,7 +1,15 @@
 'use client';
 
 import { useChat } from '@ai-sdk/react';
-import { DefaultChatTransport, type UIMessage } from 'ai';
+import {
+  DefaultChatTransport,
+  type DynamicToolUIPart,
+  type ToolUIPart,
+  type UIMessage,
+  getToolOrDynamicToolName,
+  isToolUIPart,
+} from 'ai';
+import { useRouter } from 'next/navigation';
 import { type FormEvent, useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -25,18 +33,17 @@ const SUGGESTED: { label: string; prompt: string }[] = [
   },
 ];
 
-function extractText(parts: UIMessage['parts']): string {
-  let out = '';
-  for (const p of parts) {
-    if (p.type === 'text') out += p.text;
-  }
-  return out;
-}
-
 export function Chat({ userName }: { userName: string }) {
+  const router = useRouter();
   const [input, setInput] = useState('');
   const { messages, sendMessage, status, error, stop } = useChat({
     transport: new DefaultChatTransport({ api: '/api/chat' }),
+    // Nach jeder fertigen Antwort die Server-Komponenten neu laden, damit
+    // Tab-Wechsel zu Body/Insights frische Projektionen sieht (z.B. nachdem
+    // der Chat per log_weight-Tool ein neues Gewicht eingetragen hat).
+    onFinish: () => {
+      router.refresh();
+    },
   });
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -91,7 +98,7 @@ export function Chat({ userName }: { userName: string }) {
         ) : (
           <>
             {messages.map((m) => (
-              <MessageBubble key={m.id} role={m.role} text={extractText(m.parts)} />
+              <MessageBubble key={m.id} role={m.role} parts={m.parts} />
             ))}
             {status === 'submitted' && <ThinkingDots />}
             {error && (
@@ -220,15 +227,22 @@ export function Chat({ userName }: { userName: string }) {
             letterSpacing: '0.04em',
           }}
         >
-          Sonnet 4.6 · sieht deine Gewichtsdaten
+          Sonnet 4.6 · liest und schreibt Gewichtsdaten
         </p>
       </div>
     </div>
   );
 }
 
-function MessageBubble({ role, text }: { role: UIMessage['role']; text: string }) {
+function MessageBubble({ role, parts }: { role: UIMessage['role']; parts: UIMessage['parts'] }) {
   const isUser = role === 'user';
+
+  // Wenn parts (z.B. ganz am Anfang des Streamings) noch keinen Text enthält,
+  // zeigen wir mindestens einen leeren Platzhalter, damit die Bubble nicht kollabiert.
+  const hasVisibleContent = parts.some(
+    (p) => (p.type === 'text' && p.text.length > 0) || isToolUIPart(p),
+  );
+
   return (
     <div
       style={{
@@ -252,12 +266,136 @@ function MessageBubble({ role, text }: { role: UIMessage['role']; text: string }
       <div
         className={isUser ? 'chat-bubble chat-bubble-user' : 'chat-bubble chat-bubble-assistant'}
       >
-        {isUser ? (
-          <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{text || ' '}</span>
-        ) : (
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{text || ' '}</ReactMarkdown>
-        )}
+        {!hasVisibleContent && <span> </span>}
+        {parts.map((p, i) => {
+          // Parts werden während des Streamings nur angefügt, nie umsortiert —
+          // der Index ist innerhalb einer Message stabil.
+          const key = isToolUIPart(p) ? p.toolCallId : `${p.type}-${i}`;
+          if (p.type === 'text') {
+            if (p.text.length === 0) return null;
+            return isUser ? (
+              <span key={key} style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                {p.text}
+              </span>
+            ) : (
+              <ReactMarkdown key={key} remarkPlugins={[remarkGfm]}>
+                {p.text}
+              </ReactMarkdown>
+            );
+          }
+          if (isToolUIPart(p)) {
+            return <ToolCard key={key} part={p} />;
+          }
+          return null;
+        })}
       </div>
+    </div>
+  );
+}
+
+function ToolCard({ part }: { part: ToolUIPart | DynamicToolUIPart }) {
+  const toolName = getToolOrDynamicToolName(part);
+
+  // Internes Lese-Tool — der Nutzer braucht keine Karte, der Text vom Assistant
+  // erklärt das Ergebnis. Während der Ausführung dezenter Hinweis.
+  if (toolName === 'list_recent_weight_entries') {
+    if (part.state === 'input-streaming' || part.state === 'input-available') {
+      return <ToolChip muted>Letzte Einträge lesen…</ToolChip>;
+    }
+    return null;
+  }
+
+  const config = TOOL_LABELS[toolName] ?? {
+    running: `${toolName} läuft…`,
+    done: toolName,
+  };
+
+  if (part.state === 'input-streaming' || part.state === 'input-available') {
+    return <ToolChip state="running">{config.running}</ToolChip>;
+  }
+  if (part.state === 'output-available') {
+    const detail = formatToolDetail(toolName, part.input);
+    return (
+      <ToolChip state="done">
+        {config.done}
+        {detail ? ` · ${detail}` : ''}
+      </ToolChip>
+    );
+  }
+  if (part.state === 'output-error') {
+    return (
+      <ToolChip state="error">
+        Fehler bei {config.done}: {part.errorText ?? 'unbekannt'}
+      </ToolChip>
+    );
+  }
+  return null;
+}
+
+const TOOL_LABELS: Record<string, { running: string; done: string }> = {
+  log_weight: { running: 'Gewicht speichern…', done: 'Gewicht gespeichert' },
+  correct_weight: { running: 'Eintrag korrigieren…', done: 'Eintrag korrigiert' },
+  retract_weight: { running: 'Eintrag zurückziehen…', done: 'Eintrag zurückgezogen' },
+};
+
+function formatToolDetail(toolName: string, input: unknown): string {
+  if (typeof input !== 'object' || input === null) return '';
+  const kg = (input as { kg?: unknown }).kg;
+  if ((toolName === 'log_weight' || toolName === 'correct_weight') && typeof kg === 'number') {
+    return `${kg.toFixed(1).replace('.', ',')} kg`;
+  }
+  return '';
+}
+
+function ToolChip({
+  children,
+  state,
+  muted,
+}: {
+  children: React.ReactNode;
+  state?: 'running' | 'done' | 'error';
+  muted?: boolean;
+}) {
+  const colors: Record<'running' | 'done' | 'error', { bg: string; ink: string; dot: string }> = {
+    running: { bg: 'var(--surface-2)', ink: 'var(--ink-2)', dot: 'var(--sage-deep)' },
+    done: { bg: 'rgba(110,122,78,0.10)', ink: 'var(--ink)', dot: 'var(--sage-deep)' },
+    error: { bg: 'rgba(196,152,85,0.12)', ink: 'var(--amber)', dot: 'var(--amber)' },
+  };
+  const palette = state
+    ? colors[state]
+    : { bg: 'transparent', ink: 'var(--ink-4)', dot: 'var(--ink-4)' };
+
+  return (
+    <div
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '6px 10px',
+        borderRadius: 999,
+        background: muted ? 'transparent' : palette.bg,
+        border: muted ? '0.5px dashed var(--hairline)' : '0.5px solid var(--hairline)',
+        color: palette.ink,
+        fontFamily: 'var(--mono)',
+        fontSize: 11,
+        letterSpacing: '0.04em',
+        marginBottom: 6,
+        maxWidth: '100%',
+      }}
+    >
+      <span
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: 3,
+          background: palette.dot,
+          animation: state === 'running' ? 'pulse-glow 1.2s ease-in-out infinite' : 'none',
+          flexShrink: 0,
+        }}
+      />
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {children}
+      </span>
     </div>
   );
 }
@@ -384,6 +522,21 @@ function EmptyState({
             <Icon name="arrow-right" size={14} strokeWidth={1.6} />
           </button>
         ))}
+        <div
+          style={{
+            marginTop: 4,
+            padding: '12px 14px',
+            borderRadius: 12,
+            background: 'var(--surface-2)',
+            border: '0.5px dashed var(--hairline-strong)',
+            color: 'var(--ink-3)',
+            fontSize: 12,
+            lineHeight: 1.45,
+          }}
+        >
+          Tipp: Du kannst dein Gewicht auch direkt im Chat eintragen — z.B.{' '}
+          <em style={{ fontFamily: 'var(--serif)', fontStyle: 'italic' }}>„heute morgen 84,1"</em>.
+        </div>
       </div>
     </div>
   );
