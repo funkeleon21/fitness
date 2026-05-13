@@ -4,7 +4,7 @@ import {
   createWeightLogged,
   weightLoggedEventSchema,
 } from '@fitness/core';
-import { appendEvent } from '@fitness/db';
+import { appendEvent, refreshWeightProjection } from '@fitness/db';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export interface LogWeightInput {
@@ -38,5 +38,7 @@ export async function logWeight(
     throw new Error(`Ungueltiges Gewichts-Event: ${parsed.error.message}`);
   }
 
-  return appendEvent(client, parsed.data);
+  const result = await appendEvent(client, parsed.data);
+  await refreshWeightProjection(client, input.user_id);
+  return result;
 }
