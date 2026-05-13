@@ -22,6 +22,13 @@
       "when": 1778673779509,
       "tag": "0002_stiff_electro",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1778706154049,
+      "tag": "0003_classy_medusa",
+      "breakpoints": true
     }
   ]
 }

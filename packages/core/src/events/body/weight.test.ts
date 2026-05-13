@@ -9,8 +9,10 @@ const validWeightEvent = {
   occurred_at: new Date('2026-05-11T07:00:00Z'),
   recorded_at: new Date('2026-05-11T07:01:00Z'),
   source: 'manual',
+  external_id: null,
   confidence: null,
   raw_input: null,
+  provenance: null,
   payload: { kg: 84.3 },
 };
 

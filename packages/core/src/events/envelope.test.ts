@@ -9,8 +9,10 @@ const validEnvelope = {
   occurred_at: new Date('2026-05-11T07:00:00Z'),
   recorded_at: new Date('2026-05-11T07:01:00Z'),
   source: 'manual',
+  external_id: null,
   confidence: null,
   raw_input: null,
+  provenance: null,
 };
 
 describe('eventEnvelopeSchema', () => {
@@ -35,6 +37,57 @@ describe('eventEnvelopeSchema', () => {
       source: 'ai-extracted',
       confidence: 0.9,
       raw_input: 'heute morgen 84,3',
+      provenance: { provider: 'langdock', model: 'claude-sonnet', prompt_hash: 'abc123' },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects ai-extracted events without confidence', () => {
+    const result = eventEnvelopeSchema.safeParse({
+      ...validEnvelope,
+      source: 'ai-extracted',
+      raw_input: 'heute morgen 84,3',
+      provenance: { model: 'claude-sonnet', prompt_hash: 'abc123' },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects ai-extracted events without raw input', () => {
+    const result = eventEnvelopeSchema.safeParse({
+      ...validEnvelope,
+      source: 'ai-extracted',
+      confidence: 0.9,
+      provenance: { model: 'claude-sonnet', prompt_hash: 'abc123' },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects ai-extracted events without model provenance', () => {
+    const result = eventEnvelopeSchema.safeParse({
+      ...validEnvelope,
+      source: 'ai-extracted',
+      confidence: 0.9,
+      raw_input: 'heute morgen 84,3',
+      provenance: { prompt_hash: 'abc123' },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects ai-extracted events without prompt hash provenance', () => {
+    const result = eventEnvelopeSchema.safeParse({
+      ...validEnvelope,
+      source: 'ai-extracted',
+      confidence: 0.9,
+      raw_input: 'heute morgen 84,3',
+      provenance: { model: 'claude-sonnet' },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts external ids for source idempotency', () => {
+    const result = eventEnvelopeSchema.safeParse({
+      ...validEnvelope,
+      external_id: 'manual-form-submit-123',
     });
     expect(result.success).toBe(true);
   });

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { eventEnvelopeSchema } from '../envelope';
+import { eventEnvelopeBaseSchema, validateEventEnvelope } from '../envelope';
 
 export const MEAL_LOGGED = 'meal_logged' as const;
 
@@ -26,9 +26,11 @@ export const mealLoggedPayloadSchema = z.object({
 });
 export type MealLoggedPayload = z.infer<typeof mealLoggedPayloadSchema>;
 
-export const mealLoggedEventSchema = eventEnvelopeSchema.extend({
-  type: z.literal(MEAL_LOGGED),
-  version: z.literal(1),
-  payload: mealLoggedPayloadSchema,
-});
+export const mealLoggedEventSchema = eventEnvelopeBaseSchema
+  .extend({
+    type: z.literal(MEAL_LOGGED),
+    version: z.literal(1),
+    payload: mealLoggedPayloadSchema,
+  })
+  .superRefine(validateEventEnvelope);
 export type MealLoggedEvent = z.infer<typeof mealLoggedEventSchema>;
