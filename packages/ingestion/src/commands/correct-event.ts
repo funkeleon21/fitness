@@ -6,7 +6,7 @@ import {
   eventCorrectedEventSchema,
   eventRetractedEventSchema,
 } from '@fitness/core';
-import { appendEvent } from '@fitness/db';
+import { appendEvent, refreshWeightProjection } from '@fitness/db';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export interface CorrectEventInput {
@@ -42,7 +42,9 @@ export async function correctEvent(
     throw new Error(`Ungueltige Korrektur: ${parsed.error.message}`);
   }
 
-  return appendEvent(client, parsed.data);
+  const result = await appendEvent(client, parsed.data);
+  await refreshWeightProjection(client, input.user_id);
+  return result;
 }
 
 export interface RetractEventInput {
@@ -76,5 +78,7 @@ export async function retractEvent(
     throw new Error(`Ungueltige Retraction: ${parsed.error.message}`);
   }
 
-  return appendEvent(client, parsed.data);
+  const result = await appendEvent(client, parsed.data);
+  await refreshWeightProjection(client, input.user_id);
+  return result;
 }

@@ -1,6 +1,11 @@
 import { EVENT_CORRECTED, EVENT_RETRACTED, WEIGHT_LOGGED } from '@fitness/core';
 import { describe, expect, it } from 'vitest';
-import { type WeightProjectionEventRow, projectWeightEvents } from './weight';
+import {
+  type WeightProjectionEventRow,
+  type WeightSeriesProjectionRow,
+  projectWeightEvents,
+  projectWeightSeriesRows,
+} from './weight';
 
 const WEIGHT_1 = '11111111-1111-1111-1111-111111111111';
 const WEIGHT_2 = '22222222-2222-2222-2222-222222222222';
@@ -180,5 +185,38 @@ describe('projectWeightEvents', () => {
 
     expect(projection.series.map((p) => p.event_id)).toEqual([WEIGHT_1]);
     expect(projection.latest?.event_id).toBe(WEIGHT_1);
+  });
+});
+
+describe('projectWeightSeriesRows', () => {
+  it('projects from already materialized weight rows', () => {
+    const rows: WeightSeriesProjectionRow[] = [
+      {
+        event_id: WEIGHT_2,
+        occurred_at: '2026-05-10T07:00:00.000Z',
+        kg: 82,
+        source: 'manual',
+        confidence: null,
+        raw_input: null,
+        corrected: false,
+      },
+      {
+        event_id: WEIGHT_1,
+        occurred_at: '2026-05-01T07:00:00.000Z',
+        kg: 84.4,
+        source: 'manual',
+        confidence: null,
+        raw_input: null,
+        corrected: true,
+      },
+    ];
+
+    const projection = projectWeightSeriesRows(rows, new Date('2026-05-15T00:00:00.000Z'));
+
+    expect(projection.series.map((p) => p.event_id)).toEqual([WEIGHT_1, WEIGHT_2]);
+    expect(projection.latest?.event_id).toBe(WEIGHT_2);
+    expect(projection.trend7d).toBe(82);
+    expect(projection.trend14d).toBe(83.2);
+    expect(projection.series[0]?.corrected).toBe(true);
   });
 });
