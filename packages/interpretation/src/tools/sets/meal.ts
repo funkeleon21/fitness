@@ -7,6 +7,7 @@ import {
 import { logMeal, retractEvent } from '@fitness/ingestion';
 import { tool } from 'ai';
 import { z } from 'zod';
+import { toolExternalId, toolProvenance, toolRawInput } from '../provenance';
 import type { ChatToolset } from '../types';
 
 export const mealTools: ChatToolset = ({ client, userId }) => ({
@@ -51,10 +52,34 @@ export const mealTools: ChatToolset = ({ client, userId }) => ({
         .describe(
           'Deine Konfidenz, dass kcal/Makros sinnvoll geschätzt sind (0–1). Niedrig bei vagen Angaben, hoch bei klaren Mengen/Marken.',
         ),
+      raw_input: z
+        .string()
+        .nullish()
+        .describe(
+          'Originale Nutzerformulierung, aus der du die Mahlzeit extrahiert hast. null nur, wenn nicht rekonstruierbar.',
+        ),
     }),
     needsApproval: true,
-    execute: async ({ label, kcal, protein_g, carbs_g, fat_g, occurred_at, confidence }) => {
+    execute: async ({
+      label,
+      kcal,
+      protein_g,
+      carbs_g,
+      fat_g,
+      occurred_at,
+      confidence,
+      raw_input,
+    }) => {
       const occurredAt = occurred_at ? new Date(occurred_at) : new Date();
+      const sourceInput = toolRawInput(raw_input, {
+        tool: 'log_meal',
+        label,
+        kcal,
+        protein_g,
+        carbs_g,
+        fat_g,
+        occurred_at,
+      });
       const result = await logMeal(client, {
         user_id: userId,
         label,
@@ -64,7 +89,18 @@ export const mealTools: ChatToolset = ({ client, userId }) => ({
         fat_g: fat_g ?? undefined,
         occurred_at: occurredAt,
         source: 'ai-extracted',
+        external_id: toolExternalId('log_meal', {
+          label,
+          kcal,
+          protein_g,
+          carbs_g,
+          fat_g,
+          occurred_at,
+          raw_input: sourceInput,
+        }),
+        raw_input: sourceInput,
         confidence,
+        provenance: toolProvenance(sourceInput),
       });
       return {
         ok: true,
@@ -114,16 +150,31 @@ export const mealTools: ChatToolset = ({ client, userId }) => ({
         .describe(
           'Optional: Grund (z.B. „versehentlich eingetragen", „falsche Menge"). null wenn nicht angegeben.',
         ),
+      raw_input: z
+        .string()
+        .nullish()
+        .describe(
+          'Originale Nutzerformulierung, aus der du die Retraction abgeleitet hast. null nur, wenn nicht rekonstruierbar.',
+        ),
     }),
     needsApproval: true,
-    execute: async ({ event_id, reason }) => {
-      await retractEvent(client, {
+    execute: async ({ event_id, reason, raw_input }) => {
+      const sourceInput = toolRawInput(raw_input, { tool: 'retract_meal', event_id, reason });
+      const result = await retractEvent(client, {
         user_id: userId,
         retracts_event_id: event_id,
         reason: reason ?? 'chat retraction',
         source: 'ai-extracted',
+        external_id: toolExternalId('retract_meal', {
+          event_id,
+          reason,
+          raw_input: sourceInput,
+        }),
+        raw_input: sourceInput,
+        confidence: 0.9,
+        provenance: toolProvenance(sourceInput),
       });
-      return { ok: true, event_id };
+      return { ok: true, event_id: result.event_id, retracts_event_id: event_id };
     },
   }),
 
@@ -165,14 +216,25 @@ export const mealTools: ChatToolset = ({ client, userId }) => ({
         .min(0)
         .max(1)
         .describe('Deine Konfidenz, dass die gewählte Vorlage tatsächlich die gemeinte ist (0–1).'),
+      raw_input: z
+        .string()
+        .nullish()
+        .describe(
+          'Originale Nutzerformulierung, aus der du die Vorlage erkannt hast. null nur, wenn nicht rekonstruierbar.',
+        ),
     }),
     needsApproval: true,
-    execute: async ({ template_id, occurred_at, confidence }) => {
+    execute: async ({ template_id, occurred_at, confidence, raw_input }) => {
       const tpl = await getMealTemplate(client, userId, template_id);
       if (!tpl) {
         throw new Error(`Vorlage ${template_id} nicht gefunden.`);
       }
       const occurredAt = occurred_at ? new Date(occurred_at) : new Date();
+      const sourceInput = toolRawInput(raw_input, {
+        tool: 'log_meal_from_template',
+        template_id,
+        occurred_at,
+      });
       const result = await logMeal(client, {
         user_id: userId,
         label: tpl.label,
@@ -183,7 +245,14 @@ export const mealTools: ChatToolset = ({ client, userId }) => ({
         template_id: tpl.id,
         occurred_at: occurredAt,
         source: 'ai-extracted',
+        external_id: toolExternalId('log_meal_from_template', {
+          template_id,
+          occurred_at,
+          raw_input: sourceInput,
+        }),
+        raw_input: sourceInput,
         confidence,
+        provenance: toolProvenance(sourceInput),
       });
       await recordMealTemplateUsage(client, userId, tpl.id, occurredAt);
       return {

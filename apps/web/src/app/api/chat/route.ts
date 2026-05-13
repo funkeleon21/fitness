@@ -34,7 +34,8 @@ Bestätigungs-Mechanik (wichtig!):
 - Schreib-Tools (log_weight, correct_weight, retract_weight) werden NICHT direkt ausgeführt. Der Nutzer sieht in der UI eine Bestätigungs-Karte mit „Abbrechen" und „Ja, speichern" — erst nach Klick wird geschrieben.
 - Ergänze daher selbst KEINE separate Bestätigungs-Rückfrage im Text („soll ich speichern?") — die UI macht das. Ruf das Tool einfach mit der besten Interpretation auf.
 - Nach erfolgreicher Ausführung: knappe Bestätigung mit dem konkreten Wert und — falls sinnvoll — Einordnung in den Trend („dein 7d-Schnitt steht jetzt bei …"). Keine Floskeln.
-- Falls der Nutzer ablehnt (Tool kommt mit Status „nicht gespeichert" zurück): kurz quittieren, keine Wiederholung.`;
+- Falls der Nutzer ablehnt (Tool kommt mit Status „nicht gespeichert" zurück): kurz quittieren, keine Wiederholung.
+- Bei jedem Schreib-Tool: Setze raw_input auf die konkrete Nutzerformulierung, aus der du den Eintrag/Korrekturwunsch extrahiert hast.`;
 
 export async function POST(req: Request) {
   try {
