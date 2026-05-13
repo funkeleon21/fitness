@@ -1,0 +1,66 @@
+name: Migration Drift
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: migration-drift-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  drift:
+    name: drift check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compare local migrations vs applied
+        env:
+          # Postgres-Connection-String zur Supabase-Prod-DB (Pooler oder direkt).
+          # Wird als Secret in GitHub gepflegt; ohne Secret läuft der Check als No-Op
+          # (kein false-negative-Grün), damit Forks oder ein noch ungelinktes Repo den PR nicht blocken.
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "::warning::SUPABASE_DB_URL secret nicht gesetzt — Drift-Check übersprungen."
+            echo "Einrichten: gh secret set SUPABASE_DB_URL"
+            exit 0
+          fi
+
+          # Lokale Dateinamen (ohne .sql), sortiert.
+          LOCAL=$(find packages/db/migrations -maxdepth 1 -name '*.sql' -printf '%f\n' \
+            | sed 's/\.sql$//' \
+            | sort)
+
+          # In der DB angewandte Migrations-Namen, sortiert.
+          # Drizzle's apply_migration via Supabase-MCP trackt in supabase_migrations.schema_migrations.
+          DB=$(psql "$DATABASE_URL" -At -c \
+            "select name from supabase_migrations.schema_migrations order by name" \
+            | sort)
+
+          # Lokal vorhanden, aber nicht in DB → muss angewandt werden.
+          MISSING=$(comm -23 <(echo "$LOCAL") <(echo "$DB") || true)
+
+          # In DB, aber lokal fehlt → Datei wurde nachträglich gelöscht oder die DB ist „voraus".
+          ORPHAN=$(comm -13 <(echo "$LOCAL") <(echo "$DB") || true)
+
+          if [ -n "$MISSING" ]; then
+            echo "::error::Migrationen lokal vorhanden, aber nicht in der Prod-DB angewandt:"
+            echo "$MISSING" | sed 's/^/  - /'
+            echo ""
+            echo "Anwenden via Supabase-MCP apply_migration auf project_id cjwgisdobzztljizrnfn."
+            echo "Siehe .claude/skills/db-migration/SKILL.md"
+            exit 1
+          fi
+
+          if [ -n "$ORPHAN" ]; then
+            echo "::warning::Migrationen in der DB, aber nicht im Repo:"
+            echo "$ORPHAN" | sed 's/^/  - /'
+            echo "Vermutlich wurde eine Datei gelöscht oder die DB-History muss bereinigt werden."
+          fi
+
+          echo "OK — alle $(echo "$LOCAL" | wc -l | tr -d ' ') lokalen Migrationen sind in der DB angewandt."
