@@ -231,7 +231,7 @@ export function Chat({ userName }: { userName: string }) {
             letterSpacing: '0.04em',
           }}
         >
-          Sonnet 4.6 · liest und schreibt Gewichtsdaten
+          Sonnet 4.6 · liest und schreibt Gewicht und Mahlzeiten
         </p>
       </div>
     </div>
@@ -314,11 +314,11 @@ function ToolCard({
 }) {
   const toolName = getToolOrDynamicToolName(part);
 
-  // Internes Lese-Tool — der Nutzer braucht keine Karte, der Text vom Assistant
+  // Interne Lese-Tools — der Nutzer braucht keine Karte, der Text vom Assistant
   // erklärt das Ergebnis. Während der Ausführung dezenter Hinweis.
-  if (toolName === 'list_recent_weight_entries') {
+  if (INTERNAL_READ_TOOL_LABELS[toolName]) {
     if (part.state === 'input-streaming' || part.state === 'input-available') {
-      return <ToolChip muted>Letzte Einträge lesen…</ToolChip>;
+      return <ToolChip muted>{INTERNAL_READ_TOOL_LABELS[toolName]}</ToolChip>;
     }
     return null;
   }
@@ -442,7 +442,14 @@ function ApprovalCard({
 
 function formatApprovalSummary(toolName: string, input: unknown): string {
   if (typeof input !== 'object' || input === null) return `${toolName} ausführen?`;
-  const obj = input as { kg?: unknown; occurred_at?: unknown };
+  const obj = input as {
+    kg?: unknown;
+    occurred_at?: unknown;
+    label?: unknown;
+    kcal?: unknown;
+    protein_g?: unknown;
+    template_id?: unknown;
+  };
   const kg = typeof obj.kg === 'number' ? `${obj.kg.toFixed(1).replace('.', ',')} kg` : null;
   const when = formatApprovalTime(obj.occurred_at);
 
@@ -453,8 +460,23 @@ function formatApprovalSummary(toolName: string, input: unknown): string {
     return `Eintrag korrigieren auf ${kg}`;
   }
   if (toolName === 'retract_weight') {
-    return 'Eintrag zurückziehen';
+    return 'Gewichts-Eintrag zurückziehen';
   }
+
+  if (toolName === 'log_meal' && typeof obj.label === 'string') {
+    const parts: string[] = [obj.label];
+    if (typeof obj.kcal === 'number') parts.push(`${Math.round(obj.kcal)} kcal`);
+    if (typeof obj.protein_g === 'number') parts.push(`${Math.round(obj.protein_g)} g P`);
+    const head = parts.join(' · ');
+    return when ? `${head} — ${when}` : `${head} — jetzt`;
+  }
+  if (toolName === 'log_meal_from_template') {
+    return when ? `Vorlage eintragen — ${when}` : 'Vorlage eintragen — jetzt';
+  }
+  if (toolName === 'retract_meal') {
+    return 'Mahlzeit-Eintrag zurückziehen';
+  }
+
   return `${toolName} ausführen?`;
 }
 
@@ -471,13 +493,27 @@ const TOOL_LABELS: Record<string, { running: string; done: string }> = {
   log_weight: { running: 'Gewicht speichern…', done: 'Gewicht gespeichert' },
   correct_weight: { running: 'Eintrag korrigieren…', done: 'Eintrag korrigiert' },
   retract_weight: { running: 'Eintrag zurückziehen…', done: 'Eintrag zurückgezogen' },
+  log_meal: { running: 'Mahlzeit speichern…', done: 'Mahlzeit gespeichert' },
+  log_meal_from_template: { running: 'Vorlage speichern…', done: 'Mahlzeit gespeichert' },
+  retract_meal: { running: 'Mahlzeit zurückziehen…', done: 'Mahlzeit zurückgezogen' },
+};
+
+const INTERNAL_READ_TOOL_LABELS: Record<string, string> = {
+  list_recent_weight_entries: 'Letzte Gewichts-Einträge lesen…',
+  list_recent_meal_entries: 'Letzte Mahlzeiten lesen…',
+  list_meal_templates: 'Mahlzeit-Vorlagen lesen…',
 };
 
 function formatToolDetail(toolName: string, input: unknown): string {
   if (typeof input !== 'object' || input === null) return '';
-  const kg = (input as { kg?: unknown }).kg;
-  if ((toolName === 'log_weight' || toolName === 'correct_weight') && typeof kg === 'number') {
-    return `${kg.toFixed(1).replace('.', ',')} kg`;
+  const obj = input as { kg?: unknown; kcal?: unknown; label?: unknown };
+
+  if ((toolName === 'log_weight' || toolName === 'correct_weight') && typeof obj.kg === 'number') {
+    return `${obj.kg.toFixed(1).replace('.', ',')} kg`;
+  }
+  if (toolName === 'log_meal' && typeof obj.label === 'string') {
+    const kcal = typeof obj.kcal === 'number' ? ` · ${Math.round(obj.kcal)} kcal` : '';
+    return `${obj.label}${kcal}`;
   }
   return '';
 }
