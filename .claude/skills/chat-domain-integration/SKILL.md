@@ -25,46 +25,13 @@ Der Chat-Endpoint in `apps/web/src/app/api/chat/route.ts` baut zwei Dinge aus `@
 
 ## Schritte — Teil 0: PROJEKTION (packages/db/src/projections/<name>.ts)
 
-Wenn die Projektion für die Domäne noch nicht existiert, baue sie **zuerst** — Context (Teil A) und Tools (Teil B) hängen beide daran. Das Replay-Pattern für Korrekturen ist in [ADR-0010](../../../docs/decisions/0010-projektionen-replay-pattern.md) festgelegt; die beiden Stolperfallen unten haben weight und meal jeweils zweimal getroffen.
+Wenn die Projektion noch nicht existiert, baue sie **zuerst** — Context (Teil A) und Tools (Teil B) hängen daran. Replay-Pattern, Sortier-Regel und Korrektur-Logik sind in [ADR-0010](../../../docs/decisions/0010-projektionen-replay-pattern.md) festgehalten — vor dem Coden lesen, nicht hier wiederholen. Vorlage kopieren und anpassen:
 
-Vorlagen:
-- **Single-Field-Domain** (nur ein Wert wird korrigiert): [weight.ts](../../../packages/db/src/projections/weight.ts)
-- **Multi-Field-Domain** (partielle Korrekturen möglich): [meal.ts](../../../packages/db/src/projections/meal.ts)
+- **Single-Field** (ein Wert wird korrigiert): [weight.ts](../../../packages/db/src/projections/weight.ts) + [weight.test.ts](../../../packages/db/src/projections/weight.test.ts)
+- **Multi-Field** (partielle Korrekturen): [meal.ts](../../../packages/db/src/projections/meal.ts) + [meal.test.ts](../../../packages/db/src/projections/meal.test.ts)
 
-### 0.1 Pure-Function-Pattern (Pflicht)
-
-- `project<Domain>Events(rows, now)` — reine Funktion, kein Supabase-Client.
-- `get<Domain>Projection(client, userId, now)` — DB-Adapter, macht nur `SELECT` und ruft die reine Funktion auf.
-- Begründung: Projektionslogik ohne DB-Mock testbar.
-
-### 0.2 Sortierung beim Replay
-
-- SQL: `.order('recorded_at', { ascending: true }).order('id', { ascending: true })` — **nicht** `occurred_at`.
-- In der reinen Funktion **defensiv erneut** sortieren mit gleichem `compareEventLogOrder` (recorded_at, id).
-- Begründung: Korrektur-Events können ein früheres `occurred_at` als ihr Ziel-Event tragen (Beispiel: „Ich logge heute, dass mein gestriges Gewicht falsch war"). Bei `occurred_at`-Sortierung trifft das Replay die Korrektur vor dem Ziel-Event → `byId.get(corrects_event_id)` ist `undefined` → Korrektur wird **still verschluckt**.
-
-### 0.3 Korrekturketten + Retract-of-Correction
-
-- `correctionTargetById`-Map löst Ketten (`event_corrected → event_corrected → <domain>_logged`) auf das Original-Event auf.
-- `event_retracted` mit `retracts_event_id = <correction.id>` → Korrektur überspringen, vorherige Korrektur (oder das Original) bleibt aktiv.
-- Begründung: Ohne diese Indirection fällt jede zweite Korrektur in der Kette raus.
-
-### 0.4 Field-Overlay statt Replace (Multi-Field-Domänen)
-
-- Single-Field-Domain (`weight.kg`): „letzte Korrektur gewinnt" funktioniert.
-- Multi-Field-Domain (`meal.label`, `meal.kcal`, …): nicht-retracted Korrekturen feldweise in Log-Reihenfolge auf das Original-Event overlay-en. Sonst überschreibt eine spätere kcal-Korrektur eine frühere label-Korrektur — selbst wenn beide gewollt waren.
-
-### 0.5 Test-File `<name>.test.ts` (Pflicht)
-
-Mindest-Szenarien, ohne die das Pattern regrediert:
-
-- Tagestotals / Trends bei normalem Input
-- Korrektur-Replay bei **unsortiertem** Input (Korrektur-Zeile vor Ziel-Zeile)
-- Korrekturkette (Korrektur einer Korrektur)
-- Retract-of-Correction → Fallback auf vorherige Korrektur (bzw. Original)
-- Retract des Domain-Events → komplettes Entfernen aus der Serie
-
-Vorlagen: [weight.test.ts](../../../packages/db/src/projections/weight.test.ts), [meal.test.ts](../../../packages/db/src/projections/meal.test.ts).
+Pflicht-Test-Szenarien (sonst regrediert das Pattern):
+Tagestotals/Trends bei Normalfall · Korrektur bei **unsortiertem** Input · Korrekturkette · Retract-of-Correction (Fallback) · Retract des Domain-Events.
 
 ## Schritte — Teil A: LESEN (UserContextSection)
 

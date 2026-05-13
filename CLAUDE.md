@@ -13,6 +13,7 @@ Diese Datei ist Navigations-Index. Inhalt steht in [docs/](docs/).
 | Architektur (5 Schichten, Datenfluss, Disziplinen) | [docs/architecture.md](docs/architecture.md) |
 | Phasen + bewusste Anti-Roadmap | [docs/roadmap.md](docs/roadmap.md) |
 | Architecture Decision Records (ADRs) | [docs/decisions/](docs/decisions/) |
+| Skills (Workflow-Anleitungen) | [.claude/skills/](.claude/skills/) — z.B. [chat-domain-integration](.claude/skills/chat-domain-integration/SKILL.md) bei neuer Domäne/Projektion |
 
 ## Code-Layout
 
