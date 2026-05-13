@@ -9,17 +9,18 @@ import { InsightsScreen } from './screens/InsightsScreen';
 import { type LogMode, LogSheet } from './screens/LogSheet';
 import { NutritionScreen } from './screens/NutritionScreen';
 import { TrainingScreen } from './screens/TrainingScreen';
-import type { DashboardData } from './types';
+import type { DashboardData, NutritionData } from './types';
 
 type ScreenId = 'home' | 'body' | 'nutrition' | 'training' | 'insights';
 
 interface DashboardProps {
   data: DashboardData;
+  nutrition: NutritionData;
   userName: string;
   initials: string;
 }
 
-export function Dashboard({ data, userName, initials }: DashboardProps) {
+export function Dashboard({ data, nutrition, userName, initials }: DashboardProps) {
   const [screen, setScreen] = useState<ScreenId>('home');
   const [logMode, setLogMode] = useState<LogMode | null>(null);
   const [insightId, setInsightId] = useState<string | null>(null);
@@ -44,7 +45,7 @@ export function Dashboard({ data, userName, initials }: DashboardProps) {
         <BodyScreen data={data} onNavigate={navigate} />
       </ScreenWrapper>
       <ScreenWrapper active={screen === 'nutrition'}>
-        <NutritionScreen onOpenLog={openLog} />
+        <NutritionScreen nutrition={nutrition} onOpenLog={openLog} />
       </ScreenWrapper>
       <ScreenWrapper active={screen === 'training'}>
         <TrainingScreen />
