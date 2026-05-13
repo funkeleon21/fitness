@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { eventEnvelopeSchema } from '../envelope';
+import { eventEnvelopeBaseSchema, validateEventEnvelope } from '../envelope';
 
 export const EVENT_CORRECTED = 'event_corrected' as const;
 export const EVENT_RETRACTED = 'event_retracted' as const;
@@ -11,11 +11,13 @@ export const eventCorrectedPayloadSchema = z.object({
 });
 export type EventCorrectedPayload = z.infer<typeof eventCorrectedPayloadSchema>;
 
-export const eventCorrectedEventSchema = eventEnvelopeSchema.extend({
-  type: z.literal(EVENT_CORRECTED),
-  version: z.literal(1),
-  payload: eventCorrectedPayloadSchema,
-});
+export const eventCorrectedEventSchema = eventEnvelopeBaseSchema
+  .extend({
+    type: z.literal(EVENT_CORRECTED),
+    version: z.literal(1),
+    payload: eventCorrectedPayloadSchema,
+  })
+  .superRefine(validateEventEnvelope);
 export type EventCorrectedEvent = z.infer<typeof eventCorrectedEventSchema>;
 
 export const eventRetractedPayloadSchema = z.object({
@@ -24,9 +26,11 @@ export const eventRetractedPayloadSchema = z.object({
 });
 export type EventRetractedPayload = z.infer<typeof eventRetractedPayloadSchema>;
 
-export const eventRetractedEventSchema = eventEnvelopeSchema.extend({
-  type: z.literal(EVENT_RETRACTED),
-  version: z.literal(1),
-  payload: eventRetractedPayloadSchema,
-});
+export const eventRetractedEventSchema = eventEnvelopeBaseSchema
+  .extend({
+    type: z.literal(EVENT_RETRACTED),
+    version: z.literal(1),
+    payload: eventRetractedPayloadSchema,
+  })
+  .superRefine(validateEventEnvelope);
 export type EventRetractedEvent = z.infer<typeof eventRetractedEventSchema>;

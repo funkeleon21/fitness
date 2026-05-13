@@ -1,4 +1,5 @@
 import {
+  type EventProvenance,
   type EventSource,
   type MealItem,
   createMealLogged,
@@ -18,8 +19,10 @@ export interface LogMealInput {
   template_id?: string;
   occurred_at: Date;
   source?: EventSource;
+  external_id?: string | null;
   raw_input?: string | null;
   confidence?: number | null;
+  provenance?: EventProvenance | null;
 }
 
 export async function logMeal(
@@ -37,8 +40,10 @@ export async function logMeal(
     template_id: input.template_id,
     occurred_at: input.occurred_at,
     source: input.source ?? 'manual',
+    external_id: input.external_id ?? null,
     raw_input: input.raw_input ?? null,
     confidence: input.confidence ?? null,
+    provenance: input.provenance ?? null,
   });
 
   const parsed = mealLoggedEventSchema.safeParse(event);
@@ -46,6 +51,5 @@ export async function logMeal(
     throw new Error(`Ungueltiges Mahlzeit-Event: ${parsed.error.message}`);
   }
 
-  await appendEvent(client, parsed.data);
-  return { event_id: event.id };
+  return appendEvent(client, parsed.data);
 }

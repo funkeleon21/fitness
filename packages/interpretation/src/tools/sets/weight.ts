@@ -2,6 +2,7 @@ import { getWeightProjection } from '@fitness/db';
 import { correctEvent, logWeight, retractEvent } from '@fitness/ingestion';
 import { tool } from 'ai';
 import { z } from 'zod';
+import { toolExternalId, toolProvenance, toolRawInput } from '../provenance';
 import type { ChatToolset } from '../types';
 
 export const weightTools: ChatToolset = ({ client, userId }) => ({
@@ -22,16 +23,26 @@ export const weightTools: ChatToolset = ({ client, userId }) => ({
         .min(0)
         .max(1)
         .describe('Deine Konfidenz, dass dieser Wert korrekt extrahiert wurde (0–1).'),
+      raw_input: z
+        .string()
+        .nullish()
+        .describe(
+          'Originale Nutzerformulierung, aus der du das Gewicht extrahiert hast. null nur, wenn nicht rekonstruierbar.',
+        ),
     }),
     needsApproval: true,
-    execute: async ({ kg, occurred_at, confidence }) => {
+    execute: async ({ kg, occurred_at, confidence, raw_input }) => {
       const occurredAt = occurred_at ? new Date(occurred_at) : new Date();
+      const sourceInput = toolRawInput(raw_input, { tool: 'log_weight', kg, occurred_at });
       const result = await logWeight(client, {
         user_id: userId,
         kg,
         occurred_at: occurredAt,
         source: 'ai-extracted',
+        external_id: toolExternalId('log_weight', { kg, occurred_at, raw_input: sourceInput }),
+        raw_input: sourceInput,
         confidence,
+        provenance: toolProvenance(sourceInput),
       });
       return {
         ok: true,
@@ -78,17 +89,38 @@ export const weightTools: ChatToolset = ({ client, userId }) => ({
         .string()
         .nullable()
         .describe('Optional: Grund der Korrektur (z.B. "Tippfehler"). null wenn nicht angegeben.'),
+      raw_input: z
+        .string()
+        .nullish()
+        .describe(
+          'Originale Nutzerformulierung, aus der du die Korrektur abgeleitet hast. null nur, wenn nicht rekonstruierbar.',
+        ),
     }),
     needsApproval: true,
-    execute: async ({ event_id, kg, reason }) => {
-      await correctEvent(client, {
+    execute: async ({ event_id, kg, reason, raw_input }) => {
+      const sourceInput = toolRawInput(raw_input, {
+        tool: 'correct_weight',
+        event_id,
+        kg,
+        reason,
+      });
+      const result = await correctEvent(client, {
         user_id: userId,
         corrects_event_id: event_id,
         new_payload: { kg },
         reason: reason ?? 'chat correction',
         source: 'ai-extracted',
+        external_id: toolExternalId('correct_weight', {
+          event_id,
+          kg,
+          reason,
+          raw_input: sourceInput,
+        }),
+        raw_input: sourceInput,
+        confidence: 0.9,
+        provenance: toolProvenance(sourceInput),
       });
-      return { ok: true, event_id, new_kg: kg };
+      return { ok: true, event_id: result.event_id, corrects_event_id: event_id, new_kg: kg };
     },
   }),
 
@@ -101,16 +133,31 @@ export const weightTools: ChatToolset = ({ client, userId }) => ({
         .string()
         .nullable()
         .describe('Optional: Grund (z.B. "versehentlich eingetragen"). null wenn nicht angegeben.'),
+      raw_input: z
+        .string()
+        .nullish()
+        .describe(
+          'Originale Nutzerformulierung, aus der du die Retraction abgeleitet hast. null nur, wenn nicht rekonstruierbar.',
+        ),
     }),
     needsApproval: true,
-    execute: async ({ event_id, reason }) => {
-      await retractEvent(client, {
+    execute: async ({ event_id, reason, raw_input }) => {
+      const sourceInput = toolRawInput(raw_input, { tool: 'retract_weight', event_id, reason });
+      const result = await retractEvent(client, {
         user_id: userId,
         retracts_event_id: event_id,
         reason: reason ?? 'chat retraction',
         source: 'ai-extracted',
+        external_id: toolExternalId('retract_weight', {
+          event_id,
+          reason,
+          raw_input: sourceInput,
+        }),
+        raw_input: sourceInput,
+        confidence: 0.9,
+        provenance: toolProvenance(sourceInput),
       });
-      return { ok: true, event_id };
+      return { ok: true, event_id: result.event_id, retracts_event_id: event_id };
     },
   }),
 });

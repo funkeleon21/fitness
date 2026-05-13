@@ -9,8 +9,10 @@ const validMealEvent = {
   occurred_at: new Date('2026-05-13T12:30:00Z'),
   recorded_at: new Date('2026-05-13T12:31:00Z'),
   source: 'manual',
+  external_id: null,
   confidence: null,
   raw_input: null,
+  provenance: null,
   payload: {
     label: 'Hähnchen-Reis-Bowl',
     kcal: 612,
