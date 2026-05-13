@@ -15,6 +15,7 @@ export interface LogMealInput {
   carbs_g?: number;
   fat_g?: number;
   items?: MealItem[];
+  template_id?: string;
   occurred_at: Date;
   source?: EventSource;
   raw_input?: string | null;
@@ -33,6 +34,7 @@ export async function logMeal(
     carbs_g: input.carbs_g,
     fat_g: input.fat_g,
     items: input.items,
+    template_id: input.template_id,
     occurred_at: input.occurred_at,
     source: input.source ?? 'manual',
     raw_input: input.raw_input ?? null,

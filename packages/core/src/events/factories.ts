@@ -40,6 +40,7 @@ export interface NewMealLoggedInput {
   carbs_g?: number;
   fat_g?: number;
   items?: MealItem[];
+  template_id?: string;
   occurred_at: Date;
   source: EventSource;
   raw_input?: string | null;
@@ -64,6 +65,7 @@ export function createMealLogged(input: NewMealLoggedInput): MealLoggedEvent {
       ...(input.carbs_g !== undefined ? { carbs_g: input.carbs_g } : {}),
       ...(input.fat_g !== undefined ? { fat_g: input.fat_g } : {}),
       ...(input.items !== undefined ? { items: input.items } : {}),
+      ...(input.template_id !== undefined ? { template_id: input.template_id } : {}),
     },
   };
 }

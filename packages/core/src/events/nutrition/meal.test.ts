@@ -34,6 +34,27 @@ describe('mealLoggedEventSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  it('accepts a meal event with template_id', () => {
+    const result = mealLoggedEventSchema.safeParse({
+      ...validMealEvent,
+      payload: {
+        label: 'Standard-Frühstück',
+        kcal: 420,
+        protein_g: 32,
+        template_id: '33333333-3333-3333-3333-333333333333',
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects non-uuid template_id', () => {
+    const result = mealLoggedEventSchema.safeParse({
+      ...validMealEvent,
+      payload: { label: 'Apfel', kcal: 90, template_id: 'nope' },
+    });
+    expect(result.success).toBe(false);
+  });
+
   it('accepts a meal event with items', () => {
     const result = mealLoggedEventSchema.safeParse({
       ...validMealEvent,

@@ -1,14 +1,17 @@
 'use client';
 
-import { retractMealAction } from '@/app/actions';
-import { useState } from 'react';
+import { logMealFromTemplateAction, retractMealAction } from '@/app/actions';
+import { useState, useTransition } from 'react';
 import { Icon } from '../Icon';
-import type { MealPoint, NutritionData } from '../types';
+import type { MealPoint, MealTemplateView, NutritionData } from '../types';
 import type { LogMode } from './LogSheet';
 
 interface NutritionScreenProps {
   nutrition: NutritionData;
+  mealTemplates: MealTemplateView[];
   onOpenLog: (mode: LogMode) => void;
+  onCreateTemplate: () => void;
+  onEditTemplate: (template: MealTemplateView) => void;
 }
 
 function formatTime(iso: string): string {
@@ -24,7 +27,13 @@ function sourceIcon(source: string): 'mic' | 'camera' | 'text' {
   return 'text';
 }
 
-export function NutritionScreen({ nutrition, onOpenLog }: NutritionScreenProps) {
+export function NutritionScreen({
+  nutrition,
+  mealTemplates,
+  onOpenLog,
+  onCreateTemplate,
+  onEditTemplate,
+}: NutritionScreenProps) {
   const { today, todayTotals } = nutrition;
 
   return (
@@ -39,9 +48,185 @@ export function NutritionScreen({ nutrition, onOpenLog }: NutritionScreenProps) 
         <MealsCard meals={today} onOpenLog={onOpenLog} />
       </div>
 
+      <div className="pad-x" style={{ marginTop: 12 }}>
+        <FoodMemoryCard
+          templates={mealTemplates}
+          onCreate={onCreateTemplate}
+          onEdit={onEditTemplate}
+        />
+      </div>
+
       <div className="pad-x" style={{ marginTop: 12, marginBottom: 32 }}>
         <PrincipleHint />
       </div>
+    </div>
+  );
+}
+
+function FoodMemoryCard({
+  templates,
+  onCreate,
+  onEdit,
+}: {
+  templates: MealTemplateView[];
+  onCreate: () => void;
+  onEdit: (t: MealTemplateView) => void;
+}) {
+  const [pendingId, setPendingId] = useState<string | null>(null);
+  const [_, startTransition] = useTransition();
+
+  function logFromTemplate(id: string) {
+    setPendingId(id);
+    startTransition(async () => {
+      try {
+        const fd = new FormData();
+        fd.append('template_id', id);
+        await logMealFromTemplateAction(fd);
+      } finally {
+        setPendingId(null);
+      }
+    });
+  }
+
+  return (
+    <div className="card rise" style={{ animationDelay: '120ms' }}>
+      <div className="row-between" style={{ marginBottom: 4 }}>
+        <div>
+          <div className="h-card" style={{ fontSize: 17 }}>
+            Food Memory
+          </div>
+          <div style={{ color: 'var(--ink-4)', fontSize: 12, marginTop: 4 }}>
+            Wiederkehrende Mahlzeiten — einmal speichern, schnell wieder loggen
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onCreate}
+          className="pressable"
+          aria-label="Neue Vorlage anlegen"
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: '50%',
+            background: 'var(--surface-2)',
+            border: '0.5px solid var(--hairline)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'var(--ink-2)',
+            cursor: 'pointer',
+          }}
+        >
+          <Icon name="plus" size={16} strokeWidth={2} />
+        </button>
+      </div>
+
+      {templates.length === 0 ? (
+        <div style={{ color: 'var(--ink-3)', fontSize: 13, padding: '14px 0 4px' }}>
+          Noch keine Vorlagen. Tippe das „+", um deine erste anzulegen.
+        </div>
+      ) : (
+        <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {templates.map((t) => (
+            <TemplateRow
+              key={t.id}
+              template={t}
+              pending={pendingId === t.id}
+              onLog={() => logFromTemplate(t.id)}
+              onEdit={() => onEdit(t)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TemplateRow({
+  template,
+  pending,
+  onLog,
+  onEdit,
+}: {
+  template: MealTemplateView;
+  pending: boolean;
+  onLog: () => void;
+  onEdit: () => void;
+}) {
+  const macros: string[] = [];
+  if (template.protein_g !== null && template.protein_g > 0)
+    macros.push(`${Math.round(template.protein_g)}g P`);
+  if (template.carbs_g !== null && template.carbs_g > 0)
+    macros.push(`${Math.round(template.carbs_g)}g K`);
+  if (template.fat_g !== null && template.fat_g > 0)
+    macros.push(`${Math.round(template.fat_g)}g F`);
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '10px 12px',
+        background: 'var(--surface-2)',
+        borderRadius: 12,
+        opacity: pending ? 0.6 : 1,
+      }}
+    >
+      <button
+        type="button"
+        onClick={onEdit}
+        className="pressable"
+        style={{
+          flex: 1,
+          minWidth: 0,
+          background: 'transparent',
+          border: 'none',
+          padding: 0,
+          textAlign: 'left',
+          cursor: 'pointer',
+        }}
+      >
+        <div
+          style={{
+            fontSize: 14,
+            fontWeight: 500,
+            color: 'var(--ink-2)',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {template.label}
+        </div>
+        <div className="mono-sm" style={{ marginTop: 2 }}>
+          {template.kcal} kcal
+          {macros.length > 0 ? ` · ${macros.join(' · ')}` : ''}
+          {template.usage_count > 0 ? ` · ${template.usage_count}×` : ''}
+        </div>
+      </button>
+      <button
+        type="button"
+        onClick={onLog}
+        disabled={pending}
+        className="pressable"
+        aria-label={`${template.label} loggen`}
+        style={{
+          width: 32,
+          height: 32,
+          borderRadius: '50%',
+          background: 'var(--sage-wash)',
+          border: '0.5px solid rgba(110,122,78,0.22)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'var(--sage-deep)',
+          cursor: pending ? 'wait' : 'pointer',
+          flexShrink: 0,
+        }}
+      >
+        <Icon name="plus" size={16} strokeWidth={2} />
+      </button>
     </div>
   );
 }

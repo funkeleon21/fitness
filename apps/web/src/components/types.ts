@@ -39,3 +39,14 @@ export interface NutritionData {
   todayTotals: MealDayTotals;
   recent: MealPoint[];
 }
+
+export interface MealTemplateView {
+  id: string;
+  label: string;
+  kcal: number;
+  protein_g: number | null;
+  carbs_g: number | null;
+  fat_g: number | null;
+  usage_count: number;
+  last_used_at: string | null; // ISO
+}

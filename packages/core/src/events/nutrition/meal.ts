@@ -20,6 +20,9 @@ export const mealLoggedPayloadSchema = z.object({
   carbs_g: z.number().min(0).max(2000).optional(),
   fat_g: z.number().min(0).max(2000).optional(),
   items: z.array(mealItemSchema).max(50).optional(),
+  // ID einer meal_templates-Zeile, falls die Mahlzeit aus einer Vorlage entstanden ist.
+  // Werte (kcal, Makros) sind trotzdem als Snapshot im Payload — Templates können sich ändern.
+  template_id: z.string().uuid().optional(),
 });
 export type MealLoggedPayload = z.infer<typeof mealLoggedPayloadSchema>;
 

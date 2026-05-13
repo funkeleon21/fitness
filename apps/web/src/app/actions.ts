@@ -1,6 +1,13 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import {
+  createMealTemplate,
+  deleteMealTemplate,
+  getMealTemplate,
+  recordMealTemplateUsage,
+  updateMealTemplate,
+} from '@fitness/db';
 import { correctEvent, logMeal, logWeight, retractEvent } from '@fitness/ingestion';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -115,12 +122,22 @@ export async function retractWeightAction(formData: FormData) {
   revalidatePath('/');
 }
 
+function parseOptionalUuid(raw: FormDataEntryValue | null): string | undefined {
+  if (typeof raw !== 'string' || raw.trim() === '') return undefined;
+  const v = raw.trim();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)) {
+    throw new Error('Ungueltige UUID');
+  }
+  return v;
+}
+
 export async function logMealAction(formData: FormData) {
   const label = parseLabel(formData.get('label'));
   const kcal = parseNonNegativeNumber(formData.get('kcal'), 'kcal', 20000);
   const protein_g = parseOptionalNonNegativeNumber(formData.get('protein_g'), 'protein_g', 2000);
   const carbs_g = parseOptionalNonNegativeNumber(formData.get('carbs_g'), 'carbs_g', 2000);
   const fat_g = parseOptionalNonNegativeNumber(formData.get('fat_g'), 'fat_g', 2000);
+  const template_id = parseOptionalUuid(formData.get('template_id'));
   const occurredAt = parseOccurredAt(formData.get('occurred_at'));
 
   const supabase = await createClient();
@@ -136,10 +153,110 @@ export async function logMealAction(formData: FormData) {
     protein_g,
     carbs_g,
     fat_g,
+    template_id,
     occurred_at: occurredAt,
     source: 'manual',
   });
 
+  if (template_id) {
+    await recordMealTemplateUsage(supabase, user.id, template_id, occurredAt);
+  }
+
+  revalidatePath('/');
+}
+
+export async function createMealTemplateAction(formData: FormData) {
+  const label = parseLabel(formData.get('label'));
+  const kcal = parseNonNegativeNumber(formData.get('kcal'), 'kcal', 20000);
+  const protein_g = parseOptionalNonNegativeNumber(formData.get('protein_g'), 'protein_g', 2000);
+  const carbs_g = parseOptionalNonNegativeNumber(formData.get('carbs_g'), 'carbs_g', 2000);
+  const fat_g = parseOptionalNonNegativeNumber(formData.get('fat_g'), 'fat_g', 2000);
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect('/login');
+
+  await createMealTemplate(supabase, {
+    user_id: user.id,
+    label,
+    kcal,
+    protein_g: protein_g ?? null,
+    carbs_g: carbs_g ?? null,
+    fat_g: fat_g ?? null,
+  });
+
+  revalidatePath('/');
+}
+
+export async function updateMealTemplateAction(formData: FormData) {
+  const id = parseOptionalUuid(formData.get('id'));
+  if (!id) throw new Error('id fehlt');
+  const label = parseLabel(formData.get('label'));
+  const kcal = parseNonNegativeNumber(formData.get('kcal'), 'kcal', 20000);
+  const protein_g = parseOptionalNonNegativeNumber(formData.get('protein_g'), 'protein_g', 2000);
+  const carbs_g = parseOptionalNonNegativeNumber(formData.get('carbs_g'), 'carbs_g', 2000);
+  const fat_g = parseOptionalNonNegativeNumber(formData.get('fat_g'), 'fat_g', 2000);
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect('/login');
+
+  await updateMealTemplate(supabase, user.id, id, {
+    label,
+    kcal,
+    protein_g: protein_g ?? null,
+    carbs_g: carbs_g ?? null,
+    fat_g: fat_g ?? null,
+  });
+
+  revalidatePath('/');
+}
+
+export async function deleteMealTemplateAction(formData: FormData) {
+  const id = parseOptionalUuid(formData.get('id'));
+  if (!id) throw new Error('id fehlt');
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect('/login');
+
+  await deleteMealTemplate(supabase, user.id, id);
+  revalidatePath('/');
+}
+
+export async function logMealFromTemplateAction(formData: FormData) {
+  const id = parseOptionalUuid(formData.get('template_id'));
+  if (!id) throw new Error('template_id fehlt');
+  const occurredAt = parseOccurredAt(formData.get('occurred_at'));
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect('/login');
+
+  const tpl = await getMealTemplate(supabase, user.id, id);
+  if (!tpl) throw new Error('Template nicht gefunden');
+
+  await logMeal(supabase, {
+    user_id: user.id,
+    label: tpl.label,
+    kcal: tpl.kcal,
+    protein_g: tpl.protein_g ?? undefined,
+    carbs_g: tpl.carbs_g ?? undefined,
+    fat_g: tpl.fat_g ?? undefined,
+    template_id: tpl.id,
+    occurred_at: occurredAt,
+    source: 'manual',
+  });
+
+  await recordMealTemplateUsage(supabase, user.id, tpl.id, occurredAt);
   revalidatePath('/');
 }
 

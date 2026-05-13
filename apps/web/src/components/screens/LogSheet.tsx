@@ -1,13 +1,15 @@
 'use client';
 
-import { logMealAction } from '@/app/actions';
+import { logMealAction, logMealFromTemplateAction } from '@/app/actions';
 import { useEffect, useId, useState, useTransition } from 'react';
 import { Icon } from '../Icon';
+import type { MealTemplateView } from '../types';
 
 export type LogMode = 'voice' | 'photo' | 'text' | 'meal' | 'answer';
 
 interface LogSheetProps {
   mode: LogMode;
+  mealTemplates?: MealTemplateView[];
   onClose: () => void;
 }
 
@@ -22,7 +24,7 @@ interface ParsedMeal {
   time: string;
 }
 
-export function LogSheet({ mode, onClose }: LogSheetProps) {
+export function LogSheet({ mode, mealTemplates, onClose }: LogSheetProps) {
   return (
     <button
       type="button"
@@ -70,19 +72,42 @@ export function LogSheet({ mode, onClose }: LogSheetProps) {
           </button>
         </div>
 
-        {mode === 'meal' && <MealForm onDone={onClose} />}
+        {mode === 'meal' && <MealForm templates={mealTemplates ?? []} onDone={onClose} />}
         {mode !== 'meal' && <DemoFlow mode={mode} onClose={onClose} />}
       </div>
     </button>
   );
 }
 
-function MealForm({ onDone }: { onDone: () => void }) {
+function MealForm({
+  templates,
+  onDone,
+}: {
+  templates: MealTemplateView[];
+  onDone: () => void;
+}) {
   const [pending, startTransition] = useTransition();
+  const [templatePending, startTemplateTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [advanced, setAdvanced] = useState(false);
   const labelId = useId();
   const kcalId = useId();
+
+  function logFromTemplate(id: string) {
+    setError(null);
+    startTemplateTransition(async () => {
+      try {
+        const fd = new FormData();
+        fd.append('template_id', id);
+        await logMealFromTemplateAction(fd);
+        onDone();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Konnte nicht speichern.');
+      }
+    });
+  }
+
+  const top = templates.slice(0, 5);
 
   return (
     <form
@@ -99,6 +124,58 @@ function MealForm({ onDone }: { onDone: () => void }) {
       }}
       style={{ padding: '4px 0 8px', display: 'flex', flexDirection: 'column', gap: 12 }}
     >
+      {top.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <span
+            style={{
+              fontFamily: 'var(--mono)',
+              fontSize: 11,
+              color: 'var(--ink-3)',
+              letterSpacing: '0.06em',
+            }}
+          >
+            AUS FOOD MEMORY
+          </span>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {top.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                disabled={pending || templatePending}
+                onClick={() => logFromTemplate(t.id)}
+                className="pressable"
+                style={{
+                  background: 'var(--surface-2)',
+                  border: '0.5px solid var(--hairline)',
+                  borderRadius: 999,
+                  padding: '6px 12px',
+                  fontSize: 12,
+                  color: 'var(--ink-2)',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  opacity: pending || templatePending ? 0.5 : 1,
+                }}
+              >
+                <span>{t.label}</span>
+                <span className="mono-sm" style={{ color: 'var(--ink-4)' }}>
+                  {t.kcal} kcal
+                </span>
+              </button>
+            ))}
+          </div>
+          <div
+            style={{
+              height: 1,
+              background: 'var(--hairline)',
+              margin: '6px 0 2px',
+              opacity: 0.6,
+            }}
+          />
+        </div>
+      )}
+
       <Field htmlFor={labelId} label="Was hast du gegessen?">
         <input
           id={labelId}
@@ -167,9 +244,14 @@ function MealForm({ onDone }: { onDone: () => void }) {
 
       <button
         type="submit"
-        disabled={pending}
+        disabled={pending || templatePending}
         className="pressable btn-primary"
-        style={{ width: '100%', marginTop: 4, padding: '14px', opacity: pending ? 0.6 : 1 }}
+        style={{
+          width: '100%',
+          marginTop: 4,
+          padding: '14px',
+          opacity: pending || templatePending ? 0.6 : 1,
+        }}
       >
         {pending ? 'Speichere…' : 'Speichern'}
       </button>
