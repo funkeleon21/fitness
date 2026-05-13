@@ -23,6 +23,49 @@ Der Chat-Endpoint in `apps/web/src/app/api/chat/route.ts` baut zwei Dinge aus `@
 
 **Solange eine Domäne nicht in beiden Listen steht, ist sie für den Chat halb unsichtbar.** Egal wie sauber die Events, Projektionen und UI dafür gebaut sind.
 
+## Schritte — Teil 0: PROJEKTION (packages/db/src/projections/<name>.ts)
+
+Wenn die Projektion für die Domäne noch nicht existiert, baue sie **zuerst** — Context (Teil A) und Tools (Teil B) hängen beide daran. Das Replay-Pattern für Korrekturen ist in [ADR-0010](../../../docs/decisions/0010-projektionen-replay-pattern.md) festgelegt; die beiden Stolperfallen unten haben weight und meal jeweils zweimal getroffen.
+
+Vorlagen:
+- **Single-Field-Domain** (nur ein Wert wird korrigiert): [weight.ts](../../../packages/db/src/projections/weight.ts)
+- **Multi-Field-Domain** (partielle Korrekturen möglich): [meal.ts](../../../packages/db/src/projections/meal.ts)
+
+### 0.1 Pure-Function-Pattern (Pflicht)
+
+- `project<Domain>Events(rows, now)` — reine Funktion, kein Supabase-Client.
+- `get<Domain>Projection(client, userId, now)` — DB-Adapter, macht nur `SELECT` und ruft die reine Funktion auf.
+- Begründung: Projektionslogik ohne DB-Mock testbar.
+
+### 0.2 Sortierung beim Replay
+
+- SQL: `.order('recorded_at', { ascending: true }).order('id', { ascending: true })` — **nicht** `occurred_at`.
+- In der reinen Funktion **defensiv erneut** sortieren mit gleichem `compareEventLogOrder` (recorded_at, id).
+- Begründung: Korrektur-Events können ein früheres `occurred_at` als ihr Ziel-Event tragen (Beispiel: „Ich logge heute, dass mein gestriges Gewicht falsch war"). Bei `occurred_at`-Sortierung trifft das Replay die Korrektur vor dem Ziel-Event → `byId.get(corrects_event_id)` ist `undefined` → Korrektur wird **still verschluckt**.
+
+### 0.3 Korrekturketten + Retract-of-Correction
+
+- `correctionTargetById`-Map löst Ketten (`event_corrected → event_corrected → <domain>_logged`) auf das Original-Event auf.
+- `event_retracted` mit `retracts_event_id = <correction.id>` → Korrektur überspringen, vorherige Korrektur (oder das Original) bleibt aktiv.
+- Begründung: Ohne diese Indirection fällt jede zweite Korrektur in der Kette raus.
+
+### 0.4 Field-Overlay statt Replace (Multi-Field-Domänen)
+
+- Single-Field-Domain (`weight.kg`): „letzte Korrektur gewinnt" funktioniert.
+- Multi-Field-Domain (`meal.label`, `meal.kcal`, …): nicht-retracted Korrekturen feldweise in Log-Reihenfolge auf das Original-Event overlay-en. Sonst überschreibt eine spätere kcal-Korrektur eine frühere label-Korrektur — selbst wenn beide gewollt waren.
+
+### 0.5 Test-File `<name>.test.ts` (Pflicht)
+
+Mindest-Szenarien, ohne die das Pattern regrediert:
+
+- Tagestotals / Trends bei normalem Input
+- Korrektur-Replay bei **unsortiertem** Input (Korrektur-Zeile vor Ziel-Zeile)
+- Korrekturkette (Korrektur einer Korrektur)
+- Retract-of-Correction → Fallback auf vorherige Korrektur (bzw. Original)
+- Retract des Domain-Events → komplettes Entfernen aus der Serie
+
+Vorlagen: [weight.test.ts](../../../packages/db/src/projections/weight.test.ts), [meal.test.ts](../../../packages/db/src/projections/meal.test.ts).
+
 ## Schritte — Teil A: LESEN (UserContextSection)
 
 ### A1. Provider-Funktion anlegen
@@ -199,6 +242,10 @@ Diese Konventionen folgen direkt aus [docs/principles.md](../../../docs/principl
 
 ## Anti-Muster
 
+- **Replay-Sortierung nach `occurred_at`** statt `recorded_at, id` — Korrekturen mit früherem `occurred_at` als ihr Ziel-Event werden still verschluckt. Siehe [ADR-0010](../../../docs/decisions/0010-projektionen-replay-pattern.md) und die Fixes in #14 / #16.
+- **Naiver `byId`-Replay ohne Korrekturketten-Auflösung** — `event_corrected`, das wiederum korrigiert wird, findet sein Ziel nicht und die zweite Korrektur fällt raus. Korrekturen brauchen eine `correctionTargetById`-Indirection.
+- **„Letzte Korrektur ersetzt alles" bei Multi-Field-Domänen** — eine spätere kcal-Korrektur überschreibt eine frühere label-Korrektur. Multi-Field-Domains brauchen Field-wise Overlay.
+- **Projektion direkt mit Supabase-Client koppeln** ohne reine `project<Domain>Events`-Funktion — verhindert Unit-Tests ohne DB-Mock und brennt das Bug-Risiko aus 0.2/0.3/0.4 in eine ungetestete Stelle ein.
 - **Sektion direkt in den Chat-Endpoint einbauen** statt über `packages/interpretation` — bricht das Pattern und macht den Endpoint zur Sammelstelle aller Domänen.
 - **Rohe Event-Listen ausgeben** statt aggregierter Trends — verletzt Prinzip 3 (Trend statt Tageswert) und sprengt das Token-Budget.
 - **Erfundene Defaults**, wenn keine Daten vorliegen (z.B. „typisches Gewicht ist 80 kg") — verletzt Prinzip 7 (wissenschaftliche Ehrlichkeit).

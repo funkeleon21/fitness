@@ -46,3 +46,4 @@ Welche Optionen wurden abgewogen und verworfen, und warum?
 | [0007](./0007-supabase.md) | Supabase als Postgres + Auth + Storage | Accepted |
 | [0008](./0008-drizzle-migrations.md) | Drizzle als alleinige Migrations-Quelle | Accepted |
 | [0009](./0009-rls-ab-tag-1.md) | RLS ab Tag 1, auch bei Single-User | Accepted |
+| [0010](./0010-projektionen-replay-pattern.md) | Replay-Pattern für Projektionen | Accepted |
