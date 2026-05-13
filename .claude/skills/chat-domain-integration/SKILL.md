@@ -102,6 +102,8 @@ Nur nötig, wenn der Nutzer per Chat in diese Domäne eintragen / korrigieren / 
 
 Datei: `packages/interpretation/src/tools/sets/<domain>.ts`
 
+**Regel: Jedes Tool, das in die Datenbank schreibt, muss `needsApproval: true` haben.** Der Nutzer bestätigt jeden Schreibvorgang in der UI. Tools, die nur lesen (z.B. `list_recent_*`), brauchen kein Approval.
+
 ```ts
 import { log<Domain>, correct<Domain>, retract<Domain> } from '@fitness/ingestion';
 import { tool } from 'ai';
@@ -110,11 +112,13 @@ import type { ChatToolset } from '../types';
 
 export const <domain>Tools: ChatToolset = ({ client, userId }) => ({
   log_<domain>: tool({
-    description: 'Trage ein <Domain>-Event ein. Verwende dies, wenn der Nutzer ...',
+    description:
+      'Trage ein <Domain>-Event ein. Verwende dies, wenn der Nutzer ... Der Nutzer bestätigt den Eintrag über die UI bevor er geschrieben wird.',
     inputSchema: z.object({
       /* Domain-spezifische Felder, mit .describe() pro Feld */
       confidence: z.number().min(0).max(1).describe('Deine Konfidenz, dass die Extraktion korrekt war (0-1).'),
     }),
+    needsApproval: true, // ← Pflicht für jeden DB-Schreibvorgang
     execute: async (input) => {
       const result = await log<Domain>(client, {
         user_id: userId,
@@ -126,8 +130,9 @@ export const <domain>Tools: ChatToolset = ({ client, userId }) => ({
     },
   }),
 
-  // Optional: list_recent_<domain>_entries als Lese-Tool, damit
-  // correct/retract die richtige event_id finden.
+  // Lese-Tool ohne needsApproval — wird für correct/retract gebraucht,
+  // damit der LLM die richtige event_id findet.
+  list_recent_<domain>_entries: tool({ /* ... ohne needsApproval ... */ }),
 });
 ```
 
@@ -147,19 +152,26 @@ const TOOLSETS: ChatToolset[] = [weightTools, <domain>Tools];
 
 ### B3. UI-Anzeige für die neuen Tool-Namen
 
-Datei: `apps/web/src/components/Chat.tsx`, Konstante `TOOL_LABELS`.
+Datei: `apps/web/src/components/Chat.tsx`.
 
-Pro Schreib-Tool ein Eintrag:
+**Drei Stellen pro Schreib-Tool:**
+
+1. `TOOL_LABELS` — Label für die Status-Chip nach erfolgreicher Ausführung:
 
 ```ts
 const TOOL_LABELS: Record<string, { running: string; done: string }> = {
   log_weight: { running: 'Gewicht speichern…', done: 'Gewicht gespeichert' },
   log_<domain>: { running: '<Anzeigename> speichern…', done: '<Anzeigename> gespeichert' },
-  // ...
 };
 ```
 
-Ohne Eintrag fällt die Chat-UI auf den Tool-Namen als Label zurück (z.B. `log_meal…`) — funktional, aber unschön.
+2. `formatToolDetail` — was im Status-Chip neben dem Label steht (z.B. „84,1 kg").
+
+3. `formatApprovalSummary` — was in der Bestätigungs-Karte angezeigt wird, bevor der Nutzer klickt. Dieser Text ist die letzte Verteidigungslinie gegen Fehl-Speicherungen — muss **klar, knapp und verifizierbar** sein. Beispiele:
+   - log_meal: „Mittagessen eintragen — Skyr mit Beeren, ca. 420 kcal"
+   - log_training: „Training eintragen — Bankdrücken 4×8 @ 80 kg"
+
+Ohne diese Einträge fällt die UI auf den Tool-Namen zurück (z.B. `log_meal ausführen?`) — funktional, aber für den Nutzer kryptisch.
 
 ## Verifizieren
 
@@ -193,3 +205,5 @@ Diese Konventionen folgen direkt aus [docs/principles.md](../../../docs/principl
 - **Tools, die direkt in `events` schreiben**, statt den Ingestion-Command aus `@fitness/ingestion` aufzurufen — bricht Disziplin „Schreiben nur via Ingestion-Pipeline" (CLAUDE.md).
 - **Tool ohne `confidence`-Parameter im inputSchema** für KI-extrahierte Eingaben — verletzt Architektur-Disziplin „Konfidenz ist Pflichtfeld auf jedem KI-erzeugten Event" (`architecture.md` §3).
 - **`log_X`-Tool ohne dazugehöriges `list_recent_X_entries`-Tool**, wenn auch Korrektur/Retraction angeboten werden — der LLM hat sonst keine Quelle für die `event_id`.
+- **Schreib-Tool ohne `needsApproval: true`** — verletzt die Disziplin „keine stillen DB-Schreibvorgänge". Der Nutzer muss jede Aktion in der UI bestätigen können. Nur Lese-Tools (`list_recent_*`, Aggregations-Lookups) dürfen ohne Approval laufen.
+- **Approval-Bestätigung im LLM-Text doppeln** („soll ich speichern?") — die UI macht das. Doppelt nervt und vermittelt dem Nutzer, er sei auf den LLM angewiesen.
