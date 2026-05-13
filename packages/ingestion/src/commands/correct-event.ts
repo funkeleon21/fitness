@@ -1,4 +1,5 @@
 import {
+  type EventProvenance,
   type EventSource,
   createEventCorrected,
   createEventRetracted,
@@ -14,6 +15,10 @@ export interface CorrectEventInput {
   new_payload: Record<string, unknown>;
   reason: string | null;
   source?: EventSource;
+  external_id?: string | null;
+  raw_input?: string | null;
+  confidence?: number | null;
+  provenance?: EventProvenance | null;
 }
 
 export async function correctEvent(
@@ -26,6 +31,10 @@ export async function correctEvent(
     new_payload: input.new_payload,
     reason: input.reason,
     source: input.source ?? 'manual',
+    external_id: input.external_id ?? null,
+    raw_input: input.raw_input ?? null,
+    confidence: input.confidence ?? null,
+    provenance: input.provenance ?? null,
   });
 
   const parsed = eventCorrectedEventSchema.safeParse(event);
@@ -33,8 +42,7 @@ export async function correctEvent(
     throw new Error(`Ungueltige Korrektur: ${parsed.error.message}`);
   }
 
-  await appendEvent(client, parsed.data);
-  return { event_id: event.id };
+  return appendEvent(client, parsed.data);
 }
 
 export interface RetractEventInput {
@@ -42,6 +50,10 @@ export interface RetractEventInput {
   retracts_event_id: string;
   reason: string | null;
   source?: EventSource;
+  external_id?: string | null;
+  raw_input?: string | null;
+  confidence?: number | null;
+  provenance?: EventProvenance | null;
 }
 
 export async function retractEvent(
@@ -53,6 +65,10 @@ export async function retractEvent(
     retracts_event_id: input.retracts_event_id,
     reason: input.reason,
     source: input.source ?? 'manual',
+    external_id: input.external_id ?? null,
+    raw_input: input.raw_input ?? null,
+    confidence: input.confidence ?? null,
+    provenance: input.provenance ?? null,
   });
 
   const parsed = eventRetractedEventSchema.safeParse(event);
@@ -60,6 +76,5 @@ export async function retractEvent(
     throw new Error(`Ungueltige Retraction: ${parsed.error.message}`);
   }
 
-  await appendEvent(client, parsed.data);
-  return { event_id: event.id };
+  return appendEvent(client, parsed.data);
 }

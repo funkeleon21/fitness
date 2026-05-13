@@ -13,8 +13,10 @@ const baseEnvelope = {
   occurred_at: new Date('2026-05-12T07:00:00Z'),
   recorded_at: new Date('2026-05-12T07:00:00Z'),
   source: 'manual' as const,
+  external_id: null,
   confidence: null,
   raw_input: null,
+  provenance: null,
 };
 
 describe('eventCorrectedEventSchema', () => {

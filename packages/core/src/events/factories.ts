@@ -1,5 +1,5 @@
 import { WEIGHT_LOGGED, type WeightLoggedEvent } from './body/weight';
-import type { EventSource } from './envelope';
+import type { EventProvenance, EventSource } from './envelope';
 import { MEAL_LOGGED, type MealItem, type MealLoggedEvent } from './nutrition/meal';
 import {
   EVENT_CORRECTED,
@@ -13,8 +13,10 @@ export interface NewWeightLoggedInput {
   kg: number;
   occurred_at: Date;
   source: EventSource;
+  external_id?: string | null;
   raw_input?: string | null;
   confidence?: number | null;
+  provenance?: EventProvenance | null;
 }
 
 export function createWeightLogged(input: NewWeightLoggedInput): WeightLoggedEvent {
@@ -26,8 +28,10 @@ export function createWeightLogged(input: NewWeightLoggedInput): WeightLoggedEve
     occurred_at: input.occurred_at,
     recorded_at: new Date(),
     source: input.source,
+    external_id: input.external_id ?? null,
     confidence: input.confidence ?? null,
     raw_input: input.raw_input ?? null,
+    provenance: input.provenance ?? null,
     payload: { kg: input.kg },
   };
 }
@@ -43,8 +47,10 @@ export interface NewMealLoggedInput {
   template_id?: string;
   occurred_at: Date;
   source: EventSource;
+  external_id?: string | null;
   raw_input?: string | null;
   confidence?: number | null;
+  provenance?: EventProvenance | null;
 }
 
 export function createMealLogged(input: NewMealLoggedInput): MealLoggedEvent {
@@ -56,8 +62,10 @@ export function createMealLogged(input: NewMealLoggedInput): MealLoggedEvent {
     occurred_at: input.occurred_at,
     recorded_at: new Date(),
     source: input.source,
+    external_id: input.external_id ?? null,
     confidence: input.confidence ?? null,
     raw_input: input.raw_input ?? null,
+    provenance: input.provenance ?? null,
     payload: {
       label: input.label,
       kcal: input.kcal,
@@ -76,6 +84,10 @@ export interface NewEventCorrectedInput {
   new_payload: Record<string, unknown>;
   reason: string | null;
   source: EventSource;
+  external_id?: string | null;
+  raw_input?: string | null;
+  confidence?: number | null;
+  provenance?: EventProvenance | null;
   occurred_at?: Date;
 }
 
@@ -89,8 +101,10 @@ export function createEventCorrected(input: NewEventCorrectedInput): EventCorrec
     occurred_at: input.occurred_at ?? now,
     recorded_at: now,
     source: input.source,
-    confidence: null,
-    raw_input: null,
+    external_id: input.external_id ?? null,
+    confidence: input.confidence ?? null,
+    raw_input: input.raw_input ?? null,
+    provenance: input.provenance ?? null,
     payload: {
       corrects_event_id: input.corrects_event_id,
       new_payload: input.new_payload,
@@ -104,6 +118,10 @@ export interface NewEventRetractedInput {
   retracts_event_id: string;
   reason: string | null;
   source: EventSource;
+  external_id?: string | null;
+  raw_input?: string | null;
+  confidence?: number | null;
+  provenance?: EventProvenance | null;
   occurred_at?: Date;
 }
 
@@ -117,8 +135,10 @@ export function createEventRetracted(input: NewEventRetractedInput): EventRetrac
     occurred_at: input.occurred_at ?? now,
     recorded_at: now,
     source: input.source,
-    confidence: null,
-    raw_input: null,
+    external_id: input.external_id ?? null,
+    confidence: input.confidence ?? null,
+    raw_input: input.raw_input ?? null,
+    provenance: input.provenance ?? null,
     payload: {
       retracts_event_id: input.retracts_event_id,
       reason: input.reason,
