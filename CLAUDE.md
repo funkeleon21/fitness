@@ -55,6 +55,10 @@ Code/Identifier auf Englisch. Doku, Commits, UI-Texte und Kommunikation mit dem 
    - **Alternative B:** … *Trade-off:* …
 4. **Keine stillen Annahmen bei Mehrdeutigkeit.** Wenn der Auftrag mehrere plausible Lesarten zulässt, lieber eine Klärungsfrage stellen, als die falsche Hälfte umzusetzen.
 
+## Skills
+
+Workflow-Anleitungen in [.claude/skills/](.claude/skills/) — bei neuer Aufgabe kurz prüfen, ob ein Skill triggert (z.B. [chat-domain-integration](.claude/skills/chat-domain-integration/SKILL.md) bei neuer Domäne/Projektion). Nicht als Pflichtlektüre, sondern als Optionspool.
+
 ## Befehle
 
 ```bash
