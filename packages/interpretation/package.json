@@ -21,6 +21,9 @@
   "dependencies": {
     "@fitness/core": "workspace:*",
     "@fitness/db": "workspace:*",
+    "@fitness/ingestion": "workspace:*",
+    "@supabase/supabase-js": "^2.45.0",
+    "ai": "^6.0.177",
     "zod": "^3.23.0"
   },
   "devDependencies": {

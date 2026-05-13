@@ -7,22 +7,27 @@ import { HomeScreen } from './screens/HomeScreen';
 import { InsightDetailSheet } from './screens/InsightDetailSheet';
 import { InsightsScreen } from './screens/InsightsScreen';
 import { type LogMode, LogSheet } from './screens/LogSheet';
+import { MealTemplateSheet } from './screens/MealTemplateSheet';
 import { NutritionScreen } from './screens/NutritionScreen';
 import { TrainingScreen } from './screens/TrainingScreen';
-import type { DashboardData } from './types';
+import type { DashboardData, MealTemplateView, NutritionData } from './types';
 
 type ScreenId = 'home' | 'body' | 'nutrition' | 'training' | 'insights';
+type TemplateEdit = { kind: 'new' } | { kind: 'edit'; template: MealTemplateView };
 
 interface DashboardProps {
   data: DashboardData;
+  nutrition: NutritionData;
+  mealTemplates: MealTemplateView[];
   userName: string;
   initials: string;
 }
 
-export function Dashboard({ data, userName, initials }: DashboardProps) {
+export function Dashboard({ data, nutrition, mealTemplates, userName, initials }: DashboardProps) {
   const [screen, setScreen] = useState<ScreenId>('home');
   const [logMode, setLogMode] = useState<LogMode | null>(null);
   const [insightId, setInsightId] = useState<string | null>(null);
+  const [templateEdit, setTemplateEdit] = useState<TemplateEdit | null>(null);
 
   const navigate = (next: ScreenId) => setScreen(next);
   const openLog = (mode: LogMode) => setLogMode(mode);
@@ -44,7 +49,13 @@ export function Dashboard({ data, userName, initials }: DashboardProps) {
         <BodyScreen data={data} onNavigate={navigate} />
       </ScreenWrapper>
       <ScreenWrapper active={screen === 'nutrition'}>
-        <NutritionScreen onOpenLog={openLog} />
+        <NutritionScreen
+          nutrition={nutrition}
+          mealTemplates={mealTemplates}
+          onOpenLog={openLog}
+          onCreateTemplate={() => setTemplateEdit({ kind: 'new' })}
+          onEditTemplate={(t) => setTemplateEdit({ kind: 'edit', template: t })}
+        />
       </ScreenWrapper>
       <ScreenWrapper active={screen === 'training'}>
         <TrainingScreen />
@@ -55,8 +66,11 @@ export function Dashboard({ data, userName, initials }: DashboardProps) {
 
       <TabBar current={screen} onChange={navigate} />
 
-      {logMode && <LogSheet mode={logMode} onClose={closeLog} />}
+      {logMode && <LogSheet mode={logMode} mealTemplates={mealTemplates} onClose={closeLog} />}
       {insightId && <InsightDetailSheet id={insightId} onClose={() => setInsightId(null)} />}
+      {templateEdit && (
+        <MealTemplateSheet mode={templateEdit} onClose={() => setTemplateEdit(null)} />
+      )}
     </div>
   );
 }
