@@ -36,10 +36,11 @@ export interface MealProjection {
   recent: MealDataPoint[];
 }
 
-interface RawEventRow {
+export interface MealProjectionEventRow {
   id: string;
   type: string;
   occurred_at: string;
+  recorded_at: string;
   source: string;
   confidence: number | null;
   raw_input: string | null;
@@ -52,30 +53,54 @@ function startOfLocalDay(now: Date): Date {
   return d;
 }
 
-export async function getMealProjection(
-  client: SupabaseClient,
-  userId: string,
+function timestamp(value: string): number {
+  const t = new Date(value).getTime();
+  return Number.isFinite(t) ? t : 0;
+}
+
+function compareEventLogOrder(a: MealProjectionEventRow, b: MealProjectionEventRow): number {
+  const byRecordedAt = timestamp(a.recorded_at) - timestamp(b.recorded_at);
+  if (byRecordedAt !== 0) return byRecordedAt;
+  return a.id.localeCompare(b.id);
+}
+
+function compareSeriesOrder(a: MealDataPoint, b: MealDataPoint): number {
+  const byOccurredAt = a.occurred_at.getTime() - b.occurred_at.getTime();
+  if (byOccurredAt !== 0) return byOccurredAt;
+  return a.event_id.localeCompare(b.event_id);
+}
+
+export function projectMealEvents(
+  rows: MealProjectionEventRow[],
   now: Date = new Date(),
-): Promise<MealProjection> {
-  const { data, error } = await client
-    .from('events')
-    .select('id, type, occurred_at, source, confidence, raw_input, payload')
-    .eq('user_id', userId)
-    .in('type', [MEAL_LOGGED, EVENT_CORRECTED, EVENT_RETRACTED])
-    .order('occurred_at', { ascending: true });
+): MealProjection {
+  type MutablePoint = MealDataPoint & { retracted: boolean };
+  type CorrectionFields = {
+    label?: string;
+    kcal?: number;
+    protein_g?: number;
+    carbs_g?: number;
+    fat_g?: number;
+  };
+  type Correction = {
+    id: string;
+    meal_event_id: string;
+    fields: CorrectionFields;
+    order: number;
+  };
 
-  if (error) throw new Error(`getMealProjection failed: ${error.message}`);
+  const pointsById = new Map<string, MutablePoint>();
+  const correctionTargetById = new Map<string, string>();
+  const correctionsByMealId = new Map<string, Correction[]>();
+  const retractedCorrectionIds = new Set<string>();
 
-  const rows = (data ?? []) as RawEventRow[];
+  const orderedRows = [...rows].sort(compareEventLogOrder);
 
-  type Mutable = MealDataPoint & { retracted: boolean };
-  const byId = new Map<string, Mutable>();
-
-  for (const row of rows) {
+  for (const [order, row] of orderedRows.entries()) {
     if (row.type === MEAL_LOGGED) {
       const parsed = mealLoggedPayloadSchema.safeParse(row.payload);
       if (!parsed.success) continue;
-      byId.set(row.id, {
+      pointsById.set(row.id, {
         event_id: row.id,
         occurred_at: new Date(row.occurred_at),
         label: parsed.data.label,
@@ -89,29 +114,69 @@ export async function getMealProjection(
         corrected: false,
         retracted: false,
       });
-    } else if (row.type === EVENT_CORRECTED) {
+      continue;
+    }
+
+    if (row.type === EVENT_CORRECTED) {
       const parsed = eventCorrectedPayloadSchema.safeParse(row.payload);
       if (!parsed.success) continue;
-      const target = byId.get(parsed.data.corrects_event_id);
-      if (!target) continue;
+      const targetId = parsed.data.corrects_event_id;
+      const mealEventId = pointsById.has(targetId) ? targetId : correctionTargetById.get(targetId);
+      if (!mealEventId) continue;
+
       const np = parsed.data.new_payload;
-      if (typeof np.label === 'string') target.label = np.label;
-      if (typeof np.kcal === 'number') target.kcal = np.kcal;
-      if (typeof np.protein_g === 'number') target.protein_g = np.protein_g;
-      if (typeof np.carbs_g === 'number') target.carbs_g = np.carbs_g;
-      if (typeof np.fat_g === 'number') target.fat_g = np.fat_g;
-      target.corrected = true;
-    } else if (row.type === EVENT_RETRACTED) {
+      const fields: CorrectionFields = {};
+      if (typeof np.label === 'string') fields.label = np.label;
+      if (typeof np.kcal === 'number') fields.kcal = np.kcal;
+      if (typeof np.protein_g === 'number') fields.protein_g = np.protein_g;
+      if (typeof np.carbs_g === 'number') fields.carbs_g = np.carbs_g;
+      if (typeof np.fat_g === 'number') fields.fat_g = np.fat_g;
+
+      if (Object.keys(fields).length === 0) continue;
+
+      correctionTargetById.set(row.id, mealEventId);
+      const list = correctionsByMealId.get(mealEventId) ?? [];
+      list.push({ id: row.id, meal_event_id: mealEventId, fields, order });
+      correctionsByMealId.set(mealEventId, list);
+      continue;
+    }
+
+    if (row.type === EVENT_RETRACTED) {
       const parsed = eventRetractedPayloadSchema.safeParse(row.payload);
       if (!parsed.success) continue;
-      const target = byId.get(parsed.data.retracts_event_id);
-      if (!target) continue;
-      target.retracted = true;
+      const targetId = parsed.data.retracts_event_id;
+
+      const point = pointsById.get(targetId);
+      if (point) {
+        point.retracted = true;
+        continue;
+      }
+
+      if (correctionTargetById.has(targetId)) {
+        retractedCorrectionIds.add(targetId);
+      }
     }
   }
 
+  for (const [mealEventId, corrections] of correctionsByMealId) {
+    const point = pointsById.get(mealEventId);
+    if (!point) continue;
+    const sorted = [...corrections].sort((a, b) => a.order - b.order);
+    let anyApplied = false;
+    for (const correction of sorted) {
+      if (retractedCorrectionIds.has(correction.id)) continue;
+      if (correction.fields.label !== undefined) point.label = correction.fields.label;
+      if (correction.fields.kcal !== undefined) point.kcal = correction.fields.kcal;
+      if (correction.fields.protein_g !== undefined) point.protein_g = correction.fields.protein_g;
+      if (correction.fields.carbs_g !== undefined) point.carbs_g = correction.fields.carbs_g;
+      if (correction.fields.fat_g !== undefined) point.fat_g = correction.fields.fat_g;
+      anyApplied = true;
+    }
+    if (anyApplied) point.corrected = true;
+  }
+
   const all: MealDataPoint[] = [];
-  for (const point of byId.values()) {
+  for (const point of pointsById.values()) {
     if (point.retracted) continue;
     all.push({
       event_id: point.event_id,
@@ -127,7 +192,7 @@ export async function getMealProjection(
       corrected: point.corrected,
     });
   }
-  all.sort((a, b) => a.occurred_at.getTime() - b.occurred_at.getTime());
+  all.sort(compareSeriesOrder);
 
   const dayStart = startOfLocalDay(now).getTime();
   const today = all.filter((m) => m.occurred_at.getTime() >= dayStart);
@@ -146,4 +211,22 @@ export async function getMealProjection(
   const recent = all.slice(-20).reverse();
 
   return { today, todayTotals, recent };
+}
+
+export async function getMealProjection(
+  client: SupabaseClient,
+  userId: string,
+  now: Date = new Date(),
+): Promise<MealProjection> {
+  const { data, error } = await client
+    .from('events')
+    .select('id, type, occurred_at, recorded_at, source, confidence, raw_input, payload')
+    .eq('user_id', userId)
+    .in('type', [MEAL_LOGGED, EVENT_CORRECTED, EVENT_RETRACTED])
+    .order('recorded_at', { ascending: true })
+    .order('id', { ascending: true });
+
+  if (error) throw new Error(`getMealProjection failed: ${error.message}`);
+
+  return projectMealEvents((data ?? []) as MealProjectionEventRow[], now);
 }
