@@ -290,13 +290,23 @@ select {
   max-width: 460px;
   background: var(--bg-soft);
   border-radius: 28px 28px 0 0;
-  padding: 14px 18px 26px;
+  /* Bottom-Padding respektiert iOS-Home-Indicator-Safe-Area, sonst rutschen die letzten
+     Bedienelemente hinter den Indicator. */
+  padding: 14px 18px calc(env(safe-area-inset-bottom, 0px) + 26px);
   box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.18);
   animation: slideUp 280ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-  max-height: 90vh;
+  /* dvh statt vh, damit iOS-Safari die dynamische Adress-Leiste korrekt berücksichtigt. */
+  max-height: 90dvh;
   overflow-y: auto;
   overscroll-behavior: contain;
   touch-action: pan-y;
+}
+
+/* Tabbar wird ausgeblendet, wenn ein Sheet offen ist — sonst kollidiert sie visuell
+   mit dem unteren Rand des Sheets (Backdrop dimmt sie zwar, aber sie bleibt als
+   Block sichtbar und engt die Sheet-Sichtbarkeit ein). */
+body:has(.sheet-backdrop) .tabbar {
+  display: none;
 }
 
 .sheet-handle {
