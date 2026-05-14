@@ -74,7 +74,42 @@ export function useSheetDismissDrag({
       return delta < 200 ? delta : 200 + (delta - 200) * 0.7;
     };
 
+    /* DOM-Mutations werden auf rAF gebatched, damit pro Frame maximal einmal
+       gerendert wird — sonst stockt es bei schnellem Wischen, weil mehrere
+       move-Events pro Frame ankommen und jeder einen Layout-Paint triggert. */
+    let rafId = 0;
+    let pendingDeltaY = 0;
+    let visualActive = false;
+
+    const flushVisual = () => {
+      rafId = 0;
+      const t = transform(pendingDeltaY);
+      sheet.style.transform = `translateY(${t}px)`;
+      const backdrop = backdropElRef.current;
+      if (backdrop) {
+        // Backdrop fadet mit dem Drag — bei threshold etwa halb so opak wie Start.
+        const progress = Math.min(1, pendingDeltaY / (threshold * 2));
+        const opacity = Math.max(0.3, 1 - progress * 0.7);
+        backdrop.style.opacity = String(opacity);
+      }
+    };
+
+    const updateVisual = (deltaY: number) => {
+      pendingDeltaY = deltaY;
+      if (!visualActive) {
+        visualActive = true;
+        sheet.style.willChange = 'transform';
+        const backdrop = backdropElRef.current;
+        if (backdrop) backdrop.style.willChange = 'opacity';
+      }
+      if (rafId === 0) rafId = requestAnimationFrame(flushVisual);
+    };
+
     const resetTransition = () => {
+      if (rafId !== 0) {
+        cancelAnimationFrame(rafId);
+        rafId = 0;
+      }
       sheet.style.transition = 'transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1)';
       sheet.style.transform = 'translateY(0)';
       const backdrop = backdropElRef.current;
@@ -83,22 +118,16 @@ export function useSheetDismissDrag({
         backdrop.style.opacity = '';
       }
       window.setTimeout(() => {
-        if (sheet) sheet.style.transition = '';
-        if (backdrop) backdrop.style.transition = '';
+        if (sheet) {
+          sheet.style.transition = '';
+          sheet.style.willChange = '';
+        }
+        if (backdrop) {
+          backdrop.style.transition = '';
+          backdrop.style.willChange = '';
+        }
+        visualActive = false;
       }, 260);
-    };
-
-    const updateVisual = (deltaY: number) => {
-      const t = transform(deltaY);
-      sheet.style.transform = `translateY(${t}px)`;
-      const backdrop = backdropElRef.current;
-      if (backdrop) {
-        // Backdrop fadet mit dem Drag — bei threshold etwa halb so opak wie Start.
-        // CSS-Default ist 1 (full backdrop-color); wir reduzieren auf bis ~0.3.
-        const progress = Math.min(1, deltaY / (threshold * 2));
-        const opacity = Math.max(0.3, 1 - progress * 0.7);
-        backdrop.style.opacity = String(opacity);
-      }
     };
 
     const isInputTarget = (target: EventTarget | null): boolean => {
@@ -273,6 +302,12 @@ export function useSheetDismissDrag({
 
       const flick = deltaY > 24 && velocity > velocityThreshold && totalElapsed > 16;
       if (deltaY > threshold || flick) {
+        // rAF noch canceln, will-change aber für die GPU-beschleunigte
+        // Schluss-Transition stehen lassen.
+        if (rafId !== 0) {
+          cancelAnimationFrame(rafId);
+          rafId = 0;
+        }
         setClosing(true);
         sheet.style.transition = 'transform 220ms cubic-bezier(0.4, 0.0, 1, 1)';
         sheet.style.transform = 'translateY(100%)';
@@ -307,6 +342,7 @@ export function useSheetDismissDrag({
     sheet.addEventListener('pointercancel', onPointerCancel);
 
     return () => {
+      if (rafId !== 0) cancelAnimationFrame(rafId);
       sheet.removeEventListener('touchstart', onTouchStart);
       sheet.removeEventListener('touchmove', onTouchMove);
       sheet.removeEventListener('touchend', onTouchEnd);
