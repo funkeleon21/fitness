@@ -15,6 +15,7 @@ function mealRow(input: {
   protein_g?: number;
   carbs_g?: number;
   fat_g?: number;
+  meal_type?: 'breakfast' | 'lunch' | 'dinner' | 'snack';
   occurred_at: string;
   recorded_at: string;
 }): MealProjectionEventRow {
@@ -25,6 +26,7 @@ function mealRow(input: {
   if (input.protein_g !== undefined) payload.protein_g = input.protein_g;
   if (input.carbs_g !== undefined) payload.carbs_g = input.carbs_g;
   if (input.fat_g !== undefined) payload.fat_g = input.fat_g;
+  if (input.meal_type !== undefined) payload.meal_type = input.meal_type;
 
   return {
     id: input.id,
@@ -253,5 +255,22 @@ describe('projectMealEvents', () => {
     expect(projection.today.map((m) => m.event_id)).toEqual([MEAL_1]);
     expect(projection.todayTotals.count).toBe(1);
     expect(projection.todayTotals.kcal).toBe(500);
+  });
+
+  it('carries meal_type through projection', () => {
+    const projection = projectMealEvents(
+      [
+        mealRow({
+          id: MEAL_1,
+          label: 'Verspätetes Frühstück',
+          kcal: 480,
+          meal_type: 'breakfast',
+          occurred_at: '2026-05-13T14:30:00.000Z',
+          recorded_at: '2026-05-13T14:31:00.000Z',
+        }),
+      ],
+      new Date('2026-05-13T20:00:00.000Z'),
+    );
+    expect(projection.today[0]?.meal_type).toBe('breakfast');
   });
 });

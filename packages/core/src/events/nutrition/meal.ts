@@ -3,6 +3,11 @@ import { eventEnvelopeBaseSchema, validateEventEnvelope } from '../envelope';
 
 export const MEAL_LOGGED = 'meal_logged' as const;
 
+// Mahlzeit-Slot: explizit gesetzt vom Nutzer oder Chat. Wenn nicht gesetzt,
+// leitet die UI den Slot aus occurred_at ab.
+export const mealTypeSchema = z.enum(['breakfast', 'lunch', 'dinner', 'snack']);
+export type MealType = z.infer<typeof mealTypeSchema>;
+
 export const mealItemSchema = z.object({
   label: z.string().min(1).max(200),
   amount_g: z.number().positive().max(10000).optional(),
@@ -33,6 +38,8 @@ export const mealLoggedPayloadSchema = z.object({
   // ID einer meal_templates-Zeile, falls die Mahlzeit aus einer Vorlage entstanden ist.
   // Werte (kcal, Makros) sind trotzdem als Snapshot im Payload — Templates können sich ändern.
   template_id: z.string().uuid().optional(),
+  // Explizit gesetzter Slot. UI/Projection priorisiert das gegenüber occurred_at-Heuristik.
+  meal_type: mealTypeSchema.optional(),
 });
 export type MealLoggedPayload = z.infer<typeof mealLoggedPayloadSchema>;
 

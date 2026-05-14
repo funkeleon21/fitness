@@ -6,15 +6,16 @@ import {
   type MealSlotId,
   type MealSlotMeta,
   type NutritionTargets,
+  effectiveSlot,
   formatTodayHeading,
-  mealSlotFromIso,
 } from '@/lib/nutrition';
-import { useMemo, useRef, useState, useTransition } from 'react';
+import { useMemo, useState, useTransition } from 'react';
 import { Icon, type IconName } from '../Icon';
 import type { MealPoint, MealTemplateView, NutritionData } from '../types';
 import type { LogMode } from './LogSheet';
 import { MacroDetailSheet } from './MacroDetailSheet';
 import { NutritionCoachSheet } from './NutritionCoachSheet';
+import { TemplatePickerSheet } from './TemplatePickerSheet';
 
 interface NutritionScreenProps {
   nutrition: NutritionData;
@@ -51,26 +52,20 @@ export function NutritionScreen({
   onEditTemplate,
 }: NutritionScreenProps) {
   const { today, todayTotals } = nutrition;
-  const foodMemoryRef = useRef<HTMLDivElement>(null);
-  const [slotFilter, setSlotFilter] = useState<MealSlotId | null>(null);
+  const [pickerSlot, setPickerSlot] = useState<MealSlotId | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [coachOpen, setCoachOpen] = useState(false);
 
   const mealsBySlot = useMemo(() => {
     const grouped = new Map<MealSlotId, MealPoint[]>();
     for (const m of today) {
-      const slot = mealSlotFromIso(m.occurred_at);
+      const slot = effectiveSlot(m);
       const arr = grouped.get(slot) ?? [];
       arr.push(m);
       grouped.set(slot, arr);
     }
     return grouped;
   }, [today]);
-
-  function focusSlot(slot: MealSlotId) {
-    setSlotFilter(slot);
-    foodMemoryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
 
   return (
     <div className="screen-content scroll">
@@ -88,15 +83,13 @@ export function NutritionScreen({
         <MealSlotsCard
           mealsBySlot={mealsBySlot}
           onOpenComposer={onOpenComposer}
-          onSlotPlus={focusSlot}
+          onSlotPlus={(slot) => setPickerSlot(slot)}
         />
       </div>
 
-      <div ref={foodMemoryRef} className="pad-x" style={{ marginTop: 14, marginBottom: 32 }}>
+      <div className="pad-x" style={{ marginTop: 14, marginBottom: 32 }}>
         <FoodMemoryCard
           templates={mealTemplates}
-          slotFilter={slotFilter}
-          onClearFilter={() => setSlotFilter(null)}
           onCreate={onCreateTemplate}
           onEdit={onEditTemplate}
         />
@@ -110,6 +103,18 @@ export function NutritionScreen({
         />
       )}
       {coachOpen && <NutritionCoachSheet userName={userName} onClose={() => setCoachOpen(false)} />}
+
+      {pickerSlot && (
+        <TemplatePickerSheet
+          slot={pickerSlot}
+          templates={mealTemplates}
+          onClose={() => setPickerSlot(null)}
+          onCreateNew={() => {
+            setPickerSlot(null);
+            onOpenComposer();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -586,14 +591,10 @@ const INITIAL_VISIBLE = 4;
 
 function FoodMemoryCard({
   templates,
-  slotFilter,
-  onClearFilter,
   onCreate,
   onEdit,
 }: {
   templates: MealTemplateView[];
-  slotFilter: MealSlotId | null;
-  onClearFilter: () => void;
   onCreate: () => void;
   onEdit: (t: MealTemplateView) => void;
 }) {
@@ -602,22 +603,11 @@ function FoodMemoryCard({
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [_, startTransition] = useTransition();
 
-  const slotMeta = slotFilter ? MEAL_SLOTS.find((s) => s.id === slotFilter) : null;
-
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    let list = templates;
-    if (q) {
-      list = list.filter((t) => t.label.toLowerCase().includes(q));
-    }
-    if (slotFilter) {
-      const matchingSlot = list.filter(
-        (t) => t.last_used_at && mealSlotFromIso(t.last_used_at) === slotFilter,
-      );
-      if (matchingSlot.length > 0) list = matchingSlot;
-    }
-    return list;
-  }, [templates, search, slotFilter]);
+    if (!q) return templates;
+    return templates.filter((t) => t.label.toLowerCase().includes(q));
+  }, [templates, search]);
 
   const visible = showAll ? filtered : filtered.slice(0, INITIAL_VISIBLE);
   const hasMore = filtered.length > INITIAL_VISIBLE;
@@ -718,33 +708,6 @@ function FoodMemoryCard({
           <Icon name="filter" size={16} strokeWidth={1.8} />
         </button>
       </div>
-
-      {slotMeta && (
-        <div style={{ marginBottom: 12 }}>
-          <button
-            type="button"
-            onClick={onClearFilter}
-            className="pressable"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '5px 10px',
-              borderRadius: 999,
-              background: slotMeta.tint,
-              color: slotMeta.iconColor,
-              border: 'none',
-              fontFamily: 'var(--sans)',
-              fontSize: 12,
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
-          >
-            Vorschläge für {slotMeta.label}
-            <Icon name="x" size={12} strokeWidth={2} />
-          </button>
-        </div>
-      )}
 
       {filtered.length === 0 ? (
         <div style={{ color: 'var(--ink-3)', fontSize: 13, padding: '14px 0 4px' }}>

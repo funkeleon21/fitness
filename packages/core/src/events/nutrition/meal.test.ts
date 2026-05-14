@@ -91,6 +91,30 @@ describe('mealLoggedEventSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  it('accepts a meal event with meal_type', () => {
+    const result = mealLoggedEventSchema.safeParse({
+      ...validMealEvent,
+      payload: {
+        label: 'Müsli',
+        kcal: 420,
+        meal_type: 'breakfast',
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects invalid meal_type', () => {
+    const result = mealLoggedEventSchema.safeParse({
+      ...validMealEvent,
+      payload: {
+        label: 'Müsli',
+        kcal: 420,
+        meal_type: 'brunch',
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
   it('rejects negative detail nutrient value', () => {
     const result = mealLoggedEventSchema.safeParse({
       ...validMealEvent,

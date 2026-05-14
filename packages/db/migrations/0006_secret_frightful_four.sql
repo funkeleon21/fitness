@@ -1,0 +1,2 @@
+ALTER TABLE "meal_templates" ADD COLUMN "slot" text;--> statement-breakpoint
+ALTER TABLE "meal_templates" ADD CONSTRAINT "meal_templates_slot_check" CHECK (slot is null or slot in ('breakfast', 'lunch', 'dinner', 'snack'));

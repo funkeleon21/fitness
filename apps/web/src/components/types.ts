@@ -13,6 +13,8 @@ export interface DashboardData {
   trend7dChangeKg: number | null;
 }
 
+export type MealSlotIdValue = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+
 export interface MealPoint {
   event_id: string;
   occurred_at: string; // ISO
@@ -25,6 +27,7 @@ export interface MealPoint {
   fiber_g: number | null;
   saturated_fat_g: number | null;
   salt_g: number | null;
+  meal_type: MealSlotIdValue | null;
   source: string;
   confidence: number | null;
   corrected: boolean;
@@ -59,6 +62,7 @@ export interface MealTemplateView {
   fiber_g: number | null;
   saturated_fat_g: number | null;
   salt_g: number | null;
+  slot: MealSlotIdValue | null;
   usage_count: number;
   last_used_at: string | null; // ISO
 }

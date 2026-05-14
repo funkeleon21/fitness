@@ -102,7 +102,9 @@ export function Dashboard({
       {templateEdit && (
         <MealTemplateSheet mode={templateEdit} onClose={() => setTemplateEdit(null)} />
       )}
-      {composerOpen && <MealComposerSheet onClose={() => setComposerOpen(false)} />}
+      {composerOpen && (
+        <MealComposerSheet templates={mealTemplates} onClose={() => setComposerOpen(false)} />
+      )}
     </div>
   );
 }

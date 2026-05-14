@@ -64,6 +64,23 @@ const recognizedMealSchema = z.object({
     .describe(
       'Optional: ein Satz, was unsicher ist und wo der Nutzer im Chat verfeinern kann, z.B. "Reis-Menge unklar — bestätige bitte" oder null.',
     ),
+  // Wenn eine User-Vorlage klar zur erkannten Mahlzeit passt, gibt das LLM
+  // die ID + Begründung zurück. Die UI zeigt dann einen "Sieht aus wie deine
+  // X — direkt loggen?"-Banner. null = kein Match (oder keine Templates).
+  suggested_template_id: z
+    .string()
+    .uuid()
+    .nullable()
+    .describe(
+      'UUID einer User-Vorlage aus user_templates, wenn die erkannte Mahlzeit klar einer Vorlage entspricht. Nur setzen, wenn Label, Komponenten und kcal-Range gut passen (Konfidenz für das Match selbst >=0.7). Sonst null.',
+    ),
+  suggested_template_reason: z
+    .string()
+    .max(160)
+    .nullable()
+    .describe(
+      'Ein kurzer Satz, warum die Vorlage passt, z.B. "Komponenten Skyr, Beeren und Granola identisch". null wenn suggested_template_id null ist.',
+    ),
 });
 
 export type RecognizedMeal = z.infer<typeof recognizedMealSchema>;
@@ -77,6 +94,7 @@ Aus 1–3 Fotos einer Mahlzeit (Teller, Verpackung, Komponenten) extrahierst du:
 3. Tages-Nährwerte aggregiert (kcal Pflicht, Makros und Detail-Nährwerte optional).
 4. Deine Konfidenz zur Gesamt-Schätzung.
 5. Optional einen Hinweis, was unsicher ist.
+6. Optional: ein Match zu einer existierenden User-Vorlage (suggested_template_id).
 
 Prinzipien:
 - Wissenschaftlich nüchtern. Keine Fake-Präzision: lieber Range im Hinweis als gerundete Einzelzahl ohne Basis.
@@ -86,15 +104,36 @@ Prinzipien:
 - Detail-Nährwerte (sugar_g, fiber_g, saturated_fat_g, salt_g): null wenn nicht abschätzbar. Nicht raten.
 - Konfidenz ehrlich. Foto unscharf, Portionsgröße unklar, ungewöhnliches Gericht → niedrig.
 
+Template-Match (Food Memory):
+Wenn der User dir eine Liste seiner gespeicherten Vorlagen mitgibt (templates), prüfe nach der Bild-Analyse, ob die erkannte Mahlzeit zu einer Vorlage passt:
+- Passt das Label oder die Komponenten klar zu einer Vorlage? (z.B. "Skyr mit Beeren" ↔ Vorlage "Standard-Frühstück Skyr-Bowl")
+- Liegt deine erkannte kcal-Schätzung in einer plausiblen Range der Vorlagen-kcal (±25%)?
+- Sind die Haupt-Komponenten gleich?
+Nur wenn ALLE drei Punkte zutreffen: gib suggested_template_id zurück und schreibe in suggested_template_reason kurz warum. Sonst null. Lieber konservativ — falsche Matches frustrieren den User mehr als ausbleibende.
+
 Refinement-Modus:
-Wenn previous_result + chat_message vorhanden, ist das eine Verfeinerung: nimm previous_result als Ausgangspunkt und passe basierend auf der chat_message an. Behalte items, die der Nutzer nicht anspricht, unverändert. Aktualisiere totals konsistent zu items.
+Wenn previous_result + chat_message vorhanden, ist das eine Verfeinerung: nimm previous_result als Ausgangspunkt und passe basierend auf der chat_message an. Behalte items, die der Nutzer nicht anspricht, unverändert. Aktualisiere totals konsistent zu items. Template-Match nicht erneut prüfen — übernimm den Wert aus previous_result.
 
 Sprache: Deutsch. Werte immer in Gramm bzw. Kilokalorien.`;
+
+// Knapp-Repräsentation der User-Templates, die wir dem LLM zum Matching mitgeben.
+// Bewusst nur Label + kcal + Hauptmakros + Slot, keine PII oder Detail-Nährwerte —
+// reicht zum Match-Vergleich, hält den Prompt schlank.
+const templateRefSchema = z.object({
+  id: z.string().uuid(),
+  label: z.string(),
+  kcal: z.number(),
+  protein_g: z.number().nullable(),
+  carbs_g: z.number().nullable(),
+  fat_g: z.number().nullable(),
+  slot: z.enum(['breakfast', 'lunch', 'dinner', 'snack']).nullable(),
+});
 
 const requestSchema = z.object({
   images: z.array(z.string()).min(0).max(3),
   previous_result: recognizedMealSchema.optional(),
   chat_message: z.string().min(1).max(2000).optional(),
+  templates: z.array(templateRefSchema).max(100).optional(),
 });
 
 export async function POST(req: Request) {
@@ -121,7 +160,7 @@ export async function POST(req: Request) {
         },
       );
     }
-    const { images, previous_result, chat_message } = parsed.data;
+    const { images, previous_result, chat_message, templates } = parsed.data;
 
     if (images.length === 0 && !chat_message) {
       return new Response(
@@ -136,6 +175,13 @@ export async function POST(req: Request) {
       userContent.push({
         type: 'text',
         text: `Aktueller Vorschlag (zum Verfeinern):\n${JSON.stringify(previous_result, null, 2)}`,
+      });
+    }
+
+    if (templates && templates.length > 0 && !previous_result) {
+      userContent.push({
+        type: 'text',
+        text: `Gespeicherte Vorlagen des Nutzers (zum Matching):\n${JSON.stringify(templates, null, 2)}`,
       });
     }
 
@@ -170,7 +216,19 @@ export async function POST(req: Request) {
       schema: recognizedMealSchema,
     });
 
-    return new Response(JSON.stringify({ result: object }), {
+    // Defensive: das LLM kann eine Template-ID halluzinieren. Nur durchlassen,
+    // wenn die ID in der mitgegebenen templates-Liste war (oder beim Refinement
+    // in previous_result.suggested_template_id stand).
+    const allowedIds = new Set<string>();
+    if (templates) for (const t of templates) allowedIds.add(t.id);
+    if (previous_result?.suggested_template_id)
+      allowedIds.add(previous_result.suggested_template_id);
+    const validated: RecognizedMeal =
+      object.suggested_template_id !== null && !allowedIds.has(object.suggested_template_id)
+        ? { ...object, suggested_template_id: null, suggested_template_reason: null }
+        : object;
+
+    return new Response(JSON.stringify({ result: validated }), {
       status: 200,
       headers: { 'content-type': 'application/json' },
     });
