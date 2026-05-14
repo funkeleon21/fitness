@@ -1,7 +1,7 @@
 'use client';
 
 import { useChat } from '@ai-sdk/react';
-import { DefaultChatTransport } from 'ai';
+import { DefaultChatTransport, lastAssistantMessageIsCompleteWithApprovalResponses } from 'ai';
 import { useRouter } from 'next/navigation';
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '../Icon';
@@ -17,6 +17,10 @@ export function Chat({ userName, config }: { userName: string; config: AgentConf
   );
   const { messages, sendMessage, status, error, stop, addToolApprovalResponse } = useChat({
     transport,
+    // Nach jeder Approval-Antwort automatisch eine Continuation-Anfrage senden,
+    // damit das LLM das Tool ausführt und das Ergebnis streamt. Ohne diesen
+    // Predicate hängt der UI-State unbegrenzt bei "Tool läuft…".
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
     onFinish: () => {
       router.refresh();
     },
