@@ -15,13 +15,8 @@ export function MacroDetailSheet({ totals, targets, onClose }: MacroDetailSheetP
   const { ref, style } = useSheetDismissDrag({ onClose });
 
   return (
-    <button
-      type="button"
-      className="sheet-backdrop"
-      onClick={onClose}
-      aria-label="Schließen"
-      style={{ border: 'none', cursor: 'default', padding: 0 }}
-    >
+    // biome-ignore lint/a11y/useKeyWithClickEvents: backdrop is a presentational click target; sheet has its own X-button + Escape via document listener
+    <div className="sheet-backdrop" onClick={onClose} role="presentation">
       <div
         ref={ref}
         className="sheet"
@@ -30,7 +25,7 @@ export function MacroDetailSheet({ totals, targets, onClose }: MacroDetailSheetP
         // biome-ignore lint/a11y/useSemanticElements: bottom-sheet without native <dialog> lifecycle
         role="dialog"
         aria-modal="true"
-        style={{ textAlign: 'left', ...style }}
+        style={style}
       >
         <div className="sheet-handle" />
         <div className="row-between" style={{ marginBottom: 18 }}>
@@ -132,7 +127,7 @@ export function MacroDetailSheet({ totals, targets, onClose }: MacroDetailSheetP
           />
         </div>
       </div>
-    </button>
+    </div>
   );
 }
 

@@ -14,32 +14,19 @@ export function NutritionCoachSheet({ userName, onClose }: NutritionCoachSheetPr
   const { ref, style } = useSheetDismissDrag({ onClose });
 
   return (
-    <button
-      type="button"
-      className="sheet-backdrop"
-      onClick={onClose}
-      aria-label="Schließen"
-      style={{ border: 'none', cursor: 'default', padding: 0 }}
-    >
+    // biome-ignore lint/a11y/useKeyWithClickEvents: backdrop is a presentational click target; sheet has its own X-button
+    <div className="sheet-backdrop" onClick={onClose} role="presentation">
       <div
         ref={ref}
-        className="sheet"
+        className="sheet sheet--flex"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.stopPropagation()}
         // biome-ignore lint/a11y/useSemanticElements: bottom-sheet without native <dialog> lifecycle
         role="dialog"
         aria-modal="true"
-        style={{
-          textAlign: 'left',
-          padding: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          height: '90vh',
-          maxHeight: '90vh',
-          ...style,
-        }}
+        style={style}
       >
-        <div style={{ padding: '14px 18px 8px', flexShrink: 0 }}>
+        <div className="sheet-flex-header">
           <div className="sheet-handle" />
           <div className="row-between" style={{ marginBottom: 4 }}>
             <div>
@@ -80,10 +67,10 @@ export function NutritionCoachSheet({ userName, onClose }: NutritionCoachSheetPr
             </button>
           </div>
         </div>
-        <div style={{ flex: 1, minHeight: 0 }}>
+        <div className="sheet-flex-body">
           <Chat userName={userName} config={COACH_AGENT} />
         </div>
       </div>
-    </button>
+    </div>
   );
 }
