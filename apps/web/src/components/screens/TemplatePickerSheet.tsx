@@ -2,9 +2,9 @@
 
 import { logMealFromTemplateAction } from '@/app/actions';
 import { MEAL_SLOTS, type MealSlotId } from '@/lib/nutrition';
-import { useSheetDismissDrag } from '@/lib/useSheetDismissDrag';
 import { useState, useTransition } from 'react';
 import { Icon } from '../Icon';
+import { Sheet, SheetCloseButton } from '../Sheet';
 import type { MealTemplateView } from '../types';
 
 interface TemplatePickerSheetProps {
@@ -23,7 +23,6 @@ export function TemplatePickerSheet({
   onClose,
   onCreateNew,
 }: TemplatePickerSheetProps) {
-  const { ref, handleRef, backdropRef, style } = useSheetDismissDrag({ onClose });
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [_, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -54,133 +53,102 @@ export function TemplatePickerSheet({
   }
 
   return (
-    // biome-ignore lint/a11y/useKeyWithClickEvents: backdrop is a presentational click target; sheet has its own X-button
-    <div ref={backdropRef} className="sheet-backdrop" onClick={onClose} role="presentation">
-      <div
-        ref={ref}
-        className="sheet"
-        onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => e.stopPropagation()}
-        // biome-ignore lint/a11y/useSemanticElements: bottom-sheet without native <dialog> lifecycle
-        role="dialog"
-        aria-modal="true"
-        style={style}
-      >
-        <div ref={handleRef} className="sheet-drag-zone">
-          <div className="sheet-handle" />
-          <div className="row-between" style={{ marginBottom: 14 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: '50%',
-                  background: slotMeta.tint,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: slotMeta.iconColor,
-                  flexShrink: 0,
-                }}
-              >
-                <Icon name={slotMeta.icon} size={18} strokeWidth={1.6} stroke="currentColor" />
-              </div>
-              <div>
-                <div
-                  style={{
-                    fontFamily: 'var(--serif)',
-                    fontSize: 24,
-                    color: 'var(--ink)',
-                    letterSpacing: '-0.02em',
-                    lineHeight: 1.05,
-                  }}
-                >
-                  {slotMeta.label}
-                </div>
-                <div style={{ marginTop: 2, color: 'var(--ink-3)', fontSize: 13 }}>
-                  {matching.length === 0
-                    ? 'Keine Vorlagen — neu erfassen'
-                    : `${matching.length} ${matching.length === 1 ? 'Vorlage' : 'Vorlagen'}`}
-                </div>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Schließen"
-              className="pressable"
+    <Sheet
+      onClose={onClose}
+      header={
+        <div className="row-between" style={{ marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div
               style={{
-                width: 32,
-                height: 32,
+                width: 36,
+                height: 36,
                 borderRadius: '50%',
-                background: 'var(--surface-2)',
-                border: 'none',
+                background: slotMeta.tint,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: 'var(--ink-3)',
-                cursor: 'pointer',
+                color: slotMeta.iconColor,
+                flexShrink: 0,
               }}
             >
-              <Icon name="x" size={14} strokeWidth={2} />
-            </button>
+              <Icon name={slotMeta.icon} size={18} strokeWidth={1.6} stroke="currentColor" />
+            </div>
+            <div>
+              <div
+                style={{
+                  fontFamily: 'var(--serif)',
+                  fontSize: 24,
+                  color: 'var(--ink)',
+                  letterSpacing: '-0.02em',
+                  lineHeight: 1.05,
+                }}
+              >
+                {slotMeta.label}
+              </div>
+              <div style={{ marginTop: 2, color: 'var(--ink-3)', fontSize: 13 }}>
+                {matching.length === 0
+                  ? 'Keine Vorlagen — neu erfassen'
+                  : `${matching.length} ${matching.length === 1 ? 'Vorlage' : 'Vorlagen'}`}
+              </div>
+            </div>
           </div>
+          <SheetCloseButton onClose={onClose} />
         </div>
-
-        {matching.length === 0 ? (
-          <EmptyState slotLabel={slotMeta.label} onCreateNew={onCreateNew} />
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {matching.map((t) => (
-              <TemplateRow
-                key={t.id}
-                template={t}
-                pending={pendingId === t.id}
-                onTap={() => logFromTemplate(t)}
-              />
-            ))}
-            <button
-              type="button"
-              onClick={onCreateNew}
-              className="pressable"
-              style={{
-                marginTop: 6,
-                padding: '12px 14px',
-                background: 'transparent',
-                border: '0.5px dashed var(--hairline-strong)',
-                borderRadius: 12,
-                color: 'var(--ink-3)',
-                fontSize: 13,
-                fontFamily: 'var(--sans)',
-                fontWeight: 500,
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 6,
-                cursor: 'pointer',
-                textAlign: 'left',
-              }}
-            >
-              <Icon name="plus" size={14} strokeWidth={2} /> Neu erfassen
-            </button>
-          </div>
-        )}
-
-        {error && (
-          <div
+      }
+    >
+      {matching.length === 0 ? (
+        <EmptyState slotLabel={slotMeta.label} onCreateNew={onCreateNew} />
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {matching.map((t) => (
+            <TemplateRow
+              key={t.id}
+              template={t}
+              pending={pendingId === t.id}
+              onTap={() => logFromTemplate(t)}
+            />
+          ))}
+          <button
+            type="button"
+            onClick={onCreateNew}
+            className="pressable"
             style={{
-              marginTop: 10,
-              color: 'var(--amber)',
-              fontSize: 12,
-              fontFamily: 'var(--mono)',
-              letterSpacing: '0.04em',
+              marginTop: 6,
+              padding: '12px 14px',
+              background: 'transparent',
+              border: '0.5px dashed var(--hairline-strong)',
+              borderRadius: 12,
+              color: 'var(--ink-3)',
+              fontSize: 13,
+              fontFamily: 'var(--sans)',
+              fontWeight: 500,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              cursor: 'pointer',
+              textAlign: 'left',
             }}
           >
-            {error}
-          </div>
-        )}
-      </div>
-    </div>
+            <Icon name="plus" size={14} strokeWidth={2} /> Neu erfassen
+          </button>
+        </div>
+      )}
+
+      {error && (
+        <div
+          style={{
+            marginTop: 10,
+            color: 'var(--amber)',
+            fontSize: 12,
+            fontFamily: 'var(--mono)',
+            letterSpacing: '0.04em',
+          }}
+        >
+          {error}
+        </div>
+      )}
+    </Sheet>
   );
 }
 

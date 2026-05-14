@@ -1,8 +1,8 @@
 'use client';
 
 import { type NutritionTargets, type TargetSpec, formatTodayHeading } from '@/lib/nutrition';
-import { useSheetDismissDrag } from '@/lib/useSheetDismissDrag';
 import { Icon, type IconName } from '../Icon';
+import { Sheet, SheetCloseButton } from '../Sheet';
 import type { MealDayTotals } from '../types';
 
 interface MacroDetailSheetProps {
@@ -12,124 +12,91 @@ interface MacroDetailSheetProps {
 }
 
 export function MacroDetailSheet({ totals, targets, onClose }: MacroDetailSheetProps) {
-  const { ref, handleRef, backdropRef, style } = useSheetDismissDrag({ onClose });
-
   return (
-    // biome-ignore lint/a11y/useKeyWithClickEvents: backdrop is a presentational click target; sheet has its own X-button + Escape via document listener
-    <div ref={backdropRef} className="sheet-backdrop" onClick={onClose} role="presentation">
-      <div
-        ref={ref}
-        className="sheet"
-        onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => e.stopPropagation()}
-        // biome-ignore lint/a11y/useSemanticElements: bottom-sheet without native <dialog> lifecycle
-        role="dialog"
-        aria-modal="true"
-        style={style}
-      >
-        <div ref={handleRef} className="sheet-drag-zone">
-          <div className="sheet-handle" />
-          <div className="row-between" style={{ marginBottom: 18 }}>
-            <div>
-              <div
-                style={{
-                  fontFamily: 'var(--serif)',
-                  fontSize: 28,
-                  color: 'var(--ink)',
-                  letterSpacing: '-0.02em',
-                  lineHeight: 1.05,
-                }}
-              >
-                Tagesnährwerte
-              </div>
-              <div style={{ marginTop: 4, color: 'var(--ink-3)', fontSize: 14 }}>
-                {formatTodayHeading()}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Schließen"
-              className="pressable"
+    <Sheet
+      onClose={onClose}
+      header={
+        <div className="row-between" style={{ marginBottom: 18 }}>
+          <div>
+            <div
               style={{
-                width: 32,
-                height: 32,
-                borderRadius: '50%',
-                background: 'var(--surface-2)',
-                border: 'none',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--ink-3)',
-                cursor: 'pointer',
+                fontFamily: 'var(--serif)',
+                fontSize: 28,
+                color: 'var(--ink)',
+                letterSpacing: '-0.02em',
+                lineHeight: 1.05,
               }}
             >
-              <Icon name="x" size={14} strokeWidth={2} />
-            </button>
+              Tagesnährwerte
+            </div>
+            <div style={{ marginTop: 4, color: 'var(--ink-3)', fontSize: 14 }}>
+              {formatTodayHeading()}
+            </div>
           </div>
+          <SheetCloseButton onClose={onClose} />
         </div>
+      }
+    >
+      <KcalBlock value={totals.kcal} target={targets.kcal} />
 
-        <KcalBlock value={totals.kcal} target={targets.kcal} />
-
-        <SectionHeading icon="leaf">Makronährstoffe</SectionHeading>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <NutrientCard
-            icon="leaf"
-            label="Protein"
-            value={totals.protein_g}
-            target={targets.protein_g}
-            unit="g"
-          />
-          <NutrientCard
-            icon="wheat"
-            label="Kohlenhydrate"
-            value={totals.carbs_g}
-            target={targets.carbs_g}
-            unit="g"
-          />
-          <NutrientCard
-            icon="droplet"
-            label="Fett"
-            value={totals.fat_g}
-            target={targets.fat_g}
-            unit="g"
-          />
-        </div>
-
-        <SectionHeading icon="star">Weitere Nährwerte</SectionHeading>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <NutrientCard
-            icon="droplet"
-            label="Zucker"
-            value={totals.sugar_g}
-            target={targets.sugar_g}
-            unit="g"
-          />
-          <NutrientCard
-            icon="leaf"
-            label="Ballaststoffe"
-            value={totals.fiber_g}
-            target={targets.fiber_g}
-            unit="g"
-          />
-          <NutrientCard
-            icon="droplet"
-            label="ges. Fettsäuren"
-            value={totals.saturated_fat_g}
-            target={targets.saturated_fat_g}
-            unit="g"
-          />
-          <NutrientCard
-            icon="droplet"
-            label="Salz"
-            value={totals.salt_g}
-            target={targets.salt_g}
-            unit="g"
-            precision={1}
-          />
-        </div>
+      <SectionHeading icon="leaf">Makronährstoffe</SectionHeading>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <NutrientCard
+          icon="leaf"
+          label="Protein"
+          value={totals.protein_g}
+          target={targets.protein_g}
+          unit="g"
+        />
+        <NutrientCard
+          icon="wheat"
+          label="Kohlenhydrate"
+          value={totals.carbs_g}
+          target={targets.carbs_g}
+          unit="g"
+        />
+        <NutrientCard
+          icon="droplet"
+          label="Fett"
+          value={totals.fat_g}
+          target={targets.fat_g}
+          unit="g"
+        />
       </div>
-    </div>
+
+      <SectionHeading icon="star">Weitere Nährwerte</SectionHeading>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <NutrientCard
+          icon="droplet"
+          label="Zucker"
+          value={totals.sugar_g}
+          target={targets.sugar_g}
+          unit="g"
+        />
+        <NutrientCard
+          icon="leaf"
+          label="Ballaststoffe"
+          value={totals.fiber_g}
+          target={targets.fiber_g}
+          unit="g"
+        />
+        <NutrientCard
+          icon="droplet"
+          label="ges. Fettsäuren"
+          value={totals.saturated_fat_g}
+          target={targets.saturated_fat_g}
+          unit="g"
+        />
+        <NutrientCard
+          icon="droplet"
+          label="Salz"
+          value={totals.salt_g}
+          target={targets.salt_g}
+          unit="g"
+          precision={1}
+        />
+      </div>
+    </Sheet>
   );
 }
 
