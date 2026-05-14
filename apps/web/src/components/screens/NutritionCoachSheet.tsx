@@ -11,11 +11,11 @@ interface NutritionCoachSheetProps {
 }
 
 export function NutritionCoachSheet({ userName, onClose }: NutritionCoachSheetProps) {
-  const { ref, style } = useSheetDismissDrag({ onClose });
+  const { ref, handleRef, backdropRef, style } = useSheetDismissDrag({ onClose });
 
   return (
     // biome-ignore lint/a11y/useKeyWithClickEvents: backdrop is a presentational click target; sheet has its own X-button
-    <div className="sheet-backdrop" onClick={onClose} role="presentation">
+    <div ref={backdropRef} className="sheet-backdrop" onClick={onClose} role="presentation">
       <div
         ref={ref}
         className="sheet sheet--flex"
@@ -26,7 +26,7 @@ export function NutritionCoachSheet({ userName, onClose }: NutritionCoachSheetPr
         aria-modal="true"
         style={style}
       >
-        <div className="sheet-flex-header">
+        <div ref={handleRef} className="sheet-flex-header sheet-drag-zone">
           <div className="sheet-handle" />
           <div className="row-between" style={{ marginBottom: 4 }}>
             <div>

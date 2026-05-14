@@ -318,6 +318,25 @@ body:has(.sheet-backdrop) .tabbar {
   margin: 0 auto 14px;
 }
 
+/* Dedizierte Drag-Zone (Handle + Header-Titel). Hier startet die Schließ-Geste
+   immer, unabhängig vom Scroll-Zustand des Body. touch-action: none verhindert,
+   dass iOS-Safari die vertikale Bewegung als Scroll im Sheet interpretiert,
+   solange wir hier ziehen. Cursor signalisiert die Greifbarkeit auf Desktop. */
+.sheet-drag-zone {
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.sheet-drag-zone:active {
+  cursor: grabbing;
+}
+.sheet-drag-zone button,
+.sheet-drag-zone input,
+.sheet-drag-zone a {
+  cursor: pointer;
+}
+
 /* Modifier für Sheets mit fixiertem Header + scrollbarem Body + fixiertem Footer
    (z.B. Chat-Sheets). Standard-Sheet scrollt selbst; .sheet--flex deaktiviert das
    und überlässt den Scroll dem inneren .sheet-flex-body. */

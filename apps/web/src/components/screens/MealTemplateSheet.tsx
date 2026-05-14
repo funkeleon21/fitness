@@ -6,6 +6,7 @@ import {
   updateMealTemplateAction,
 } from '@/app/actions';
 import { MEAL_SLOTS, type MealSlotId } from '@/lib/nutrition';
+import { useSheetDismissDrag } from '@/lib/useSheetDismissDrag';
 import { useId, useState, useTransition } from 'react';
 import { Icon } from '../Icon';
 import type { MealTemplateView } from '../types';
@@ -18,6 +19,7 @@ interface MealTemplateSheetProps {
 }
 
 export function MealTemplateSheet({ mode, onClose }: MealTemplateSheetProps) {
+  const { ref, handleRef, backdropRef, style } = useSheetDismissDrag({ onClose });
   const [pending, startTransition] = useTransition();
   const [deletePending, startDeleteTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -31,40 +33,44 @@ export function MealTemplateSheet({ mode, onClose }: MealTemplateSheetProps) {
 
   return (
     // biome-ignore lint/a11y/useKeyWithClickEvents: backdrop is a presentational click target; sheet has its own X-button
-    <div className="sheet-backdrop" onClick={onClose} role="presentation">
+    <div ref={backdropRef} className="sheet-backdrop" onClick={onClose} role="presentation">
       <div
+        ref={ref}
         className="sheet"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.stopPropagation()}
         // biome-ignore lint/a11y/useSemanticElements: bottom-sheet without native <dialog> lifecycle
         role="dialog"
         aria-modal="true"
+        style={style}
       >
-        <div className="sheet-handle" />
-        <div className="row-between" style={{ marginBottom: 8 }}>
-          <div className="h-card" style={{ fontSize: 22 }}>
-            {title}
+        <div ref={handleRef} className="sheet-drag-zone">
+          <div className="sheet-handle" />
+          <div className="row-between" style={{ marginBottom: 8 }}>
+            <div className="h-card" style={{ fontSize: 22 }}>
+              {title}
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="pressable"
+              aria-label="Schließen"
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: '50%',
+                background: 'var(--surface-2)',
+                border: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--ink-3)',
+                cursor: 'pointer',
+              }}
+            >
+              <Icon name="x" size={16} />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="pressable"
-            aria-label="Schließen"
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: '50%',
-              background: 'var(--surface-2)',
-              border: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--ink-3)',
-              cursor: 'pointer',
-            }}
-          >
-            <Icon name="x" size={16} />
-          </button>
         </div>
 
         <form

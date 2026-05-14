@@ -4,6 +4,7 @@ import { logMealFromTemplateAction, saveComposedMealAction } from '@/app/actions
 import type { BarcodeLookupResult } from '@/app/api/lookup-barcode/route';
 import type { RecognizedMeal } from '@/app/api/recognize-meal/route';
 import { MEAL_SLOTS, type MealSlotId, mealSlotFromIso } from '@/lib/nutrition';
+import { useSheetDismissDrag } from '@/lib/useSheetDismissDrag';
 import dynamic from 'next/dynamic';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { Icon } from '../Icon';
@@ -36,6 +37,7 @@ const MAX_IMAGES = 3;
 const MAX_IMAGE_DIMENSION = 1024;
 
 export function MealComposerSheet({ templates, onClose }: MealComposerSheetProps) {
+  const { ref, handleRef, backdropRef, style } = useSheetDismissDrag({ onClose });
   const [stage, setStage] = useState<Stage>('capture');
   const [images, setImages] = useState<CapturedImage[]>([]);
   const [result, setResult] = useState<RecognizedMeal | null>(null);
@@ -189,18 +191,21 @@ export function MealComposerSheet({ templates, onClose }: MealComposerSheetProps
 
   return (
     // biome-ignore lint/a11y/useKeyWithClickEvents: backdrop is a presentational click target; sheet has its own X-button
-    <div className="sheet-backdrop" onClick={onClose} role="presentation">
+    <div ref={backdropRef} className="sheet-backdrop" onClick={onClose} role="presentation">
       <div
+        ref={ref}
         className="sheet"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.stopPropagation()}
         // biome-ignore lint/a11y/useSemanticElements: bottom-sheet without native <dialog> lifecycle
         role="dialog"
         aria-modal="true"
-        style={{ maxHeight: '92vh' }}
+        style={{ maxHeight: '92vh', ...style }}
       >
-        <div className="sheet-handle" />
-        <SheetHeader stage={stage} onClose={onClose} />
+        <div ref={handleRef} className="sheet-drag-zone">
+          <div className="sheet-handle" />
+          <SheetHeader stage={stage} onClose={onClose} />
+        </div>
 
         {stage === 'capture' && (
           <CaptureStage
