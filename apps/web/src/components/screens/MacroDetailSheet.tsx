@@ -12,11 +12,11 @@ interface MacroDetailSheetProps {
 }
 
 export function MacroDetailSheet({ totals, targets, onClose }: MacroDetailSheetProps) {
-  const { ref, style } = useSheetDismissDrag({ onClose });
+  const { ref, handleRef, backdropRef, style } = useSheetDismissDrag({ onClose });
 
   return (
     // biome-ignore lint/a11y/useKeyWithClickEvents: backdrop is a presentational click target; sheet has its own X-button + Escape via document listener
-    <div className="sheet-backdrop" onClick={onClose} role="presentation">
+    <div ref={backdropRef} className="sheet-backdrop" onClick={onClose} role="presentation">
       <div
         ref={ref}
         className="sheet"
@@ -27,44 +27,46 @@ export function MacroDetailSheet({ totals, targets, onClose }: MacroDetailSheetP
         aria-modal="true"
         style={style}
       >
-        <div className="sheet-handle" />
-        <div className="row-between" style={{ marginBottom: 18 }}>
-          <div>
-            <div
+        <div ref={handleRef} className="sheet-drag-zone">
+          <div className="sheet-handle" />
+          <div className="row-between" style={{ marginBottom: 18 }}>
+            <div>
+              <div
+                style={{
+                  fontFamily: 'var(--serif)',
+                  fontSize: 28,
+                  color: 'var(--ink)',
+                  letterSpacing: '-0.02em',
+                  lineHeight: 1.05,
+                }}
+              >
+                Tagesnährwerte
+              </div>
+              <div style={{ marginTop: 4, color: 'var(--ink-3)', fontSize: 14 }}>
+                {formatTodayHeading()}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Schließen"
+              className="pressable"
               style={{
-                fontFamily: 'var(--serif)',
-                fontSize: 28,
-                color: 'var(--ink)',
-                letterSpacing: '-0.02em',
-                lineHeight: 1.05,
+                width: 32,
+                height: 32,
+                borderRadius: '50%',
+                background: 'var(--surface-2)',
+                border: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--ink-3)',
+                cursor: 'pointer',
               }}
             >
-              Tagesnährwerte
-            </div>
-            <div style={{ marginTop: 4, color: 'var(--ink-3)', fontSize: 14 }}>
-              {formatTodayHeading()}
-            </div>
+              <Icon name="x" size={14} strokeWidth={2} />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Schließen"
-            className="pressable"
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: '50%',
-              background: 'var(--surface-2)',
-              border: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--ink-3)',
-              cursor: 'pointer',
-            }}
-          >
-            <Icon name="x" size={14} strokeWidth={2} />
-          </button>
         </div>
 
         <KcalBlock value={totals.kcal} target={targets.kcal} />

@@ -1,5 +1,6 @@
 'use client';
 
+import { useSheetDismissDrag } from '@/lib/useSheetDismissDrag';
 import { Icon } from '../Icon';
 
 interface InsightDetailSheetProps {
@@ -55,61 +56,66 @@ const FALLBACK: InsightDetail = {
 };
 
 export function InsightDetailSheet({ id, onClose }: InsightDetailSheetProps) {
+  const { ref, handleRef, backdropRef, style } = useSheetDismissDrag({ onClose });
   const d = DETAILS[id] ?? FALLBACK;
 
   return (
     // biome-ignore lint/a11y/useKeyWithClickEvents: backdrop is a presentational click target; sheet has its own X-button
-    <div className="sheet-backdrop" onClick={onClose} role="presentation">
+    <div ref={backdropRef} className="sheet-backdrop" onClick={onClose} role="presentation">
       <div
+        ref={ref}
         className="sheet"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.stopPropagation()}
         // biome-ignore lint/a11y/useSemanticElements: bottom-sheet without native <dialog> lifecycle
         role="dialog"
         aria-modal="true"
+        style={style}
       >
-        <div className="sheet-handle" />
-        <div className="row-between" style={{ marginBottom: 10 }}>
-          <div
-            className="row gap-2"
-            style={{
-              color: 'var(--ink-3)',
-              fontSize: 12,
-              fontWeight: 500,
-              letterSpacing: '0.04em',
-            }}
-          >
-            <span
+        <div ref={handleRef} className="sheet-drag-zone">
+          <div className="sheet-handle" />
+          <div className="row-between" style={{ marginBottom: 10 }}>
+            <div
+              className="row gap-2"
               style={{
-                display: 'inline-block',
-                width: 6,
-                height: 6,
-                borderRadius: 3,
-                background: 'var(--amber)',
+                color: 'var(--ink-3)',
+                fontSize: 12,
+                fontWeight: 500,
+                letterSpacing: '0.04em',
               }}
-            />
-            {d.kind.toUpperCase()} · KONFIDENZ {Math.round(d.conf * 100)}%
+            >
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: 6,
+                  height: 6,
+                  borderRadius: 3,
+                  background: 'var(--amber)',
+                }}
+              />
+              {d.kind.toUpperCase()} · KONFIDENZ {Math.round(d.conf * 100)}%
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="pressable"
+              aria-label="Schließen"
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: '50%',
+                background: 'var(--surface-2)',
+                border: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--ink-3)',
+                cursor: 'pointer',
+              }}
+            >
+              <Icon name="x" size={16} />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="pressable"
-            aria-label="Schließen"
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: '50%',
-              background: 'var(--surface-2)',
-              border: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--ink-3)',
-              cursor: 'pointer',
-            }}
-          >
-            <Icon name="x" size={16} />
-          </button>
         </div>
         <div className="h-card" style={{ fontSize: 24, lineHeight: 1.2 }}>
           {d.title}

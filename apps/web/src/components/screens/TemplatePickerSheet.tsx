@@ -23,7 +23,7 @@ export function TemplatePickerSheet({
   onClose,
   onCreateNew,
 }: TemplatePickerSheetProps) {
-  const { ref, style } = useSheetDismissDrag({ onClose });
+  const { ref, handleRef, backdropRef, style } = useSheetDismissDrag({ onClose });
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [_, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -55,7 +55,7 @@ export function TemplatePickerSheet({
 
   return (
     // biome-ignore lint/a11y/useKeyWithClickEvents: backdrop is a presentational click target; sheet has its own X-button
-    <div className="sheet-backdrop" onClick={onClose} role="presentation">
+    <div ref={backdropRef} className="sheet-backdrop" onClick={onClose} role="presentation">
       <div
         ref={ref}
         className="sheet"
@@ -66,63 +66,65 @@ export function TemplatePickerSheet({
         aria-modal="true"
         style={style}
       >
-        <div className="sheet-handle" />
-        <div className="row-between" style={{ marginBottom: 14 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div
+        <div ref={handleRef} className="sheet-drag-zone">
+          <div className="sheet-handle" />
+          <div className="row-between" style={{ marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: '50%',
+                  background: slotMeta.tint,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: slotMeta.iconColor,
+                  flexShrink: 0,
+                }}
+              >
+                <Icon name={slotMeta.icon} size={18} strokeWidth={1.6} stroke="currentColor" />
+              </div>
+              <div>
+                <div
+                  style={{
+                    fontFamily: 'var(--serif)',
+                    fontSize: 24,
+                    color: 'var(--ink)',
+                    letterSpacing: '-0.02em',
+                    lineHeight: 1.05,
+                  }}
+                >
+                  {slotMeta.label}
+                </div>
+                <div style={{ marginTop: 2, color: 'var(--ink-3)', fontSize: 13 }}>
+                  {matching.length === 0
+                    ? 'Keine Vorlagen — neu erfassen'
+                    : `${matching.length} ${matching.length === 1 ? 'Vorlage' : 'Vorlagen'}`}
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Schließen"
+              className="pressable"
               style={{
-                width: 36,
-                height: 36,
+                width: 32,
+                height: 32,
                 borderRadius: '50%',
-                background: slotMeta.tint,
+                background: 'var(--surface-2)',
+                border: 'none',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: slotMeta.iconColor,
-                flexShrink: 0,
+                color: 'var(--ink-3)',
+                cursor: 'pointer',
               }}
             >
-              <Icon name={slotMeta.icon} size={18} strokeWidth={1.6} stroke="currentColor" />
-            </div>
-            <div>
-              <div
-                style={{
-                  fontFamily: 'var(--serif)',
-                  fontSize: 24,
-                  color: 'var(--ink)',
-                  letterSpacing: '-0.02em',
-                  lineHeight: 1.05,
-                }}
-              >
-                {slotMeta.label}
-              </div>
-              <div style={{ marginTop: 2, color: 'var(--ink-3)', fontSize: 13 }}>
-                {matching.length === 0
-                  ? 'Keine Vorlagen — neu erfassen'
-                  : `${matching.length} ${matching.length === 1 ? 'Vorlage' : 'Vorlagen'}`}
-              </div>
-            </div>
+              <Icon name="x" size={14} strokeWidth={2} />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Schließen"
-            className="pressable"
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: '50%',
-              background: 'var(--surface-2)',
-              border: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--ink-3)',
-              cursor: 'pointer',
-            }}
-          >
-            <Icon name="x" size={14} strokeWidth={2} />
-          </button>
         </div>
 
         {matching.length === 0 ? (
