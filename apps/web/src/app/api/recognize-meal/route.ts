@@ -1,7 +1,7 @@
 import { serverEnv } from '@/lib/env';
 import { createClient } from '@/lib/supabase/server';
 import { createAnthropic } from '@ai-sdk/anthropic';
-import { NoObjectGeneratedError, type UserContent, generateObject } from 'ai';
+import { type UserContent, generateText } from 'ai';
 import { z } from 'zod';
 
 // Vision-Erkennung von Mahlzeiten: Foto(s) + optionaler Refinement-Chat in,
@@ -117,7 +117,40 @@ Nur wenn ALLE drei Punkte zutreffen: gib suggested_template_id zurück und schre
 Refinement-Modus:
 Wenn previous_result + chat_message vorhanden, ist das eine Verfeinerung: nimm previous_result als Ausgangspunkt und passe basierend auf der chat_message an. Behalte items, die der Nutzer nicht anspricht, unverändert. Aktualisiere totals konsistent zu items. Template-Match nicht erneut prüfen — übernimm den Wert aus previous_result.
 
-Sprache: Deutsch. Werte immer in Gramm bzw. Kilokalorien.`;
+Sprache: Deutsch. Werte immer in Gramm bzw. Kilokalorien.
+
+OUTPUT-FORMAT (zwingend):
+Antworte AUSSCHLIESSLICH mit einem einzigen JSON-Objekt, ohne Markdown-Fences, ohne erklärenden Vor- oder Nachtext. Keine Tool-Calls. Halte dich exakt an dieses Schema:
+
+{
+  "label": "string (1-200 Zeichen)",
+  "items": [
+    {
+      "label": "string (1-120 Zeichen)",
+      "amount_g": number|null,
+      "kcal": number|null,
+      "protein_g": number|null,
+      "carbs_g": number|null,
+      "fat_g": number|null
+    }
+  ],
+  "totals": {
+    "kcal": number,
+    "protein_g": number|null,
+    "carbs_g": number|null,
+    "fat_g": number|null,
+    "sugar_g": number|null,
+    "fiber_g": number|null,
+    "saturated_fat_g": number|null,
+    "salt_g": number|null
+  },
+  "confidence": number (0..1),
+  "hint": "string|null (max 200 Zeichen)",
+  "suggested_template_id": "string|null (UUID einer mitgegebenen Vorlage)",
+  "suggested_template_reason": "string|null (max 160 Zeichen)"
+}
+
+items[] enthält mindestens ein Element, höchstens 15. Wenn ein Wert unbekannt ist, schreibe null — niemals Strings wie "unbekannt" oder leere Strings.`;
 
 // Knapp-Repräsentation der User-Templates, die wir dem LLM zum Matching mitgeben.
 // Bewusst nur Label + kcal + Hauptmakros + Slot, keine PII oder Detail-Nährwerte —
@@ -212,16 +245,56 @@ export async function POST(req: Request) {
       apiKey: LANGDOCK_API_KEY,
     });
 
-    const { object } = await generateObject({
+    // Wir benutzen bewusst generateText statt generateObject:
+    // Langdock-Proxy reicht das tools-Param fuer Anthropic-strukturierte-Outputs
+    // nicht zuverlaessig durch — Folge war wiederholt NoObjectGeneratedError mit
+    // abgeschnittenem oder leerem Output. Mit Text-Mode + System-Prompt-JSON-Vertrag
+    // bekommen wir den Rohtext, koennen Markdown-Fences strippen und sehen bei
+    // Fehlern in den Logs exakt, was das Modell geliefert hat.
+    const { text, finishReason, usage } = await generateText({
       model: langdock('claude-sonnet-4-6-default'),
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userContent }],
-      schema: recognizedMealSchema,
-      // Komplexes Schema mit bis zu 15 items + Detail-Nährwerten + Template-Match
-      // braucht spürbar Headroom. Default (~4k) reichte gelegentlich nicht und
-      // führte zu abgeschnittenem Tool-Call-JSON → NoObjectGeneratedError.
       maxOutputTokens: 4096,
     });
+
+    const cleaned = stripJsonFences(text);
+    let parsedJson: unknown;
+    try {
+      parsedJson = JSON.parse(cleaned);
+    } catch (jsonErr) {
+      console.error('recognize-meal: JSON-Parse fehlgeschlagen', {
+        finishReason,
+        usage,
+        rawTextHead: text.slice(0, 800),
+        rawTextTail: text.slice(-400),
+        parseError: jsonErr instanceof Error ? jsonErr.message : String(jsonErr),
+      });
+      return new Response(
+        JSON.stringify({
+          error:
+            'KI-Antwort war kein gueltiges JSON. Versuch es nochmal oder beschreib die Mahlzeit im Chat.',
+        }),
+        { status: 502, headers: { 'content-type': 'application/json' } },
+      );
+    }
+
+    const schemaParsed = recognizedMealSchema.safeParse(parsedJson);
+    if (!schemaParsed.success) {
+      console.error('recognize-meal: Schema-Validation fehlgeschlagen', {
+        finishReason,
+        usage,
+        issues: schemaParsed.error.issues.slice(0, 8),
+        rawJsonHead: cleaned.slice(0, 600),
+      });
+      return new Response(
+        JSON.stringify({
+          error: 'KI-Antwort entsprach nicht dem erwarteten Schema. Versuch es nochmal.',
+        }),
+        { status: 502, headers: { 'content-type': 'application/json' } },
+      );
+    }
+    const object = schemaParsed.data;
 
     // Defensive: das LLM kann eine Template-ID halluzinieren oder leeren String
     // statt null liefern. Nur durchlassen, wenn die ID in der mitgegebenen
@@ -243,24 +316,6 @@ export async function POST(req: Request) {
       headers: { 'content-type': 'application/json' },
     });
   } catch (err) {
-    // NoObjectGeneratedError trägt die Rohantwort als `text` — die ist beim
-    // Debuggen Gold wert. Loggen, damit wir in Vercel sehen, was das Modell
-    // wirklich zurückgegeben hat.
-    if (NoObjectGeneratedError.isInstance(err)) {
-      console.error('recognize-meal: NoObjectGenerated', {
-        text: err.text,
-        finishReason: err.finishReason,
-        usage: err.usage,
-        cause: err.cause instanceof Error ? err.cause.message : err.cause,
-      });
-      return new Response(
-        JSON.stringify({
-          error:
-            'KI hat keinen lesbaren Vorschlag geliefert. Versuch es nochmal oder beschreib die Mahlzeit kurz im Chat.',
-        }),
-        { status: 502, headers: { 'content-type': 'application/json' } },
-      );
-    }
     console.error('recognize-meal: unexpected', err);
     const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
     return new Response(JSON.stringify({ error: message }), {
@@ -268,4 +323,20 @@ export async function POST(req: Request) {
       headers: { 'content-type': 'application/json' },
     });
   }
+}
+
+// LLMs verpacken JSON gerne in ```json ... ``` oder ``` ... ``` trotz expliziter
+// Anweisung. Strippt fuehrende/nachfolgende Fences und Whitespace, damit
+// JSON.parse direkt damit klarkommt.
+function stripJsonFences(raw: string): string {
+  const trimmed = raw.trim();
+  const fenceMatch = trimmed.match(/^```(?:json)?\s*\n([\s\S]*?)\n```$/);
+  if (fenceMatch?.[1]) return fenceMatch[1].trim();
+  // Fallback: erstes { bis letztes } extrahieren — robust gegen Vor-/Nachgeschwafel
+  const firstBrace = trimmed.indexOf('{');
+  const lastBrace = trimmed.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    return trimmed.slice(firstBrace, lastBrace + 1);
+  }
+  return trimmed;
 }
