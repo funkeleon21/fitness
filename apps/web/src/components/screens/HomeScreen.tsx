@@ -4,26 +4,23 @@ import { signOut } from '@/app/(auth)/login/actions';
 import { Chat } from '../Chat';
 import { Icon } from '../Icon';
 import type { DashboardData } from '../types';
-import type { LogMode } from './LogSheet';
 
 interface HomeScreenProps {
   data: DashboardData;
   userName: string;
   initials: string;
   onNavigate: (screen: 'home' | 'body' | 'nutrition' | 'training' | 'insights') => void;
-  onOpenLog: (mode: LogMode) => void;
   onOpenInsight: (id: string) => void;
 }
 
-// `data`, `onNavigate`, `onOpenLog`, `onOpenInsight` werden in dieser Iteration auf Home
-// nicht genutzt — Home ist ab jetzt nur noch der Assistent. Props bleiben in der Signature,
-// damit der Dashboard-Container nicht angefasst werden muss.
+// `data`, `onNavigate`, `onOpenInsight` werden in dieser Iteration auf Home nicht
+// genutzt — Home ist ab jetzt nur noch der Assistent. Props bleiben in der
+// Signature, damit der Dashboard-Container nicht angefasst werden muss.
 export function HomeScreen({
   data: _data,
   userName,
   initials,
   onNavigate: _onNavigate,
-  onOpenLog: _onOpenLog,
   onOpenInsight: _onOpenInsight,
 }: HomeScreenProps) {
   // Volle Viewport-Höhe, unten Platz für die fixed TabBar (≈80px) plus iOS-Safe-Area.

@@ -12,7 +12,6 @@ import {
 import { useMemo, useState, useTransition } from 'react';
 import { Icon, type IconName } from '../Icon';
 import type { MealPoint, MealTemplateView, NutritionData } from '../types';
-import type { LogMode } from './LogSheet';
 import { MacroDetailSheet } from './MacroDetailSheet';
 import { NutritionCoachSheet } from './NutritionCoachSheet';
 import { TemplatePickerSheet } from './TemplatePickerSheet';
@@ -22,7 +21,6 @@ interface NutritionScreenProps {
   nutritionTargets: NutritionTargets;
   mealTemplates: MealTemplateView[];
   userName: string;
-  onOpenLog: (mode: LogMode) => void;
   onOpenComposer: () => void;
   onCreateTemplate: () => void;
   onEditTemplate: (template: MealTemplateView) => void;
@@ -46,7 +44,6 @@ export function NutritionScreen({
   nutritionTargets,
   mealTemplates,
   userName,
-  onOpenLog: _onOpenLog,
   onOpenComposer,
   onCreateTemplate,
   onEditTemplate,
