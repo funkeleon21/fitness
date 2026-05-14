@@ -1,16 +1,31 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useState } from 'react';
 import { Icon, type IconName } from './Icon';
-import { BodyScreen } from './screens/BodyScreen';
 import { HomeScreen } from './screens/HomeScreen';
-import { InsightDetailSheet } from './screens/InsightDetailSheet';
-import { InsightsScreen } from './screens/InsightsScreen';
-import { type LogMode, LogSheet } from './screens/LogSheet';
-import { MealTemplateSheet } from './screens/MealTemplateSheet';
-import { NutritionScreen } from './screens/NutritionScreen';
-import { TrainingScreen } from './screens/TrainingScreen';
+import type { LogMode } from './screens/LogSheet';
 import type { DashboardData, MealTemplateView, NutritionData } from './types';
+
+const BodyScreen = dynamic(() =>
+  import('./screens/BodyScreen').then((m) => ({ default: m.BodyScreen })),
+);
+const NutritionScreen = dynamic(() =>
+  import('./screens/NutritionScreen').then((m) => ({ default: m.NutritionScreen })),
+);
+const TrainingScreen = dynamic(() =>
+  import('./screens/TrainingScreen').then((m) => ({ default: m.TrainingScreen })),
+);
+const InsightsScreen = dynamic(() =>
+  import('./screens/InsightsScreen').then((m) => ({ default: m.InsightsScreen })),
+);
+const LogSheet = dynamic(() => import('./screens/LogSheet').then((m) => ({ default: m.LogSheet })));
+const InsightDetailSheet = dynamic(() =>
+  import('./screens/InsightDetailSheet').then((m) => ({ default: m.InsightDetailSheet })),
+);
+const MealTemplateSheet = dynamic(() =>
+  import('./screens/MealTemplateSheet').then((m) => ({ default: m.MealTemplateSheet })),
+);
 
 type ScreenId = 'home' | 'body' | 'nutrition' | 'training' | 'insights';
 type TemplateEdit = { kind: 'new' } | { kind: 'edit'; template: MealTemplateView };
