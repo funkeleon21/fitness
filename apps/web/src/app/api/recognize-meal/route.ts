@@ -67,10 +67,9 @@ const recognizedMealSchema = z.object({
   // Wenn eine User-Vorlage klar zur erkannten Mahlzeit passt, gibt das LLM
   // die ID + Begründung zurück. Die UI zeigt dann einen "Sieht aus wie deine
   // X — direkt loggen?"-Banner. null = kein Match (oder keine Templates).
-  // Bewusst KEINE uuid()-Validierung im LLM-Schema: das Modell halluziniert
-  // gelegentlich leere Strings oder Pseudo-IDs, was generateObject sonst mit
-  // NoObjectGeneratedError abbrechen lässt. Wir filtern unten gegen die
-  // Whitelist und verwerfen alles, was nicht in templates[] stand.
+  // Bewusst KEINE uuid()-Validierung: das Modell halluziniert gelegentlich
+  // leere Strings oder Pseudo-IDs. Wir filtern unten gegen die Whitelist und
+  // verwerfen alles, was nicht in templates[] stand.
   suggested_template_id: z
     .string()
     .nullable()
