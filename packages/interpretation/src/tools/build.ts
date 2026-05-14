@@ -1,5 +1,6 @@
 import type { ToolSet } from 'ai';
 import { mealTools } from './sets/meal';
+import { nutritionTargetsTools } from './sets/nutrition-targets';
 import { weightTools } from './sets/weight';
 import type { ChatToolContext, ChatToolset } from './types';
 
@@ -11,7 +12,7 @@ import type { ChatToolContext, ChatToolset } from './types';
  * Tool-Namen müssen über Sets hinweg eindeutig sein (z.B. `log_weight`,
  * `log_meal`, `log_training` — niemals nur `log`).
  */
-const TOOLSETS: ChatToolset[] = [weightTools, mealTools];
+const TOOLSETS: ChatToolset[] = [weightTools, mealTools, nutritionTargetsTools];
 
 export function buildChatTools(ctx: ChatToolContext): ToolSet {
   const merged: ToolSet = {};

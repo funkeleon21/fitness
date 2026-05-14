@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getMealContext } from './sections/meal';
+import { getNutritionTargetsContext } from './sections/nutrition-targets';
 import { getWeightContext } from './sections/weight';
 import type { UserContextProvider, UserContextSection } from './types';
 
@@ -10,7 +11,11 @@ import type { UserContextProvider, UserContextSection } from './types';
  *
  * Reihenfolge bestimmt die Reihenfolge im gerenderten Prompt.
  */
-const PROVIDERS: UserContextProvider[] = [getWeightContext, getMealContext];
+const PROVIDERS: UserContextProvider[] = [
+  getWeightContext,
+  getMealContext,
+  getNutritionTargetsContext,
+];
 
 export async function buildUserContext(
   client: SupabaseClient,

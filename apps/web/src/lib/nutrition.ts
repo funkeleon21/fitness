@@ -77,12 +77,39 @@ export const DEFAULT_TARGETS: NutritionTargets = {
   protein_g: { value: 120, kind: 'goal' },
   carbs_g: { value: 240, kind: 'goal' },
   fat_g: { value: 65, kind: 'goal' },
-  // WHO/DGE-Richtwerte als Default. Sind persoenliche Setzungen, kommen spaeter aus User-Settings.
+  // WHO/DGE-Richtwerte als Default. Werden von persistierten User-Werten überschrieben.
   sugar_g: { value: 50, kind: 'limit' },
   fiber_g: { value: 30, kind: 'goal' },
   saturated_fat_g: { value: 20, kind: 'limit' },
   salt_g: { value: 6, kind: 'limit' },
 };
+
+// Persistierte Werte aus der nutrition_targets-Projection (alle nullable)
+// auf die voll bestückte UI-Form abbilden. Wo der User nichts gesetzt hat,
+// gilt der DGE/WHO-Default. kind bleibt fix in der Lib.
+export interface PersistedTargets {
+  kcal: number | null;
+  protein_g: number | null;
+  carbs_g: number | null;
+  fat_g: number | null;
+  sugar_g: number | null;
+  fiber_g: number | null;
+  saturated_fat_g: number | null;
+  salt_g: number | null;
+}
+
+export function mergeTargets(persisted: PersistedTargets): NutritionTargets {
+  const keys = Object.keys(DEFAULT_TARGETS) as Array<keyof NutritionTargets>;
+  const merged = {} as NutritionTargets;
+  for (const key of keys) {
+    const v = persisted[key];
+    merged[key] = {
+      value: v !== null && v > 0 ? v : DEFAULT_TARGETS[key].value,
+      kind: DEFAULT_TARGETS[key].kind,
+    };
+  }
+  return merged;
+}
 
 // "Heute, 24. Mai"
 export function formatTodayHeading(date = new Date()): string {
