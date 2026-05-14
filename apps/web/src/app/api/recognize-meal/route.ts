@@ -1,7 +1,7 @@
 import { serverEnv } from '@/lib/env';
 import { createClient } from '@/lib/supabase/server';
 import { createAnthropic } from '@ai-sdk/anthropic';
-import { type UserContent, generateObject } from 'ai';
+import { NoObjectGeneratedError, type UserContent, generateObject } from 'ai';
 import { z } from 'zod';
 
 // Vision-Erkennung von Mahlzeiten: Foto(s) + optionaler Refinement-Chat in,
@@ -67,9 +67,12 @@ const recognizedMealSchema = z.object({
   // Wenn eine User-Vorlage klar zur erkannten Mahlzeit passt, gibt das LLM
   // die ID + Begründung zurück. Die UI zeigt dann einen "Sieht aus wie deine
   // X — direkt loggen?"-Banner. null = kein Match (oder keine Templates).
+  // Bewusst KEINE uuid()-Validierung im LLM-Schema: das Modell halluziniert
+  // gelegentlich leere Strings oder Pseudo-IDs, was generateObject sonst mit
+  // NoObjectGeneratedError abbrechen lässt. Wir filtern unten gegen die
+  // Whitelist und verwerfen alles, was nicht in templates[] stand.
   suggested_template_id: z
     .string()
-    .uuid()
     .nullable()
     .describe(
       'UUID einer User-Vorlage aus user_templates, wenn die erkannte Mahlzeit klar einer Vorlage entspricht. Nur setzen, wenn Label, Komponenten und kcal-Range gut passen (Konfidenz für das Match selbst >=0.7). Sonst null.',
@@ -214,25 +217,51 @@ export async function POST(req: Request) {
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userContent }],
       schema: recognizedMealSchema,
+      // Komplexes Schema mit bis zu 15 items + Detail-Nährwerten + Template-Match
+      // braucht spürbar Headroom. Default (~4k) reichte gelegentlich nicht und
+      // führte zu abgeschnittenem Tool-Call-JSON → NoObjectGeneratedError.
+      maxOutputTokens: 4096,
     });
 
-    // Defensive: das LLM kann eine Template-ID halluzinieren. Nur durchlassen,
-    // wenn die ID in der mitgegebenen templates-Liste war (oder beim Refinement
-    // in previous_result.suggested_template_id stand).
+    // Defensive: das LLM kann eine Template-ID halluzinieren oder leeren String
+    // statt null liefern. Nur durchlassen, wenn die ID in der mitgegebenen
+    // templates-Liste war (oder beim Refinement in previous_result stand).
     const allowedIds = new Set<string>();
     if (templates) for (const t of templates) allowedIds.add(t.id);
     if (previous_result?.suggested_template_id)
       allowedIds.add(previous_result.suggested_template_id);
-    const validated: RecognizedMeal =
-      object.suggested_template_id !== null && !allowedIds.has(object.suggested_template_id)
-        ? { ...object, suggested_template_id: null, suggested_template_reason: null }
-        : object;
+    const rawId = object.suggested_template_id;
+    const idValid = rawId !== null && rawId.length > 0 && allowedIds.has(rawId);
+    const validated: RecognizedMeal = {
+      ...object,
+      suggested_template_id: idValid ? rawId : null,
+      suggested_template_reason: idValid ? object.suggested_template_reason : null,
+    };
 
     return new Response(JSON.stringify({ result: validated }), {
       status: 200,
       headers: { 'content-type': 'application/json' },
     });
   } catch (err) {
+    // NoObjectGeneratedError trägt die Rohantwort als `text` — die ist beim
+    // Debuggen Gold wert. Loggen, damit wir in Vercel sehen, was das Modell
+    // wirklich zurückgegeben hat.
+    if (NoObjectGeneratedError.isInstance(err)) {
+      console.error('recognize-meal: NoObjectGenerated', {
+        text: err.text,
+        finishReason: err.finishReason,
+        usage: err.usage,
+        cause: err.cause instanceof Error ? err.cause.message : err.cause,
+      });
+      return new Response(
+        JSON.stringify({
+          error:
+            'KI hat keinen lesbaren Vorschlag geliefert. Versuch es nochmal oder beschreib die Mahlzeit kurz im Chat.',
+        }),
+        { status: 502, headers: { 'content-type': 'application/json' } },
+      );
+    }
+    console.error('recognize-meal: unexpected', err);
     const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
     return new Response(JSON.stringify({ error: message }), {
       status: 500,
