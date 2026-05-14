@@ -106,6 +106,15 @@ export function useSheetDismissDrag({
       return Boolean(target.closest('input, textarea, select, button, [contenteditable="true"]'));
     };
 
+    // fromHandle wird über das tatsächliche Event-Target bestimmt, NICHT über
+    // currentTarget — Listener läuft nur auf dem Sheet, Bubbling vom Handle
+    // wäre sonst nicht erkennbar.
+    const targetIsInHandle = (target: EventTarget | null): boolean => {
+      const handle = handleElRef.current;
+      if (!handle || !(target instanceof Node)) return false;
+      return handle.contains(target);
+    };
+
     /* ───── Touch-Path ───── */
 
     const onTouchStart = (e: TouchEvent) => {
@@ -113,7 +122,7 @@ export function useSheetDismissDrag({
       if (!touch) return;
       // Tippen in Eingabe-Felder darf die Geste niemals starten.
       if (isInputTarget(e.target)) return;
-      const fromHandle = e.currentTarget === handleElRef.current;
+      const fromHandle = targetIsInHandle(e.target);
       dragRef.current = {
         pointerId: null,
         startY: touch.clientY,
@@ -180,7 +189,7 @@ export function useSheetDismissDrag({
       if (e.pointerType === 'touch') return;
       if (e.button !== 0) return;
       if (isInputTarget(e.target)) return;
-      const fromHandle = e.currentTarget === handleElRef.current;
+      const fromHandle = targetIsInHandle(e.target);
       dragRef.current = {
         pointerId: e.pointerId,
         startY: e.clientY,
@@ -282,6 +291,12 @@ export function useSheetDismissDrag({
 
     /* ───── Wiring ───── */
 
+    // Listener nur einmal am Sheet registrieren — Events aus dem Handle bubblen
+    // hoch, und fromHandle wird via targetIsInHandle aus e.target ermittelt.
+    // Doppelte Registrierung würde das Event zweimal feuern (einmal auf handle,
+    // einmal nach Bubbling auf sheet) und das dragRef beim zweiten Mal mit
+    // fromHandle: false + frischem startScrollTop überschreiben → Drag am
+    // Handle wäre kaputt, sobald sheet.scrollTop > 0.
     sheet.addEventListener('touchstart', onTouchStart, { passive: true });
     sheet.addEventListener('touchmove', onTouchMove, { passive: false });
     sheet.addEventListener('touchend', onTouchEnd, { passive: true });
@@ -290,18 +305,6 @@ export function useSheetDismissDrag({
     sheet.addEventListener('pointermove', onPointerMove);
     sheet.addEventListener('pointerup', onPointerUp);
     sheet.addEventListener('pointercancel', onPointerCancel);
-
-    const handle = handleElRef.current;
-    if (handle && handle !== sheet) {
-      handle.addEventListener('touchstart', onTouchStart, { passive: true });
-      handle.addEventListener('touchmove', onTouchMove, { passive: false });
-      handle.addEventListener('touchend', onTouchEnd, { passive: true });
-      handle.addEventListener('touchcancel', onTouchCancel, { passive: true });
-      handle.addEventListener('pointerdown', onPointerDown);
-      handle.addEventListener('pointermove', onPointerMove);
-      handle.addEventListener('pointerup', onPointerUp);
-      handle.addEventListener('pointercancel', onPointerCancel);
-    }
 
     return () => {
       sheet.removeEventListener('touchstart', onTouchStart);
@@ -312,16 +315,6 @@ export function useSheetDismissDrag({
       sheet.removeEventListener('pointermove', onPointerMove);
       sheet.removeEventListener('pointerup', onPointerUp);
       sheet.removeEventListener('pointercancel', onPointerCancel);
-      if (handle && handle !== sheet) {
-        handle.removeEventListener('touchstart', onTouchStart);
-        handle.removeEventListener('touchmove', onTouchMove);
-        handle.removeEventListener('touchend', onTouchEnd);
-        handle.removeEventListener('touchcancel', onTouchCancel);
-        handle.removeEventListener('pointerdown', onPointerDown);
-        handle.removeEventListener('pointermove', onPointerMove);
-        handle.removeEventListener('pointerup', onPointerUp);
-        handle.removeEventListener('pointercancel', onPointerCancel);
-      }
     };
   }, [onClose, threshold, velocityThreshold]);
 
