@@ -266,6 +266,81 @@ export async function deleteMealTemplateAction(formData: FormData) {
   revalidatePath('/');
 }
 
+function parseBool(raw: FormDataEntryValue | null): boolean {
+  return typeof raw === 'string' && raw === 'true';
+}
+
+// Loggt eine Mahlzeit und legt optional in einem Atemzug eine Vorlage an. Aufgerufen
+// vom MealComposerSheet, das im Foto-Flow am Ende „Nur loggen" oder „Als Vorlage + loggen"
+// als einzige Auswahl anbietet.
+export async function saveComposedMealAction(formData: FormData) {
+  const label = parseLabel(formData.get('label'));
+  const kcal = parseNonNegativeNumber(formData.get('kcal'), 'kcal', 20000);
+  const protein_g = parseOptionalNonNegativeNumber(formData.get('protein_g'), 'protein_g', 2000);
+  const carbs_g = parseOptionalNonNegativeNumber(formData.get('carbs_g'), 'carbs_g', 2000);
+  const fat_g = parseOptionalNonNegativeNumber(formData.get('fat_g'), 'fat_g', 2000);
+  const sugar_g = parseOptionalNonNegativeNumber(formData.get('sugar_g'), 'sugar_g', 2000);
+  const fiber_g = parseOptionalNonNegativeNumber(formData.get('fiber_g'), 'fiber_g', 2000);
+  const saturated_fat_g = parseOptionalNonNegativeNumber(
+    formData.get('saturated_fat_g'),
+    'saturated_fat_g',
+    2000,
+  );
+  const salt_g = parseOptionalNonNegativeNumber(formData.get('salt_g'), 'salt_g', 200);
+  const saveAsTemplate = parseBool(formData.get('save_as_template'));
+  const templateNameRaw = formData.get('template_name');
+  const templateName =
+    typeof templateNameRaw === 'string' && templateNameRaw.trim().length > 0
+      ? templateNameRaw.trim()
+      : label;
+  const occurredAt = parseOccurredAt(formData.get('occurred_at'));
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect('/login');
+
+  let templateId: string | undefined;
+  if (saveAsTemplate) {
+    const tpl = await createMealTemplate(supabase, {
+      user_id: user.id,
+      label: templateName,
+      kcal,
+      protein_g: protein_g ?? null,
+      carbs_g: carbs_g ?? null,
+      fat_g: fat_g ?? null,
+      sugar_g: sugar_g ?? null,
+      fiber_g: fiber_g ?? null,
+      saturated_fat_g: saturated_fat_g ?? null,
+      salt_g: salt_g ?? null,
+    });
+    templateId = tpl.id;
+  }
+
+  await logMeal(supabase, {
+    user_id: user.id,
+    label,
+    kcal,
+    protein_g,
+    carbs_g,
+    fat_g,
+    sugar_g,
+    fiber_g,
+    saturated_fat_g,
+    salt_g,
+    template_id: templateId,
+    occurred_at: occurredAt,
+    source: 'manual',
+  });
+
+  if (templateId) {
+    await recordMealTemplateUsage(supabase, user.id, templateId, occurredAt);
+  }
+
+  revalidatePath('/');
+}
+
 export async function logMealFromTemplateAction(formData: FormData) {
   const id = parseOptionalUuid(formData.get('template_id'));
   if (!id) throw new Error('template_id fehlt');

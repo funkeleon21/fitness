@@ -19,6 +19,7 @@ interface NutritionScreenProps {
   nutrition: NutritionData;
   mealTemplates: MealTemplateView[];
   onOpenLog: (mode: LogMode) => void;
+  onOpenComposer: () => void;
   onCreateTemplate: () => void;
   onEditTemplate: (template: MealTemplateView) => void;
 }
@@ -39,7 +40,8 @@ function sourceIcon(source: string): IconName {
 export function NutritionScreen({
   nutrition,
   mealTemplates,
-  onOpenLog,
+  onOpenLog: _onOpenLog,
+  onOpenComposer,
   onCreateTemplate,
   onEditTemplate,
 }: NutritionScreenProps) {
@@ -73,7 +75,11 @@ export function NutritionScreen({
       </div>
 
       <div className="pad-x" style={{ marginTop: 14 }}>
-        <MealSlotsCard mealsBySlot={mealsBySlot} onOpenLog={onOpenLog} onSlotPlus={focusSlot} />
+        <MealSlotsCard
+          mealsBySlot={mealsBySlot}
+          onOpenComposer={onOpenComposer}
+          onSlotPlus={focusSlot}
+        />
       </div>
 
       <div ref={foodMemoryRef} className="pad-x" style={{ marginTop: 14, marginBottom: 32 }}>
@@ -257,11 +263,11 @@ function MacroStat({
 
 function MealSlotsCard({
   mealsBySlot,
-  onOpenLog,
+  onOpenComposer,
   onSlotPlus,
 }: {
   mealsBySlot: Map<MealSlotId, MealPoint[]>;
-  onOpenLog: (mode: LogMode) => void;
+  onOpenComposer: () => void;
   onSlotPlus: (slot: MealSlotId) => void;
 }) {
   const [expanded, setExpanded] = useState(true);
@@ -274,7 +280,7 @@ function MealSlotsCard({
         </div>
         <button
           type="button"
-          onClick={() => onOpenLog('meal')}
+          onClick={onOpenComposer}
           className="pressable"
           style={{
             display: 'inline-flex',
