@@ -32,7 +32,12 @@ export type IconName =
   | 'flame'
   | 'edit'
   | 'pause'
-  | 'logout';
+  | 'logout'
+  | 'wheat'
+  | 'droplet'
+  | 'search'
+  | 'filter'
+  | 'chevrons-up-down';
 
 interface IconProps {
   name: IconName;
@@ -316,6 +321,42 @@ export function Icon({
         <svg {...props}>
           <title>{label}</title>
           <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
+        </svg>
+      );
+    case 'wheat':
+      return (
+        <svg {...props}>
+          <title>{label}</title>
+          <path d="M12 22V8M12 22c-3 0-5-2-5-5 3 0 5 2 5 5zM12 22c3 0 5-2 5-5-3 0-5 2-5 5zM12 17c-3 0-5-2-5-5 3 0 5 2 5 5zM12 17c3 0 5-2 5-5-3 0-5 2-5 5zM12 12c-3 0-5-2-5-5 3 0 5 2 5 5zM12 12c3 0 5-2 5-5-3 0-5 2-5 5z" />
+        </svg>
+      );
+    case 'droplet':
+      return (
+        <svg {...props}>
+          <title>{label}</title>
+          <path d="M12 3.5s-6 6.5-6 11a6 6 0 0 0 12 0c0-4.5-6-11-6-11z" />
+        </svg>
+      );
+    case 'search':
+      return (
+        <svg {...props}>
+          <title>{label}</title>
+          <circle cx="11" cy="11" r="6.5" />
+          <path d="M20 20l-4.2-4.2" />
+        </svg>
+      );
+    case 'filter':
+      return (
+        <svg {...props}>
+          <title>{label}</title>
+          <path d="M4 6h16M7 12h10M10 18h4" />
+        </svg>
+      );
+    case 'chevrons-up-down':
+      return (
+        <svg {...props}>
+          <title>{label}</title>
+          <path d="M7 9l5-5 5 5M7 15l5 5 5-5" />
         </svg>
       );
     default:

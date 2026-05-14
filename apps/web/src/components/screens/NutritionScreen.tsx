@@ -1,8 +1,16 @@
 'use client';
 
 import { logMealFromTemplateAction, retractMealAction } from '@/app/actions';
-import { useState, useTransition } from 'react';
-import { Icon } from '../Icon';
+import {
+  DEFAULT_TARGETS,
+  MEAL_SLOTS,
+  type MealSlotId,
+  type MealSlotMeta,
+  formatTodayHeading,
+  mealSlotFromIso,
+} from '@/lib/nutrition';
+import { useMemo, useRef, useState, useTransition } from 'react';
+import { Icon, type IconName } from '../Icon';
 import type { MealPoint, MealTemplateView, NutritionData } from '../types';
 import type { LogMode } from './LogSheet';
 
@@ -21,7 +29,7 @@ function formatTime(iso: string): string {
   return `${hh}:${mm}`;
 }
 
-function sourceIcon(source: string): 'mic' | 'camera' | 'text' {
+function sourceIcon(source: string): IconName {
   if (source === 'voice') return 'mic';
   if (source === 'photo') return 'camera';
   return 'text';
@@ -35,45 +43,522 @@ export function NutritionScreen({
   onEditTemplate,
 }: NutritionScreenProps) {
   const { today, todayTotals } = nutrition;
+  const foodMemoryRef = useRef<HTMLDivElement>(null);
+  const [slotFilter, setSlotFilter] = useState<MealSlotId | null>(null);
+
+  const mealsBySlot = useMemo(() => {
+    const grouped = new Map<MealSlotId, MealPoint[]>();
+    for (const m of today) {
+      const slot = mealSlotFromIso(m.occurred_at);
+      const arr = grouped.get(slot) ?? [];
+      arr.push(m);
+      grouped.set(slot, arr);
+    }
+    return grouped;
+  }, [today]);
+
+  function focusSlot(slot: MealSlotId) {
+    setSlotFilter(slot);
+    foodMemoryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 
   return (
     <div className="screen-content scroll">
-      <Header title="Ernährung" />
+      <Header />
 
-      <div className="pad-x" style={{ marginTop: 18 }}>
-        <TodayCard totals={todayTotals} />
+      <div className="pad-x" style={{ marginTop: 14 }}>
+        <MacroSummaryCard totals={todayTotals} />
       </div>
 
-      <div className="pad-x" style={{ marginTop: 12 }}>
-        <MealsCard meals={today} onOpenLog={onOpenLog} />
+      <div className="pad-x" style={{ marginTop: 14 }}>
+        <MealSlotsCard mealsBySlot={mealsBySlot} onOpenLog={onOpenLog} onSlotPlus={focusSlot} />
       </div>
 
-      <div className="pad-x" style={{ marginTop: 12 }}>
+      <div ref={foodMemoryRef} className="pad-x" style={{ marginTop: 14, marginBottom: 32 }}>
         <FoodMemoryCard
           templates={mealTemplates}
+          slotFilter={slotFilter}
+          onClearFilter={() => setSlotFilter(null)}
           onCreate={onCreateTemplate}
           onEdit={onEditTemplate}
         />
-      </div>
-
-      <div className="pad-x" style={{ marginTop: 12, marginBottom: 32 }}>
-        <PrincipleHint />
       </div>
     </div>
   );
 }
 
+/* ──────────────────────────────────────────────────────────────
+ * Header
+ * ──────────────────────────────────────────────────────────── */
+
+function Header() {
+  return (
+    <div
+      style={{
+        padding: '52px 22px 4px',
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'space-between',
+        gap: 12,
+      }}
+    >
+      <div>
+        <div
+          className="h-display"
+          style={{ fontFamily: 'var(--serif)', fontSize: 38, lineHeight: 1.04 }}
+        >
+          Ernährung
+        </div>
+        <div style={{ marginTop: 4, color: 'var(--ink-3)', fontSize: 14 }}>
+          {formatTodayHeading()}
+        </div>
+      </div>
+      <button
+        type="button"
+        aria-label="Menü"
+        className="pressable"
+        style={{
+          width: 38,
+          height: 38,
+          borderRadius: '50%',
+          background: 'var(--surface)',
+          border: '0.5px solid var(--hairline)',
+          color: 'var(--ink-3)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 18,
+          letterSpacing: '0.1em',
+          cursor: 'pointer',
+          marginTop: 6,
+        }}
+      >
+        ···
+      </button>
+    </div>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────────
+ * Macro Summary
+ * ──────────────────────────────────────────────────────────── */
+
+function MacroSummaryCard({ totals }: { totals: NutritionData['todayTotals'] }) {
+  return (
+    <div className="card rise" style={{ padding: '18px 16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+        <MacroStat
+          icon="flame"
+          value={totals.kcal}
+          unit=""
+          label="kcal"
+          target={DEFAULT_TARGETS.kcal}
+          targetUnit="kcal"
+        />
+        <MacroStat
+          icon="leaf"
+          value={Math.round(totals.protein_g)}
+          unit="g"
+          label="Protein"
+          target={DEFAULT_TARGETS.protein_g}
+          targetUnit="g"
+        />
+        <MacroStat
+          icon="wheat"
+          value={Math.round(totals.carbs_g)}
+          unit="g"
+          label="Kohlenhydrate"
+          target={DEFAULT_TARGETS.carbs_g}
+          targetUnit="g"
+        />
+        <MacroStat
+          icon="droplet"
+          value={Math.round(totals.fat_g)}
+          unit="g"
+          label="Fett"
+          target={DEFAULT_TARGETS.fat_g}
+          targetUnit="g"
+        />
+      </div>
+    </div>
+  );
+}
+
+function MacroStat({
+  icon,
+  value,
+  unit,
+  label,
+  target,
+  targetUnit,
+}: {
+  icon: IconName;
+  value: number;
+  unit: string;
+  label: string;
+  target: number;
+  targetUnit: string;
+}) {
+  const pct = Math.min(100, target > 0 ? (value / target) * 100 : 0);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+      <Icon name={icon} size={18} stroke="var(--sage-deep)" strokeWidth={1.6} />
+      <div
+        style={{
+          fontFamily: 'var(--serif)',
+          fontSize: 22,
+          color: 'var(--ink)',
+          lineHeight: 1.1,
+          letterSpacing: '-0.01em',
+        }}
+      >
+        {value.toLocaleString('de-DE')}
+        {unit && <span style={{ fontSize: 14, marginLeft: 2 }}>{` ${unit}`}</span>}
+      </div>
+      <div
+        style={{
+          fontSize: 11,
+          color: 'var(--ink-3)',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }}
+      >
+        {label}
+      </div>
+      <div className="progress" style={{ height: 4 }}>
+        <span style={{ width: `${pct}%` }} />
+      </div>
+      <div style={{ fontSize: 10, color: 'var(--ink-4)', fontFamily: 'var(--mono)' }}>
+        von {target.toLocaleString('de-DE')} {targetUnit}
+      </div>
+    </div>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────────
+ * Meal Slots
+ * ──────────────────────────────────────────────────────────── */
+
+function MealSlotsCard({
+  mealsBySlot,
+  onOpenLog,
+  onSlotPlus,
+}: {
+  mealsBySlot: Map<MealSlotId, MealPoint[]>;
+  onOpenLog: (mode: LogMode) => void;
+  onSlotPlus: (slot: MealSlotId) => void;
+}) {
+  const [expanded, setExpanded] = useState(true);
+
+  return (
+    <div className="card rise" style={{ animationDelay: '60ms', padding: '20px 18px 8px' }}>
+      <div className="row-between" style={{ marginBottom: 6 }}>
+        <div className="h-card" style={{ fontSize: 19 }}>
+          Deine Mahlzeiten
+        </div>
+        <button
+          type="button"
+          onClick={() => onOpenLog('meal')}
+          className="pressable"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 14px',
+            background: 'var(--sage-wash)',
+            color: 'var(--sage-deep)',
+            border: 'none',
+            borderRadius: 999,
+            fontFamily: 'var(--sans)',
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: 'pointer',
+          }}
+        >
+          <Icon name="plus" size={14} strokeWidth={2} /> Mahlzeit hinzufügen
+        </button>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        {MEAL_SLOTS.map((slot, i) => (
+          <SlotRow
+            key={slot.id}
+            slot={slot}
+            meals={mealsBySlot.get(slot.id) ?? []}
+            collapsed={!expanded && i >= 2}
+            onPlus={() => onSlotPlus(slot.id)}
+            isLast={i === MEAL_SLOTS.length - 1}
+          />
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'center', marginTop: 4, paddingBottom: 4 }}>
+        <button
+          type="button"
+          onClick={() => setExpanded((e) => !e)}
+          aria-label={expanded ? 'Einklappen' : 'Ausklappen'}
+          className="pressable"
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: '50%',
+            background: 'var(--surface-2)',
+            border: '0.5px solid var(--hairline)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'var(--ink-3)',
+            cursor: 'pointer',
+          }}
+        >
+          <Icon name="chevrons-up-down" size={14} strokeWidth={1.6} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SlotRow({
+  slot,
+  meals,
+  collapsed,
+  onPlus,
+  isLast,
+}: {
+  slot: MealSlotMeta;
+  meals: MealPoint[];
+  collapsed: boolean;
+  onPlus: () => void;
+  isLast: boolean;
+}) {
+  if (collapsed) return null;
+  const hasMeals = meals.length > 0;
+  const totalKcal = meals.reduce((s, m) => s + m.kcal, 0);
+
+  return (
+    <div
+      style={{
+        padding: '12px 0',
+        borderBottom: isLast ? 'none' : '0.5px solid var(--hairline)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+      }}
+    >
+      <div
+        style={{
+          width: 38,
+          height: 38,
+          borderRadius: '50%',
+          background: slot.tint,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: slot.iconColor,
+          flexShrink: 0,
+        }}
+      >
+        <Icon name={slot.icon} size={18} strokeWidth={1.6} stroke="currentColor" />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--ink)' }}>{slot.label}</div>
+        <div
+          style={{
+            fontSize: 12,
+            color: 'var(--ink-3)',
+            marginTop: 2,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {hasMeals
+            ? `${meals.length} ${meals.length === 1 ? 'Eintrag' : 'Einträge'} · ${totalKcal} kcal`
+            : 'Noch nichts hinzugefügt'}
+        </div>
+        {hasMeals && (
+          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {meals.map((m) => (
+              <MealRow key={m.event_id} meal={m} />
+            ))}
+          </div>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={onPlus}
+        aria-label={`${slot.label} hinzufügen`}
+        className="pressable"
+        style={{
+          width: 38,
+          height: 38,
+          borderRadius: 10,
+          background: 'transparent',
+          border: '1px dashed var(--hairline-strong)',
+          color: 'var(--ink-3)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          flexShrink: 0,
+        }}
+      >
+        <Icon name="plus" size={16} strokeWidth={2} />
+      </button>
+    </div>
+  );
+}
+
+function MealRow({ meal }: { meal: MealPoint }) {
+  const [open, setOpen] = useState(false);
+  const macros: string[] = [];
+  if (meal.protein_g !== null && meal.protein_g > 0)
+    macros.push(`${Math.round(meal.protein_g)}g P`);
+  if (meal.carbs_g !== null && meal.carbs_g > 0) macros.push(`${Math.round(meal.carbs_g)}g K`);
+  if (meal.fat_g !== null && meal.fat_g > 0) macros.push(`${Math.round(meal.fat_g)}g F`);
+
+  return (
+    <div
+      style={{
+        padding: '8px 10px',
+        background: 'var(--surface-2)',
+        borderRadius: 10,
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="pressable"
+        style={{
+          width: '100%',
+          background: 'transparent',
+          border: 'none',
+          padding: 0,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          cursor: 'pointer',
+          textAlign: 'left',
+        }}
+      >
+        <div
+          style={{
+            width: 24,
+            height: 24,
+            borderRadius: 6,
+            background: 'var(--surface)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'var(--ink-3)',
+            flexShrink: 0,
+          }}
+        >
+          <Icon name={sourceIcon(meal.source)} size={12} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 500,
+              color: 'var(--ink-2)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {meal.label}
+          </div>
+          <div className="mono-sm" style={{ marginTop: 1, fontSize: 10 }}>
+            {formatTime(meal.occurred_at)} · {meal.kcal} kcal
+            {macros.length > 0 ? ` · ${macros.join(' · ')}` : ''}
+          </div>
+        </div>
+        {meal.confidence !== null && meal.confidence < 0.9 && (
+          <span
+            className="pill"
+            style={{
+              fontSize: 10,
+              padding: '2px 6px',
+              background: 'rgba(196,152,85,0.14)',
+              color: 'var(--amber)',
+            }}
+          >
+            ungefähr
+          </span>
+        )}
+      </button>
+      {open && (
+        <form
+          action={retractMealAction}
+          style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end' }}
+        >
+          <input type="hidden" name="event_id" value={meal.event_id} />
+          <button
+            type="submit"
+            className="pressable"
+            style={{
+              background: 'transparent',
+              border: '0.5px solid var(--hairline-strong)',
+              borderRadius: 8,
+              padding: '4px 8px',
+              fontSize: 11,
+              color: 'var(--ink-3)',
+              cursor: 'pointer',
+            }}
+          >
+            Eintrag zurückziehen
+          </button>
+        </form>
+      )}
+    </div>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────────
+ * Food Memory
+ * ──────────────────────────────────────────────────────────── */
+
+const INITIAL_VISIBLE = 4;
+
 function FoodMemoryCard({
   templates,
+  slotFilter,
+  onClearFilter,
   onCreate,
   onEdit,
 }: {
   templates: MealTemplateView[];
+  slotFilter: MealSlotId | null;
+  onClearFilter: () => void;
   onCreate: () => void;
   onEdit: (t: MealTemplateView) => void;
 }) {
+  const [search, setSearch] = useState('');
+  const [showAll, setShowAll] = useState(false);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [_, startTransition] = useTransition();
+
+  const slotMeta = slotFilter ? MEAL_SLOTS.find((s) => s.id === slotFilter) : null;
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    let list = templates;
+    if (q) {
+      list = list.filter((t) => t.label.toLowerCase().includes(q));
+    }
+    if (slotFilter) {
+      const matchingSlot = list.filter(
+        (t) => t.last_used_at && mealSlotFromIso(t.last_used_at) === slotFilter,
+      );
+      if (matchingSlot.length > 0) list = matchingSlot;
+    }
+    return list;
+  }, [templates, search, slotFilter]);
+
+  const visible = showAll ? filtered : filtered.slice(0, INITIAL_VISIBLE);
+  const hasMore = filtered.length > INITIAL_VISIBLE;
 
   function logFromTemplate(id: string) {
     setPendingId(id);
@@ -89,46 +574,132 @@ function FoodMemoryCard({
   }
 
   return (
-    <div className="card rise" style={{ animationDelay: '120ms' }}>
-      <div className="row-between" style={{ marginBottom: 4 }}>
-        <div>
-          <div className="h-card" style={{ fontSize: 17 }}>
-            Food Memory
-          </div>
-          <div style={{ color: 'var(--ink-4)', fontSize: 12, marginTop: 4 }}>
-            Wiederkehrende Mahlzeiten — einmal speichern, schnell wieder loggen
-          </div>
+    <div className="card rise" style={{ animationDelay: '120ms', padding: '20px 18px' }}>
+      <div className="row-between" style={{ marginBottom: 12 }}>
+        <div className="h-card" style={{ fontSize: 19 }}>
+          Food Memory
         </div>
         <button
           type="button"
           onClick={onCreate}
           className="pressable"
-          aria-label="Neue Vorlage anlegen"
           style={{
-            width: 32,
-            height: 32,
-            borderRadius: '50%',
+            background: 'transparent',
+            border: 'none',
+            color: 'var(--sage-deep)',
+            fontFamily: 'var(--sans)',
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: 'pointer',
+            padding: 0,
+          }}
+        >
+          Bearbeiten
+        </button>
+      </div>
+
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          marginBottom: 14,
+        }}
+      >
+        <div
+          style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            background: 'var(--surface-2)',
+            borderRadius: 12,
+            padding: '10px 12px',
+            border: '0.5px solid var(--hairline)',
+          }}
+        >
+          <Icon name="search" size={14} stroke="var(--ink-4)" strokeWidth={1.8} />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Suche nach Gerichten"
+            style={{
+              flex: 1,
+              background: 'transparent',
+              border: 'none',
+              outline: 'none',
+              fontSize: 14,
+              fontFamily: 'var(--sans)',
+              color: 'var(--ink-2)',
+            }}
+          />
+        </div>
+        <button
+          type="button"
+          aria-label="Filter"
+          className="pressable"
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: 10,
             background: 'var(--surface-2)',
             border: '0.5px solid var(--hairline)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: 'var(--ink-2)',
+            color: 'var(--ink-3)',
             cursor: 'pointer',
+            flexShrink: 0,
           }}
         >
-          <Icon name="plus" size={16} strokeWidth={2} />
+          <Icon name="filter" size={16} strokeWidth={1.8} />
         </button>
       </div>
 
-      {templates.length === 0 ? (
+      {slotMeta && (
+        <div style={{ marginBottom: 12 }}>
+          <button
+            type="button"
+            onClick={onClearFilter}
+            className="pressable"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '5px 10px',
+              borderRadius: 999,
+              background: slotMeta.tint,
+              color: slotMeta.iconColor,
+              border: 'none',
+              fontFamily: 'var(--sans)',
+              fontSize: 12,
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            Vorschläge für {slotMeta.label}
+            <Icon name="x" size={12} strokeWidth={2} />
+          </button>
+        </div>
+      )}
+
+      {filtered.length === 0 ? (
         <div style={{ color: 'var(--ink-3)', fontSize: 13, padding: '14px 0 4px' }}>
-          Noch keine Vorlagen. Tippe das „+", um deine erste anzulegen.
+          {templates.length === 0
+            ? 'Noch keine Vorlagen. Tippe „Bearbeiten" für die erste.'
+            : 'Keine passenden Gerichte gefunden.'}
         </div>
       ) : (
-        <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {templates.map((t) => (
-            <TemplateRow
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, 1fr)',
+            gap: 10,
+          }}
+        >
+          {visible.map((t) => (
+            <FoodMemoryCardItem
               key={t.id}
               template={t}
               pending={pendingId === t.id}
@@ -138,11 +709,47 @@ function FoodMemoryCard({
           ))}
         </div>
       )}
+
+      {hasMore && (
+        <button
+          type="button"
+          onClick={() => setShowAll((v) => !v)}
+          className="pressable"
+          style={{
+            marginTop: 14,
+            width: '100%',
+            background: 'var(--surface-2)',
+            color: 'var(--sage-deep)',
+            border: 'none',
+            borderRadius: 12,
+            padding: '12px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            fontFamily: 'var(--sans)',
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: 'pointer',
+          }}
+        >
+          {showAll ? 'Weniger anzeigen' : 'Mehr anzeigen'}
+          <Icon
+            name="chevron-down"
+            size={14}
+            strokeWidth={2}
+            style={{
+              transform: showAll ? 'rotate(180deg)' : 'none',
+              transition: 'transform 160ms',
+            }}
+          />
+        </button>
+      )}
     </div>
   );
 }
 
-function TemplateRow({
+function FoodMemoryCardItem({
   template,
   pending,
   onLog,
@@ -153,23 +760,17 @@ function TemplateRow({
   onLog: () => void;
   onEdit: () => void;
 }) {
-  const macros: string[] = [];
-  if (template.protein_g !== null && template.protein_g > 0)
-    macros.push(`${Math.round(template.protein_g)}g P`);
-  if (template.carbs_g !== null && template.carbs_g > 0)
-    macros.push(`${Math.round(template.carbs_g)}g K`);
-  if (template.fat_g !== null && template.fat_g > 0)
-    macros.push(`${Math.round(template.fat_g)}g F`);
+  const protein = template.protein_g !== null && template.protein_g > 0 ? template.protein_g : null;
 
   return (
     <div
       style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        padding: '10px 12px',
         background: 'var(--surface-2)',
-        borderRadius: 12,
+        borderRadius: 14,
+        border: '0.5px solid var(--hairline)',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
         opacity: pending ? 0.6 : 1,
       }}
     >
@@ -178,335 +779,94 @@ function TemplateRow({
         onClick={onEdit}
         className="pressable"
         style={{
-          flex: 1,
-          minWidth: 0,
           background: 'transparent',
           border: 'none',
           padding: 0,
           textAlign: 'left',
           cursor: 'pointer',
+          width: '100%',
         }}
       >
-        <div
-          style={{
-            fontSize: 14,
-            fontWeight: 500,
-            color: 'var(--ink-2)',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {template.label}
-        </div>
-        <div className="mono-sm" style={{ marginTop: 2 }}>
-          {template.kcal} kcal
-          {macros.length > 0 ? ` · ${macros.join(' · ')}` : ''}
-          {template.usage_count > 0 ? ` · ${template.usage_count}×` : ''}
-        </div>
-      </button>
-      <button
-        type="button"
-        onClick={onLog}
-        disabled={pending}
-        className="pressable"
-        aria-label={`${template.label} loggen`}
-        style={{
-          width: 32,
-          height: 32,
-          borderRadius: '50%',
-          background: 'var(--sage-wash)',
-          border: '0.5px solid rgba(110,122,78,0.22)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'var(--sage-deep)',
-          cursor: pending ? 'wait' : 'pointer',
-          flexShrink: 0,
-        }}
-      >
-        <Icon name="plus" size={16} strokeWidth={2} />
-      </button>
-    </div>
-  );
-}
-
-function TodayCard({ totals }: { totals: NutritionData['todayTotals'] }) {
-  const hasMacros = totals.protein_g > 0 || totals.carbs_g > 0 || totals.fat_g > 0;
-  return (
-    <div className="card rise">
-      <div className="row-between" style={{ marginBottom: 12 }}>
-        <div className="h-card" style={{ fontSize: 17 }}>
-          Heute
-        </div>
-        <span className="mono-sm" style={{ color: 'var(--ink-3)' }}>
-          {totals.kcal.toLocaleString('de-DE')} KCAL
-        </span>
-      </div>
-      {totals.count === 0 ? (
-        <div style={{ color: 'var(--ink-3)', fontSize: 13, padding: '6px 0' }}>
-          Noch keine Mahlzeit erfasst.
-        </div>
-      ) : hasMacros ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-          <Macro label="Protein" value={`${Math.round(totals.protein_g)} g`} />
-          <Macro label="Kohlenh." value={`${Math.round(totals.carbs_g)} g`} />
-          <Macro label="Fett" value={`${Math.round(totals.fat_g)} g`} />
-        </div>
-      ) : (
-        <div
-          style={{
-            color: 'var(--ink-4)',
-            fontSize: 12,
-            fontFamily: 'var(--mono)',
-            letterSpacing: '0.04em',
-          }}
-        >
-          {totals.count} {totals.count === 1 ? 'Mahlzeit' : 'Mahlzeiten'} · keine Makros erfasst
-        </div>
-      )}
-    </div>
-  );
-}
-
-function MealsCard({
-  meals,
-  onOpenLog,
-}: {
-  meals: MealPoint[];
-  onOpenLog: (mode: LogMode) => void;
-}) {
-  return (
-    <div className="card rise" style={{ animationDelay: '60ms' }}>
-      <div className="row-between" style={{ marginBottom: 4 }}>
-        <div className="h-card" style={{ fontSize: 17 }}>
-          Deine Mahlzeiten
-        </div>
-      </div>
-
-      <div style={{ marginTop: 8 }}>
-        {meals.length === 0 ? (
-          <div style={{ color: 'var(--ink-3)', fontSize: 13, padding: '14px 0 6px' }}>
-            Heute noch leer. Trag deine erste Mahlzeit ein.
+        <FoodPlaceholder label={template.label} />
+        <div style={{ padding: '10px 12px 4px' }}>
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 500,
+              color: 'var(--ink)',
+              lineHeight: 1.25,
+              minHeight: 32,
+              overflow: 'hidden',
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+            }}
+          >
+            {template.label}
           </div>
-        ) : (
-          meals.map((m, i) => <MealRow key={m.event_id} meal={m} isLast={i === meals.length - 1} />)
-        )}
-      </div>
-
-      <button
-        type="button"
-        onClick={() => onOpenLog('meal')}
-        className="pressable"
-        style={{
-          marginTop: 14,
-          width: '100%',
-          background: 'transparent',
-          color: 'var(--ink-2)',
-          border: '0.5px dashed var(--hairline-strong)',
-          borderRadius: 12,
-          padding: '12px',
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 6,
-          fontFamily: 'var(--sans)',
-          fontSize: 14,
-          fontWeight: 500,
-          cursor: 'pointer',
-        }}
-      >
-        <Icon name="plus" size={16} strokeWidth={2} /> Mahlzeit hinzufügen
+          <div className="mono-sm" style={{ marginTop: 6, fontSize: 10.5 }}>
+            {template.kcal} kcal
+          </div>
+          {protein !== null && (
+            <div className="mono-sm" style={{ marginTop: 2, fontSize: 10.5 }}>
+              {Math.round(protein)} g Protein
+            </div>
+          )}
+        </div>
       </button>
-    </div>
-  );
-}
-
-function MealRow({ meal, isLast }: { meal: MealPoint; isLast: boolean }) {
-  const [open, setOpen] = useState(false);
-  const macros: string[] = [];
-  if (meal.protein_g !== null && meal.protein_g > 0)
-    macros.push(`${Math.round(meal.protein_g)}g P`);
-  if (meal.carbs_g !== null && meal.carbs_g > 0) macros.push(`${Math.round(meal.carbs_g)}g K`);
-  if (meal.fat_g !== null && meal.fat_g > 0) macros.push(`${Math.round(meal.fat_g)}g F`);
-
-  return (
-    <div
-      style={{
-        padding: '12px 0',
-        borderBottom: isLast ? 'none' : '0.5px solid var(--hairline)',
-      }}
-    >
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="pressable"
-        style={{
-          width: '100%',
-          background: 'transparent',
-          border: 'none',
-          padding: 0,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          cursor: 'pointer',
-          textAlign: 'left',
-        }}
-      >
-        <div
+      <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '4px 10px 10px' }}>
+        <button
+          type="button"
+          onClick={onLog}
+          disabled={pending}
+          aria-label={`${template.label} loggen`}
+          className="pressable"
           style={{
-            width: 36,
-            height: 36,
-            borderRadius: 10,
-            background: 'var(--surface-2)',
+            width: 30,
+            height: 30,
+            borderRadius: '50%',
+            background: 'var(--surface)',
+            border: '0.5px solid var(--hairline)',
+            color: 'var(--ink-2)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: 'var(--ink-3)',
-            flexShrink: 0,
+            cursor: pending ? 'wait' : 'pointer',
           }}
         >
-          <Icon name={sourceIcon(meal.source)} size={16} />
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div
-            style={{
-              fontSize: 14,
-              fontWeight: 500,
-              color: 'var(--ink-2)',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {meal.label}
-          </div>
-          <div className="mono-sm" style={{ marginTop: 2 }}>
-            {formatTime(meal.occurred_at)} · {meal.kcal} kcal
-            {macros.length > 0 ? ` · ${macros.join(' · ')}` : ''}
-          </div>
-        </div>
-        {meal.corrected && (
-          <span
-            className="pill"
-            style={{
-              fontSize: 10,
-              padding: '3px 7px',
-              background: 'var(--surface-2)',
-              color: 'var(--ink-4)',
-            }}
-          >
-            korr.
-          </span>
-        )}
-        {meal.confidence !== null && meal.confidence < 0.9 && (
-          <span
-            className="pill"
-            style={{
-              fontSize: 11,
-              padding: '4px 8px',
-              background: 'rgba(196,152,85,0.14)',
-              color: 'var(--amber)',
-            }}
-          >
-            ungefähr
-          </span>
-        )}
-      </button>
-      {open && (
-        <form
-          action={retractMealAction}
-          style={{ marginTop: 10, display: 'flex', justifyContent: 'flex-end' }}
-        >
-          <input type="hidden" name="event_id" value={meal.event_id} />
-          <button
-            type="submit"
-            className="pressable"
-            style={{
-              background: 'transparent',
-              border: '0.5px solid var(--hairline-strong)',
-              borderRadius: 8,
-              padding: '6px 10px',
-              fontSize: 12,
-              color: 'var(--ink-3)',
-              cursor: 'pointer',
-            }}
-          >
-            Eintrag zurückziehen
-          </button>
-        </form>
-      )}
-    </div>
-  );
-}
-
-function PrincipleHint() {
-  return (
-    <div
-      className="card"
-      style={{
-        background: 'var(--surface-2)',
-        border: '0.5px solid var(--hairline)',
-      }}
-    >
-      <div
-        className="label"
-        style={{ marginBottom: 6, color: 'var(--ink-4)', letterSpacing: '0.06em' }}
-      >
-        HINWEIS
-      </div>
-      <div style={{ fontSize: 13, color: 'var(--ink-3)', lineHeight: 1.5 }}>
-        Tagessumme ist eine Momentaufnahme — Aussagekräftig wird sie im Wochen­schnitt. Trends und
-        Personal Food Memory kommen in nächsten Schritten.
+          <Icon name="plus" size={14} strokeWidth={2} />
+        </button>
       </div>
     </div>
   );
 }
 
-function Header({ title }: { title: string }) {
+// Platzhalter-Tile: Gradient + Mono-Initialen vom Label. Bild-Upload kommt später.
+function FoodPlaceholder({ label }: { label: string }) {
+  const initials = label
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? '')
+    .join('');
+  // Deterministischer Tint pro Label
+  const hue = Array.from(label).reduce((acc, c) => (acc * 31 + c.charCodeAt(0)) % 360, 0);
+  const bg = `linear-gradient(135deg, hsl(${hue}, 30%, 78%), hsl(${(hue + 40) % 360}, 28%, 88%))`;
   return (
     <div
       style={{
-        padding: '64px 22px 6px',
+        height: 96,
+        background: bg,
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
+        justifyContent: 'center',
+        color: 'rgba(20,18,12,0.55)',
+        fontFamily: 'var(--serif)',
+        fontSize: 28,
+        letterSpacing: '0.04em',
       }}
     >
-      <div style={{ width: 24 }} />
-      <div
-        style={{ fontFamily: 'var(--sans)', fontWeight: 500, fontSize: 15, color: 'var(--ink)' }}
-      >
-        {title}
-      </div>
-      <div style={{ color: 'var(--ink-3)', fontSize: 18, letterSpacing: '0.1em' }}>···</div>
-    </div>
-  );
-}
-
-function Macro({ label, value }: { label: string; value: string }) {
-  return (
-    <div style={{ background: 'var(--surface-2)', borderRadius: 14, padding: '12px' }}>
-      <div
-        style={{
-          fontFamily: 'var(--mono)',
-          fontSize: 11,
-          color: 'var(--ink-4)',
-          letterSpacing: '0.04em',
-        }}
-      >
-        {label.toUpperCase()}
-      </div>
-      <div
-        style={{
-          fontFamily: 'var(--serif)',
-          fontSize: 18,
-          color: 'var(--ink)',
-          marginTop: 4,
-        }}
-      >
-        {value}
-      </div>
+      {initials || '·'}
     </div>
   );
 }
