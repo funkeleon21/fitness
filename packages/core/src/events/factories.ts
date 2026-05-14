@@ -1,6 +1,6 @@
 import { WEIGHT_LOGGED, type WeightLoggedEvent } from './body/weight';
 import type { EventProvenance, EventSource } from './envelope';
-import { MEAL_LOGGED, type MealItem, type MealLoggedEvent } from './nutrition/meal';
+import { MEAL_LOGGED, type MealItem, type MealLoggedEvent, type MealType } from './nutrition/meal';
 import {
   NUTRITION_TARGETS_SET,
   type NutritionTargetsSetEvent,
@@ -54,6 +54,7 @@ export interface NewMealLoggedInput {
   salt_g?: number;
   items?: MealItem[];
   template_id?: string;
+  meal_type?: MealType;
   occurred_at: Date;
   source: EventSource;
   external_id?: string | null;
@@ -87,6 +88,7 @@ export function createMealLogged(input: NewMealLoggedInput): MealLoggedEvent {
       ...(input.salt_g !== undefined ? { salt_g: input.salt_g } : {}),
       ...(input.items !== undefined ? { items: input.items } : {}),
       ...(input.template_id !== undefined ? { template_id: input.template_id } : {}),
+      ...(input.meal_type !== undefined ? { meal_type: input.meal_type } : {}),
     },
   };
 }

@@ -41,13 +41,22 @@ export const MEAL_SLOTS: MealSlotMeta[] = [
   },
 ];
 
-// Auto-Slot per Uhrzeit. Wird verwendet, solange kein meal_type im Event-Payload steht.
+// Auto-Slot per Uhrzeit. Wird als Fallback verwendet, wenn kein expliziter
+// meal_type im Event-Payload steht.
 export function mealSlotFromIso(iso: string): MealSlotId {
   const h = new Date(iso).getHours();
   if (h >= 4 && h < 11) return 'breakfast';
   if (h >= 11 && h < 15) return 'lunch';
   if (h >= 17 && h < 22) return 'dinner';
   return 'snack';
+}
+
+// Slot einer Mahlzeit. Wenn explizit gesetzt, gewinnt das gegenüber der Uhrzeit-Heuristik.
+export function effectiveSlot(meal: {
+  meal_type: MealSlotId | null;
+  occurred_at: string;
+}): MealSlotId {
+  return meal.meal_type ?? mealSlotFromIso(meal.occurred_at);
 }
 
 // Fallback-Tagesziele. Werden später durch persistierte User-Settings ersetzt (Agent-Tool).

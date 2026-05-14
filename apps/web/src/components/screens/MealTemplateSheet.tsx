@@ -5,6 +5,7 @@ import {
   deleteMealTemplateAction,
   updateMealTemplateAction,
 } from '@/app/actions';
+import { MEAL_SLOTS, type MealSlotId } from '@/lib/nutrition';
 import { useId, useState, useTransition } from 'react';
 import { Icon } from '../Icon';
 import type { MealTemplateView } from '../types';
@@ -25,6 +26,8 @@ export function MealTemplateSheet({ mode, onClose }: MealTemplateSheetProps) {
 
   const tpl = mode.kind === 'edit' ? mode.template : null;
   const title = mode.kind === 'edit' ? 'Mahlzeit bearbeiten' : 'Mahlzeit speichern';
+
+  const [slot, setSlot] = useState<MealSlotId | null>(tpl?.slot ?? null);
 
   return (
     <button
@@ -136,6 +139,9 @@ export function MealTemplateSheet({ mode, onClose }: MealTemplateSheetProps) {
             <MacroField name="salt_g" label="Salz g" defaultValue={tpl?.salt_g ?? null} />
           </div>
 
+          <SlotField value={slot} onChange={setSlot} />
+          <input type="hidden" name="slot" value={slot ?? ''} />
+
           {error && (
             <div
               style={{
@@ -242,6 +248,50 @@ function Field({
         {label.toUpperCase()}
       </label>
       {children}
+    </div>
+  );
+}
+
+function SlotField({
+  value,
+  onChange,
+}: {
+  value: MealSlotId | null;
+  onChange: (slot: MealSlotId | null) => void;
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <span
+        style={{
+          fontFamily: 'var(--mono)',
+          fontSize: 11,
+          color: 'var(--ink-3)',
+          letterSpacing: '0.06em',
+        }}
+      >
+        SLOT (OPTIONAL)
+      </span>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          onClick={() => onChange(null)}
+          className={`filter-pill ${value === null ? 'active' : ''}`}
+          style={{ fontSize: 12 }}
+        >
+          Beliebig
+        </button>
+        {MEAL_SLOTS.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => onChange(s.id)}
+            className={`filter-pill ${value === s.id ? 'active' : ''}`}
+            style={{ fontSize: 12 }}
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

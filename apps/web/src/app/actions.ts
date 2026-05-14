@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
+import type { MealType } from '@fitness/core';
 import {
   createMealTemplate,
   deleteMealTemplate,
@@ -58,6 +59,17 @@ function parseOptionalNonNegativeNumber(
 ): number | undefined {
   if (typeof raw !== 'string' || raw.trim() === '') return undefined;
   return parseNonNegativeNumber(raw, field, max);
+}
+
+const VALID_MEAL_TYPES = new Set<MealType>(['breakfast', 'lunch', 'dinner', 'snack']);
+
+function parseOptionalMealType(raw: FormDataEntryValue | null): MealType | undefined {
+  if (typeof raw !== 'string' || raw.trim() === '') return undefined;
+  const v = raw.trim();
+  if (!VALID_MEAL_TYPES.has(v as MealType)) {
+    throw new Error(`Ungueltiger meal_type: ${raw}`);
+  }
+  return v as MealType;
 }
 
 export async function logWeightAction(formData: FormData) {
@@ -145,6 +157,7 @@ export async function logMealAction(formData: FormData) {
     2000,
   );
   const salt_g = parseOptionalNonNegativeNumber(formData.get('salt_g'), 'salt_g', 200);
+  const meal_type = parseOptionalMealType(formData.get('meal_type'));
   const template_id = parseOptionalUuid(formData.get('template_id'));
   const occurredAt = parseOccurredAt(formData.get('occurred_at'));
 
@@ -165,6 +178,7 @@ export async function logMealAction(formData: FormData) {
     fiber_g,
     saturated_fat_g,
     salt_g,
+    meal_type,
     template_id,
     occurred_at: occurredAt,
     source: 'manual',
@@ -191,6 +205,7 @@ export async function createMealTemplateAction(formData: FormData) {
     2000,
   );
   const salt_g = parseOptionalNonNegativeNumber(formData.get('salt_g'), 'salt_g', 200);
+  const slot = parseOptionalMealType(formData.get('slot'));
 
   const supabase = await createClient();
   const {
@@ -209,6 +224,7 @@ export async function createMealTemplateAction(formData: FormData) {
     fiber_g: fiber_g ?? null,
     saturated_fat_g: saturated_fat_g ?? null,
     salt_g: salt_g ?? null,
+    slot: slot ?? null,
   });
 
   revalidatePath('/');
@@ -230,6 +246,7 @@ export async function updateMealTemplateAction(formData: FormData) {
     2000,
   );
   const salt_g = parseOptionalNonNegativeNumber(formData.get('salt_g'), 'salt_g', 200);
+  const slot = parseOptionalMealType(formData.get('slot'));
 
   const supabase = await createClient();
   const {
@@ -247,6 +264,7 @@ export async function updateMealTemplateAction(formData: FormData) {
     fiber_g: fiber_g ?? null,
     saturated_fat_g: saturated_fat_g ?? null,
     salt_g: salt_g ?? null,
+    slot: slot ?? null,
   });
 
   revalidatePath('/');
@@ -287,6 +305,7 @@ export async function saveComposedMealAction(formData: FormData) {
     2000,
   );
   const salt_g = parseOptionalNonNegativeNumber(formData.get('salt_g'), 'salt_g', 200);
+  const meal_type = parseOptionalMealType(formData.get('meal_type'));
   const saveAsTemplate = parseBool(formData.get('save_as_template'));
   const templateNameRaw = formData.get('template_name');
   const templateName =
@@ -314,6 +333,7 @@ export async function saveComposedMealAction(formData: FormData) {
       fiber_g: fiber_g ?? null,
       saturated_fat_g: saturated_fat_g ?? null,
       salt_g: salt_g ?? null,
+      slot: meal_type ?? null,
     });
     templateId = tpl.id;
   }
@@ -329,6 +349,7 @@ export async function saveComposedMealAction(formData: FormData) {
     fiber_g,
     saturated_fat_g,
     salt_g,
+    meal_type,
     template_id: templateId,
     occurred_at: occurredAt,
     source: 'manual',
@@ -344,6 +365,9 @@ export async function saveComposedMealAction(formData: FormData) {
 export async function logMealFromTemplateAction(formData: FormData) {
   const id = parseOptionalUuid(formData.get('template_id'));
   if (!id) throw new Error('template_id fehlt');
+  // Override-Slot, z.B. wenn aus dem TemplatePicker "Frühstück" geloggt wird,
+  // aber das Template selbst ohne Default-Slot ist. Sonst nimmt es den Template-Slot.
+  const meal_type_override = parseOptionalMealType(formData.get('meal_type'));
   const occurredAt = parseOccurredAt(formData.get('occurred_at'));
 
   const supabase = await createClient();
@@ -366,6 +390,7 @@ export async function logMealFromTemplateAction(formData: FormData) {
     fiber_g: tpl.fiber_g ?? undefined,
     saturated_fat_g: tpl.saturated_fat_g ?? undefined,
     salt_g: tpl.salt_g ?? undefined,
+    meal_type: meal_type_override ?? tpl.slot ?? undefined,
     template_id: tpl.id,
     occurred_at: occurredAt,
     source: 'manual',

@@ -33,6 +33,7 @@ function mealToPoint(m: MealDataPoint): MealPoint {
     fiber_g: m.fiber_g,
     saturated_fat_g: m.saturated_fat_g,
     salt_g: m.salt_g,
+    meal_type: m.meal_type,
     source: m.source,
     confidence: m.confidence,
     corrected: m.corrected,
@@ -51,6 +52,7 @@ function templateToView(t: MealTemplate): MealTemplateView {
     fiber_g: t.fiber_g,
     saturated_fat_g: t.saturated_fat_g,
     salt_g: t.salt_g,
+    slot: t.slot,
     usage_count: t.usage_count,
     last_used_at: t.last_used_at ? t.last_used_at.toISOString() : null,
   };

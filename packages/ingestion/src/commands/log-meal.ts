@@ -2,6 +2,7 @@ import {
   type EventProvenance,
   type EventSource,
   type MealItem,
+  type MealType,
   createMealLogged,
   mealLoggedEventSchema,
 } from '@fitness/core';
@@ -21,6 +22,7 @@ export interface LogMealInput {
   salt_g?: number;
   items?: MealItem[];
   template_id?: string;
+  meal_type?: MealType;
   occurred_at: Date;
   source?: EventSource;
   external_id?: string | null;
@@ -46,6 +48,7 @@ export async function logMeal(
     salt_g: input.salt_g,
     items: input.items,
     template_id: input.template_id,
+    meal_type: input.meal_type,
     occurred_at: input.occurred_at,
     source: input.source ?? 'manual',
     external_id: input.external_id ?? null,
