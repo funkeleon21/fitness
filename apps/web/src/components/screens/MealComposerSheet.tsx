@@ -1,10 +1,17 @@
 'use client';
 
 import { saveComposedMealAction } from '@/app/actions';
+import type { BarcodeLookupResult } from '@/app/api/lookup-barcode/route';
 import type { RecognizedMeal } from '@/app/api/recognize-meal/route';
 import { MEAL_SLOTS, type MealSlotId, mealSlotFromIso } from '@/lib/nutrition';
+import dynamic from 'next/dynamic';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { Icon } from '../Icon';
+
+const BarcodeScannerOverlay = dynamic(
+  () => import('./BarcodeScannerOverlay').then((m) => ({ default: m.BarcodeScannerOverlay })),
+  { ssr: false },
+);
 
 type Stage = 'capture' | 'analyzing' | 'review' | 'saving';
 
@@ -33,6 +40,9 @@ export function MealComposerSheet({ onClose }: MealComposerSheetProps) {
   const [chatLog, setChatLog] = useState<ChatTurn[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [refining, setRefining] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scanLookup, setScanLookup] = useState<BarcodeLookupResult | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
 
   async function runAnalysis(imgs: CapturedImage[]) {
     setStage('analyzing');
@@ -74,6 +84,31 @@ export function MealComposerSheet({ onClose }: MealComposerSheetProps) {
     };
     setResult(empty);
     setStage('review');
+  }
+
+  async function handleBarcodeScanned(barcode: string) {
+    setScannerOpen(false);
+    setScanError(null);
+    try {
+      const res = await fetch(`/api/lookup-barcode?code=${encodeURIComponent(barcode)}`);
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? 'Lookup fehlgeschlagen');
+      const lookup = body.result as BarcodeLookupResult;
+      if (!lookup.found) {
+        setScanError(`Barcode ${barcode} ist nicht in Open Food Facts hinterlegt.`);
+        return;
+      }
+      setScanLookup(lookup);
+    } catch (e) {
+      setScanError(e instanceof Error ? e.message : 'Lookup fehlgeschlagen.');
+    }
+  }
+
+  function commitScannedItem(lookup: BarcodeLookupResult, portionG: number) {
+    const updated = insertItemFromLookup(result, lookup, portionG);
+    setResult(updated);
+    setScanLookup(null);
+    if (stage === 'capture') setStage('review');
   }
 
   async function refineWithChat(message: string) {
@@ -142,8 +177,9 @@ export function MealComposerSheet({ onClose }: MealComposerSheetProps) {
             onAddImage={(img) => setImages((cur) => [...cur, img].slice(0, MAX_IMAGES))}
             onRemoveImage={(id) => setImages((cur) => cur.filter((i) => i.id !== id))}
             onAnalyze={() => runAnalysis(images)}
+            onOpenScanner={() => setScannerOpen(true)}
             onSkip={skipToManualReview}
-            error={error}
+            error={error ?? scanError}
           />
         )}
 
@@ -156,6 +192,9 @@ export function MealComposerSheet({ onClose }: MealComposerSheetProps) {
             chatLog={chatLog}
             onChat={refineWithChat}
             refining={refining}
+            onOpenScanner={() => setScannerOpen(true)}
+            scanError={scanError}
+            onDismissScanError={() => setScanError(null)}
             onNext={() => setStage('saving')}
             onBackToCapture={() => setStage('capture')}
           />
@@ -165,6 +204,20 @@ export function MealComposerSheet({ onClose }: MealComposerSheetProps) {
           <SaveStage result={result} onBack={() => setStage('review')} onDone={onClose} />
         )}
       </div>
+
+      {scannerOpen && (
+        <BarcodeScannerOverlay
+          onScan={handleBarcodeScanned}
+          onClose={() => setScannerOpen(false)}
+        />
+      )}
+      {scanLookup && (
+        <PortionDialog
+          lookup={scanLookup}
+          onCancel={() => setScanLookup(null)}
+          onConfirm={(grams) => commitScannedItem(scanLookup, grams)}
+        />
+      )}
     </button>
   );
 }
@@ -220,6 +273,7 @@ function CaptureStage({
   onAddImage,
   onRemoveImage,
   onAnalyze,
+  onOpenScanner,
   onSkip,
   error,
 }: {
@@ -227,6 +281,7 @@ function CaptureStage({
   onAddImage: (img: CapturedImage) => void;
   onRemoveImage: (id: string) => void;
   onAnalyze: () => void;
+  onOpenScanner: () => void;
   onSkip: () => void;
   error: string | null;
 }) {
@@ -325,7 +380,7 @@ function CaptureStage({
         style={{ display: 'none' }}
       />
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
         <CaptureTile
           icon="camera"
           label="Foto aufnehmen"
@@ -338,6 +393,7 @@ function CaptureStage({
           disabled={!canAddMore}
           onClick={() => galleryRef.current?.click()}
         />
+        <CaptureTile icon="pattern" label="Barcode" onClick={onOpenScanner} />
       </div>
 
       {error && (
@@ -391,12 +447,12 @@ function CaptureStage({
 function CaptureTile({
   icon,
   label,
-  disabled,
+  disabled = false,
   onClick,
 }: {
-  icon: 'camera' | 'photo-stack';
+  icon: 'camera' | 'photo-stack' | 'pattern';
   label: string;
-  disabled: boolean;
+  disabled?: boolean;
   onClick: () => void;
 }) {
   return (
@@ -476,6 +532,9 @@ function ReviewStage({
   chatLog,
   onChat,
   refining,
+  onOpenScanner,
+  scanError,
+  onDismissScanError,
   onNext,
   onBackToCapture,
 }: {
@@ -484,6 +543,9 @@ function ReviewStage({
   chatLog: ChatTurn[];
   onChat: (message: string) => void;
   refining: boolean;
+  onOpenScanner: () => void;
+  scanError: string | null;
+  onDismissScanError: () => void;
   onNext: () => void;
   onBackToCapture: () => void;
 }) {
@@ -514,6 +576,49 @@ function ReviewStage({
 
       <Field label="Komponenten">
         <ItemsChips result={result} onChange={onChange} />
+        <button
+          type="button"
+          onClick={onOpenScanner}
+          className="pressable"
+          style={{
+            marginTop: 8,
+            display: 'inline-flex',
+            alignSelf: 'flex-start',
+            alignItems: 'center',
+            gap: 6,
+            padding: '7px 12px',
+            background: 'var(--sage-wash)',
+            color: 'var(--sage-deep)',
+            border: 'none',
+            borderRadius: 999,
+            fontFamily: 'var(--sans)',
+            fontSize: 12,
+            fontWeight: 500,
+            cursor: 'pointer',
+          }}
+        >
+          <Icon name="pattern" size={12} strokeWidth={1.8} /> Barcode für exakte Werte
+        </button>
+        {scanError && (
+          <button
+            type="button"
+            onClick={onDismissScanError}
+            className="pressable"
+            style={{
+              marginTop: 8,
+              padding: '8px 10px',
+              background: 'rgba(196,152,85,0.16)',
+              color: 'var(--amber)',
+              border: 'none',
+              borderRadius: 10,
+              fontSize: 12,
+              cursor: 'pointer',
+              textAlign: 'left',
+            }}
+          >
+            {scanError} <span style={{ opacity: 0.7 }}>(tippen zum Ausblenden)</span>
+          </button>
+        )}
       </Field>
 
       <MacrosBlock result={result} onChange={onChange} />
@@ -1184,6 +1289,183 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function pickInitialSlot(_result: RecognizedMeal): MealSlotId {
   return mealSlotFromIso(new Date().toISOString());
+}
+
+// Skaliert Per-100g-Nährwerte auf die gewählte Portionsgröße und fügt das
+// neue Item in result.items ein. totals werden client-side neu summiert.
+function insertItemFromLookup(
+  prev: RecognizedMeal | null,
+  lookup: BarcodeLookupResult,
+  portionG: number,
+): RecognizedMeal {
+  const factor = portionG / 100;
+  const scale = (per100: number | null): number | null =>
+    per100 === null ? null : Math.round(per100 * factor * 10) / 10;
+
+  const itemLabel = lookup.brand
+    ? `${lookup.brand} ${lookup.label ?? ''}`.trim()
+    : (lookup.label ?? lookup.barcode);
+  const newItem = {
+    label: itemLabel,
+    amount_g: Math.round(portionG),
+    kcal: scale(lookup.nutrients_per_100g.kcal),
+    protein_g: scale(lookup.nutrients_per_100g.protein_g),
+    carbs_g: scale(lookup.nutrients_per_100g.carbs_g),
+    fat_g: scale(lookup.nutrients_per_100g.fat_g),
+  };
+  const items = [...(prev?.items ?? []), newItem];
+
+  // Bestehende Detail-Naehrwerte beibehalten + Scan-Werte addieren.
+  // kcal/Makros werden komplett aus items[] rekomputiert, damit die Anzeige konsistent bleibt.
+  const totalsBase = prev?.totals ?? {
+    kcal: 0,
+    protein_g: null,
+    carbs_g: null,
+    fat_g: null,
+    sugar_g: null,
+    fiber_g: null,
+    saturated_fat_g: null,
+    salt_g: null,
+  };
+  const totals = {
+    kcal: items.reduce((s, it) => s + (it.kcal ?? 0), 0),
+    protein_g: items.reduce<number | null>((s, it) => sumNullable(s, it.protein_g), null),
+    carbs_g: items.reduce<number | null>((s, it) => sumNullable(s, it.carbs_g), null),
+    fat_g: items.reduce<number | null>((s, it) => sumNullable(s, it.fat_g), null),
+    sugar_g: addNullable(totalsBase.sugar_g, scale(lookup.nutrients_per_100g.sugar_g)),
+    fiber_g: addNullable(totalsBase.fiber_g, scale(lookup.nutrients_per_100g.fiber_g)),
+    saturated_fat_g: addNullable(
+      totalsBase.saturated_fat_g,
+      scale(lookup.nutrients_per_100g.saturated_fat_g),
+    ),
+    salt_g: addNullable(totalsBase.salt_g, scale(lookup.nutrients_per_100g.salt_g)),
+  };
+
+  return {
+    label: prev?.label ?? itemLabel,
+    items,
+    totals,
+    confidence: prev ? Math.min(1, prev.confidence + 0.1) : 0.95,
+    hint: prev?.hint ?? null,
+  };
+}
+
+function sumNullable(acc: number | null, v: number | null): number | null {
+  if (v === null) return acc;
+  return Math.round(((acc ?? 0) + v) * 10) / 10;
+}
+
+function addNullable(a: number | null, b: number | null): number | null {
+  if (a === null && b === null) return null;
+  return Math.round(((a ?? 0) + (b ?? 0)) * 10) / 10;
+}
+
+function PortionDialog({
+  lookup,
+  onCancel,
+  onConfirm,
+}: {
+  lookup: BarcodeLookupResult;
+  onCancel: () => void;
+  onConfirm: (grams: number) => void;
+}) {
+  const [grams, setGrams] = useState<string>(
+    lookup.serving_size_g !== null ? String(lookup.serving_size_g) : '100',
+  );
+  const numericGrams = Number(grams.replace(',', '.'));
+  const valid = Number.isFinite(numericGrams) && numericGrams > 0 && numericGrams <= 5000;
+  const kcal100 = lookup.nutrients_per_100g.kcal;
+  const previewKcal = valid && kcal100 !== null ? Math.round(kcal100 * (numericGrams / 100)) : null;
+
+  return (
+    <button
+      type="button"
+      className="sheet-backdrop"
+      onClick={onCancel}
+      aria-label="Schließen"
+      style={{ border: 'none', cursor: 'default', padding: 0, zIndex: 100 }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+        // biome-ignore lint/a11y/useSemanticElements: bottom-sheet without native <dialog> lifecycle
+        role="dialog"
+        aria-modal="true"
+        style={{
+          width: '100%',
+          maxWidth: 460,
+          background: 'var(--bg-soft)',
+          borderRadius: '28px 28px 0 0',
+          padding: '18px 22px 26px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 14,
+        }}
+      >
+        <div className="sheet-handle" />
+        <div>
+          <div className="h-card" style={{ fontSize: 20 }}>
+            {lookup.brand ? `${lookup.brand} · ${lookup.label}` : lookup.label}
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 4 }}>
+            {kcal100 !== null ? `${kcal100} kcal / 100g` : 'kcal pro 100g unbekannt'}
+            {lookup.serving_size_g !== null && ` · Verpackung: ${lookup.serving_size_g}g`}
+          </div>
+        </div>
+
+        <div>
+          <div
+            style={{
+              fontFamily: 'var(--mono)',
+              fontSize: 10.5,
+              letterSpacing: '0.06em',
+              color: 'var(--ink-4)',
+              marginBottom: 6,
+            }}
+          >
+            WIE VIEL HAST DU GEGESSEN?
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={grams}
+              onChange={(e) => setGrams(e.target.value)}
+              aria-label="Menge in Gramm"
+              className="text-input"
+              style={{ fontSize: 18, fontFamily: 'var(--serif)', flex: 1 }}
+            />
+            <span style={{ color: 'var(--ink-3)', fontSize: 14 }}>g</span>
+          </div>
+          {previewKcal !== null && (
+            <div className="mono-sm" style={{ marginTop: 6, color: 'var(--ink-3)' }}>
+              ≈ {previewKcal} kcal in dieser Portion
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="pressable btn-secondary"
+            style={{ flex: '0 0 auto', padding: '12px 18px' }}
+          >
+            Abbrechen
+          </button>
+          <button
+            type="button"
+            onClick={() => valid && onConfirm(Math.round(numericGrams))}
+            disabled={!valid}
+            className="pressable btn-primary"
+            style={{ flex: 1, padding: '12px 16px', opacity: valid ? 1 : 0.5 }}
+          >
+            Hinzufügen
+          </button>
+        </div>
+      </div>
+    </button>
+  );
 }
 
 // Resize/komprimiert ein Bild im Browser bevor wir es zur Vision-API senden.
