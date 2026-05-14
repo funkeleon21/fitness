@@ -14,11 +14,13 @@ import { Icon, type IconName } from '../Icon';
 import type { MealPoint, MealTemplateView, NutritionData } from '../types';
 import type { LogMode } from './LogSheet';
 import { MacroDetailSheet } from './MacroDetailSheet';
+import { NutritionCoachSheet } from './NutritionCoachSheet';
 
 interface NutritionScreenProps {
   nutrition: NutritionData;
   nutritionTargets: NutritionTargets;
   mealTemplates: MealTemplateView[];
+  userName: string;
   onOpenLog: (mode: LogMode) => void;
   onOpenComposer: () => void;
   onCreateTemplate: () => void;
@@ -42,6 +44,7 @@ export function NutritionScreen({
   nutrition,
   nutritionTargets,
   mealTemplates,
+  userName,
   onOpenLog: _onOpenLog,
   onOpenComposer,
   onCreateTemplate,
@@ -51,6 +54,7 @@ export function NutritionScreen({
   const foodMemoryRef = useRef<HTMLDivElement>(null);
   const [slotFilter, setSlotFilter] = useState<MealSlotId | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [coachOpen, setCoachOpen] = useState(false);
 
   const mealsBySlot = useMemo(() => {
     const grouped = new Map<MealSlotId, MealPoint[]>();
@@ -70,7 +74,7 @@ export function NutritionScreen({
 
   return (
     <div className="screen-content scroll">
-      <Header />
+      <Header onOpenCoach={() => setCoachOpen(true)} />
 
       <div className="pad-x" style={{ marginTop: 14 }}>
         <MacroSummaryCard
@@ -105,6 +109,7 @@ export function NutritionScreen({
           onClose={() => setDetailOpen(false)}
         />
       )}
+      {coachOpen && <NutritionCoachSheet userName={userName} onClose={() => setCoachOpen(false)} />}
     </div>
   );
 }
@@ -113,7 +118,7 @@ export function NutritionScreen({
  * Header
  * ──────────────────────────────────────────────────────────── */
 
-function Header() {
+function Header({ onOpenCoach }: { onOpenCoach: () => void }) {
   return (
     <div
       style={{
@@ -135,28 +140,50 @@ function Header() {
           {formatTodayHeading()}
         </div>
       </div>
-      <button
-        type="button"
-        aria-label="Menü"
-        className="pressable"
-        style={{
-          width: 38,
-          height: 38,
-          borderRadius: '50%',
-          background: 'var(--surface)',
-          border: '0.5px solid var(--hairline)',
-          color: 'var(--ink-3)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: 18,
-          letterSpacing: '0.1em',
-          cursor: 'pointer',
-          marginTop: 6,
-        }}
-      >
-        ···
-      </button>
+      <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+        <button
+          type="button"
+          onClick={onOpenCoach}
+          aria-label="Tagesziele berechnen"
+          title="Tagesziele berechnen"
+          className="pressable"
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: '50%',
+            background: 'var(--sage-wash)',
+            border: '0.5px solid rgba(110,122,78,0.22)',
+            color: 'var(--sage-deep)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+          }}
+        >
+          <Icon name="sparkle" size={16} />
+        </button>
+        <button
+          type="button"
+          aria-label="Menü"
+          className="pressable"
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: '50%',
+            background: 'var(--surface)',
+            border: '0.5px solid var(--hairline)',
+            color: 'var(--ink-3)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 18,
+            letterSpacing: '0.1em',
+            cursor: 'pointer',
+          }}
+        >
+          ···
+        </button>
+      </div>
     </div>
   );
 }

@@ -14,10 +14,25 @@ import type { ChatToolContext, ChatToolset } from './types';
  */
 const TOOLSETS: ChatToolset[] = [weightTools, mealTools, nutritionTargetsTools];
 
-export function buildChatTools(ctx: ChatToolContext): ToolSet {
+export interface BuildChatToolsOptions {
+  /**
+   * Optional Whitelist von Tool-Namen. Wenn gesetzt, werden nur diese Tools
+   * exposed. Nützlich für spezialisierte Agents (z.B. Nutrition-Coach), die
+   * nur einen Teil der Tools brauchen sollen, damit das LLM nicht abdriftet.
+   */
+  include?: string[];
+}
+
+export function buildChatTools(ctx: ChatToolContext, options: BuildChatToolsOptions = {}): ToolSet {
   const merged: ToolSet = {};
   for (const set of TOOLSETS) {
     Object.assign(merged, set(ctx));
   }
-  return merged;
+  if (!options.include) return merged;
+  const allowed = new Set(options.include);
+  const filtered: ToolSet = {};
+  for (const [name, tool] of Object.entries(merged)) {
+    if (allowed.has(name)) filtered[name] = tool;
+  }
+  return filtered;
 }
