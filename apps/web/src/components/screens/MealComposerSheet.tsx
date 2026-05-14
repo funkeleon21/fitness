@@ -1,12 +1,13 @@
 'use client';
 
-import { saveComposedMealAction } from '@/app/actions';
+import { logMealFromTemplateAction, saveComposedMealAction } from '@/app/actions';
 import type { BarcodeLookupResult } from '@/app/api/lookup-barcode/route';
 import type { RecognizedMeal } from '@/app/api/recognize-meal/route';
 import { MEAL_SLOTS, type MealSlotId, mealSlotFromIso } from '@/lib/nutrition';
 import dynamic from 'next/dynamic';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { Icon } from '../Icon';
+import type { MealTemplateView } from '../types';
 
 const BarcodeScannerOverlay = dynamic(
   () => import('./BarcodeScannerOverlay').then((m) => ({ default: m.BarcodeScannerOverlay })),
@@ -27,13 +28,14 @@ interface ChatTurn {
 }
 
 interface MealComposerSheetProps {
+  templates: MealTemplateView[];
   onClose: () => void;
 }
 
 const MAX_IMAGES = 3;
 const MAX_IMAGE_DIMENSION = 1024;
 
-export function MealComposerSheet({ onClose }: MealComposerSheetProps) {
+export function MealComposerSheet({ templates, onClose }: MealComposerSheetProps) {
   const [stage, setStage] = useState<Stage>('capture');
   const [images, setImages] = useState<CapturedImage[]>([]);
   const [result, setResult] = useState<RecognizedMeal | null>(null);
@@ -47,6 +49,18 @@ export function MealComposerSheet({ onClose }: MealComposerSheetProps) {
   // meal_type ans Event geschrieben — Vorrang vor occurred_at-Heuristik.
   const [slot, setSlot] = useState<MealSlotId>(mealSlotFromIso(new Date().toISOString()));
 
+  // Knapp-Repräsentation der Templates für den Recognition-Endpoint.
+  // LLM bekommt nur Label + kcal + Hauptmakros + Slot — reicht für Matching.
+  const templatesPayload = templates.map((t) => ({
+    id: t.id,
+    label: t.label,
+    kcal: t.kcal,
+    protein_g: t.protein_g,
+    carbs_g: t.carbs_g,
+    fat_g: t.fat_g,
+    slot: t.slot,
+  }));
+
   async function runAnalysis(imgs: CapturedImage[]) {
     setStage('analyzing');
     setError(null);
@@ -54,7 +68,10 @@ export function MealComposerSheet({ onClose }: MealComposerSheetProps) {
       const res = await fetch('/api/recognize-meal', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ images: imgs.map((i) => i.dataUrl) }),
+        body: JSON.stringify({
+          images: imgs.map((i) => i.dataUrl),
+          templates: templatesPayload,
+        }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? 'KI-Erkennung fehlgeschlagen');
@@ -84,9 +101,25 @@ export function MealComposerSheet({ onClose }: MealComposerSheetProps) {
       },
       confidence: 1,
       hint: null,
+      suggested_template_id: null,
+      suggested_template_reason: null,
     };
     setResult(empty);
     setStage('review');
+  }
+
+  async function logFromSuggestedTemplate(templateId: string) {
+    setError(null);
+    try {
+      const fd = new FormData();
+      fd.append('template_id', templateId);
+      // Aktiver Slot-Picker-State überschreibt den Template-Default falls nötig.
+      fd.append('meal_type', slot);
+      await logMealFromTemplateAction(fd);
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Konnte nicht loggen.');
+    }
   }
 
   async function handleBarcodeScanned(barcode: string) {
@@ -192,6 +225,8 @@ export function MealComposerSheet({ onClose }: MealComposerSheetProps) {
           <ReviewStage
             result={result}
             onChange={setResult}
+            templates={templates}
+            onLogFromTemplate={logFromSuggestedTemplate}
             slot={slot}
             onSlotChange={setSlot}
             chatLog={chatLog}
@@ -539,6 +574,8 @@ function AnalyzingStage() {
 function ReviewStage({
   result,
   onChange,
+  templates,
+  onLogFromTemplate,
   slot,
   onSlotChange,
   chatLog,
@@ -552,6 +589,8 @@ function ReviewStage({
 }: {
   result: RecognizedMeal;
   onChange: (r: RecognizedMeal) => void;
+  templates: MealTemplateView[];
+  onLogFromTemplate: (templateId: string) => void;
   slot: MealSlotId;
   onSlotChange: (slot: MealSlotId) => void;
   chatLog: ChatTurn[];
@@ -572,8 +611,25 @@ function ReviewStage({
     onChat(trimmed);
   }
 
+  const matchedTemplate = result.suggested_template_id
+    ? templates.find((t) => t.id === result.suggested_template_id)
+    : null;
+
+  function dismissMatch() {
+    onChange({ ...result, suggested_template_id: null, suggested_template_reason: null });
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {matchedTemplate && (
+        <TemplateMatchBanner
+          template={matchedTemplate}
+          reason={result.suggested_template_reason}
+          onLogFromTemplate={() => onLogFromTemplate(matchedTemplate.id)}
+          onDismiss={dismissMatch}
+        />
+      )}
+
       <ConfidenceBanner confidence={result.confidence} hint={result.hint} />
 
       <Field label="Bezeichnung">
@@ -670,6 +726,127 @@ function ReviewStage({
           }}
         >
           Weiter
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function TemplateMatchBanner({
+  template,
+  reason,
+  onLogFromTemplate,
+  onDismiss,
+}: {
+  template: MealTemplateView;
+  reason: string | null;
+  onLogFromTemplate: () => void;
+  onDismiss: () => void;
+}) {
+  const [pending, startTransition] = useTransition();
+
+  function handleConfirm() {
+    if (pending) return;
+    startTransition(() => {
+      onLogFromTemplate();
+    });
+  }
+
+  return (
+    <div
+      style={{
+        background: 'var(--sage-wash)',
+        border: '0.5px solid rgba(110,122,78,0.3)',
+        borderRadius: 14,
+        padding: '14px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+        <div
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: '50%',
+            background: 'rgba(255,255,255,0.55)',
+            color: 'var(--sage-deep)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <Icon name="sparkle" size={16} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, color: 'var(--sage-deep)' }}>Sieht aus wie deine Vorlage</div>
+          <div
+            style={{
+              fontSize: 15,
+              fontWeight: 500,
+              color: 'var(--ink)',
+              marginTop: 2,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {template.label}
+          </div>
+          <div className="mono-sm" style={{ marginTop: 2 }}>
+            {template.kcal} kcal
+            {template.protein_g !== null && template.protein_g > 0
+              ? ` · ${Math.round(template.protein_g)}g P`
+              : ''}
+          </div>
+          {reason && (
+            <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 6, lineHeight: 1.4 }}>
+              {reason}
+            </div>
+          )}
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button
+          type="button"
+          onClick={onDismiss}
+          disabled={pending}
+          className="pressable"
+          style={{
+            flex: '0 0 auto',
+            padding: '10px 14px',
+            background: 'transparent',
+            border: '0.5px solid rgba(110,122,78,0.32)',
+            borderRadius: 12,
+            color: 'var(--sage-deep)',
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: 'pointer',
+          }}
+        >
+          Doch nicht
+        </button>
+        <button
+          type="button"
+          onClick={handleConfirm}
+          disabled={pending}
+          className="pressable"
+          style={{
+            flex: 1,
+            padding: '10px 16px',
+            background: 'var(--sage-deep)',
+            border: 'none',
+            borderRadius: 12,
+            color: '#fff',
+            fontSize: 14,
+            fontWeight: 500,
+            cursor: pending ? 'wait' : 'pointer',
+            opacity: pending ? 0.7 : 1,
+          }}
+        >
+          {pending ? 'Logge…' : 'Direkt loggen'}
         </button>
       </div>
     </div>
@@ -1353,6 +1530,8 @@ function insertItemFromLookup(
     totals,
     confidence: prev ? Math.min(1, prev.confidence + 0.1) : 0.95,
     hint: prev?.hint ?? null,
+    suggested_template_id: prev?.suggested_template_id ?? null,
+    suggested_template_reason: prev?.suggested_template_reason ?? null,
   };
 }
 
