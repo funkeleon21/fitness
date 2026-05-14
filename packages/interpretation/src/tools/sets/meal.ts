@@ -38,6 +38,38 @@ export const mealTools: ChatToolset = ({ client, userId }) => ({
         .nullable()
         .describe('Kohlenhydrate in Gramm. null wenn unbekannt.'),
       fat_g: z.number().min(0).max(2000).nullable().describe('Fett in Gramm. null wenn unbekannt.'),
+      sugar_g: z
+        .number()
+        .min(0)
+        .max(2000)
+        .nullable()
+        .describe(
+          'Zucker in Gramm (Teilmenge der Kohlenhydrate). null wenn nicht abschätzbar — z.B. bei Mischgerichten oder ohne Verpackungs-Angabe.',
+        ),
+      fiber_g: z
+        .number()
+        .min(0)
+        .max(2000)
+        .nullable()
+        .describe(
+          'Ballaststoffe in Gramm. null wenn nicht abschätzbar. Bei Vollkorn/Gemüse-lastigen Gerichten gerne abschätzen.',
+        ),
+      saturated_fat_g: z
+        .number()
+        .min(0)
+        .max(2000)
+        .nullable()
+        .describe(
+          'Gesättigte Fettsäuren in Gramm (Teilmenge von fat_g). null wenn nicht abschätzbar.',
+        ),
+      salt_g: z
+        .number()
+        .min(0)
+        .max(200)
+        .nullable()
+        .describe(
+          'Salz in Gramm. null wenn nicht abschätzbar. Bei Fast-Food/Fertiggerichten realistisch hoch (2–5g).',
+        ),
       occurred_at: z
         .string()
         .datetime()
@@ -66,6 +98,10 @@ export const mealTools: ChatToolset = ({ client, userId }) => ({
       protein_g,
       carbs_g,
       fat_g,
+      sugar_g,
+      fiber_g,
+      saturated_fat_g,
+      salt_g,
       occurred_at,
       confidence,
       raw_input,
@@ -78,6 +114,10 @@ export const mealTools: ChatToolset = ({ client, userId }) => ({
         protein_g,
         carbs_g,
         fat_g,
+        sugar_g,
+        fiber_g,
+        saturated_fat_g,
+        salt_g,
         occurred_at,
       });
       const result = await logMeal(client, {
@@ -87,6 +127,10 @@ export const mealTools: ChatToolset = ({ client, userId }) => ({
         protein_g: protein_g ?? undefined,
         carbs_g: carbs_g ?? undefined,
         fat_g: fat_g ?? undefined,
+        sugar_g: sugar_g ?? undefined,
+        fiber_g: fiber_g ?? undefined,
+        saturated_fat_g: saturated_fat_g ?? undefined,
+        salt_g: salt_g ?? undefined,
         occurred_at: occurredAt,
         source: 'ai-extracted',
         external_id: toolExternalId('log_meal', {
@@ -95,6 +139,10 @@ export const mealTools: ChatToolset = ({ client, userId }) => ({
           protein_g,
           carbs_g,
           fat_g,
+          sugar_g,
+          fiber_g,
+          saturated_fat_g,
+          salt_g,
           occurred_at,
           raw_input: sourceInput,
         }),
@@ -242,6 +290,10 @@ export const mealTools: ChatToolset = ({ client, userId }) => ({
         protein_g: tpl.protein_g ?? undefined,
         carbs_g: tpl.carbs_g ?? undefined,
         fat_g: tpl.fat_g ?? undefined,
+        sugar_g: tpl.sugar_g ?? undefined,
+        fiber_g: tpl.fiber_g ?? undefined,
+        saturated_fat_g: tpl.saturated_fat_g ?? undefined,
+        salt_g: tpl.salt_g ?? undefined,
         template_id: tpl.id,
         occurred_at: occurredAt,
         source: 'ai-extracted',

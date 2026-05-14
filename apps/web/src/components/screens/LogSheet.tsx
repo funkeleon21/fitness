@@ -222,11 +222,19 @@ function MealForm({
       </button>
 
       {advanced && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-          <MacroField name="protein_g" label="Protein g" />
-          <MacroField name="carbs_g" label="Kohlenh. g" />
-          <MacroField name="fat_g" label="Fett g" />
-        </div>
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+            <MacroField name="protein_g" label="Protein g" />
+            <MacroField name="carbs_g" label="Kohlenh. g" />
+            <MacroField name="fat_g" label="Fett g" />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+            <MacroField name="sugar_g" label="Zucker g" />
+            <MacroField name="fiber_g" label="Ballaststoffe g" />
+            <MacroField name="saturated_fat_g" label="ges. Fett g" />
+            <MacroField name="salt_g" label="Salz g" />
+          </div>
+        </>
       )}
 
       {error && (

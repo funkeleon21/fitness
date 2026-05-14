@@ -13,6 +13,7 @@ import { useMemo, useRef, useState, useTransition } from 'react';
 import { Icon, type IconName } from '../Icon';
 import type { MealPoint, MealTemplateView, NutritionData } from '../types';
 import type { LogMode } from './LogSheet';
+import { MacroDetailSheet } from './MacroDetailSheet';
 
 interface NutritionScreenProps {
   nutrition: NutritionData;
@@ -45,6 +46,7 @@ export function NutritionScreen({
   const { today, todayTotals } = nutrition;
   const foodMemoryRef = useRef<HTMLDivElement>(null);
   const [slotFilter, setSlotFilter] = useState<MealSlotId | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   const mealsBySlot = useMemo(() => {
     const grouped = new Map<MealSlotId, MealPoint[]>();
@@ -67,7 +69,7 @@ export function NutritionScreen({
       <Header />
 
       <div className="pad-x" style={{ marginTop: 14 }}>
-        <MacroSummaryCard totals={todayTotals} />
+        <MacroSummaryCard totals={todayTotals} onOpen={() => setDetailOpen(true)} />
       </div>
 
       <div className="pad-x" style={{ marginTop: 14 }}>
@@ -83,6 +85,8 @@ export function NutritionScreen({
           onEdit={onEditTemplate}
         />
       </div>
+
+      {detailOpen && <MacroDetailSheet totals={todayTotals} onClose={() => setDetailOpen(false)} />}
     </div>
   );
 }
@@ -143,16 +147,35 @@ function Header() {
  * Macro Summary
  * ──────────────────────────────────────────────────────────── */
 
-function MacroSummaryCard({ totals }: { totals: NutritionData['todayTotals'] }) {
+function MacroSummaryCard({
+  totals,
+  onOpen,
+}: {
+  totals: NutritionData['todayTotals'];
+  onOpen: () => void;
+}) {
   return (
-    <div className="card rise" style={{ padding: '18px 16px' }}>
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label="Detail-Ansicht öffnen"
+      className="card rise pressable"
+      style={{
+        padding: '18px 16px',
+        width: '100%',
+        textAlign: 'left',
+        cursor: 'pointer',
+        border: '0.5px solid var(--hairline)',
+        background: 'var(--surface)',
+      }}
+    >
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
         <MacroStat
           icon="flame"
           value={totals.kcal}
           unit=""
           label="kcal"
-          target={DEFAULT_TARGETS.kcal}
+          target={DEFAULT_TARGETS.kcal.value}
           targetUnit="kcal"
         />
         <MacroStat
@@ -160,7 +183,7 @@ function MacroSummaryCard({ totals }: { totals: NutritionData['todayTotals'] }) 
           value={Math.round(totals.protein_g)}
           unit="g"
           label="Protein"
-          target={DEFAULT_TARGETS.protein_g}
+          target={DEFAULT_TARGETS.protein_g.value}
           targetUnit="g"
         />
         <MacroStat
@@ -168,11 +191,11 @@ function MacroSummaryCard({ totals }: { totals: NutritionData['todayTotals'] }) 
           value={Math.round(totals.carbs_g)}
           unit="g"
           label="Kohlenhydrate"
-          target={DEFAULT_TARGETS.carbs_g}
+          target={DEFAULT_TARGETS.carbs_g.value}
           targetUnit="g"
         />
       </div>
-    </div>
+    </button>
   );
 }
 

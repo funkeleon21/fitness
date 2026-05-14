@@ -121,6 +121,20 @@ export function MealTemplateSheet({ mode, onClose }: MealTemplateSheetProps) {
             <MacroField name="carbs_g" label="Kohlenh. g" defaultValue={tpl?.carbs_g ?? null} />
             <MacroField name="fat_g" label="Fett g" defaultValue={tpl?.fat_g ?? null} />
           </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+            <MacroField name="sugar_g" label="Zucker g" defaultValue={tpl?.sugar_g ?? null} />
+            <MacroField
+              name="fiber_g"
+              label="Ballaststoffe g"
+              defaultValue={tpl?.fiber_g ?? null}
+            />
+            <MacroField
+              name="saturated_fat_g"
+              label="ges. Fett g"
+              defaultValue={tpl?.saturated_fat_g ?? null}
+            />
+            <MacroField name="salt_g" label="Salz g" defaultValue={tpl?.salt_g ?? null} />
+          </div>
 
           {error && (
             <div

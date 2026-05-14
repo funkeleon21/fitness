@@ -15,6 +15,10 @@ export interface LogMealInput {
   protein_g?: number;
   carbs_g?: number;
   fat_g?: number;
+  sugar_g?: number;
+  fiber_g?: number;
+  saturated_fat_g?: number;
+  salt_g?: number;
   items?: MealItem[];
   template_id?: string;
   occurred_at: Date;
@@ -36,6 +40,10 @@ export async function logMeal(
     protein_g: input.protein_g,
     carbs_g: input.carbs_g,
     fat_g: input.fat_g,
+    sugar_g: input.sugar_g,
+    fiber_g: input.fiber_g,
+    saturated_fat_g: input.saturated_fat_g,
+    salt_g: input.salt_g,
     items: input.items,
     template_id: input.template_id,
     occurred_at: input.occurred_at,

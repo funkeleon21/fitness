@@ -120,6 +120,10 @@ describe('projectMealEvents', () => {
       protein_g: 70,
       carbs_g: 120,
       fat_g: 35,
+      sugar_g: 0,
+      fiber_g: 0,
+      saturated_fat_g: 0,
+      salt_g: 0,
       count: 2,
     });
     expect(projection.recent.map((m) => m.event_id)).toEqual([MEAL_2, MEAL_1]);
