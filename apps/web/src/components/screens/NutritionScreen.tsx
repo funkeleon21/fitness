@@ -2,10 +2,10 @@
 
 import { logMealFromTemplateAction, retractMealAction } from '@/app/actions';
 import {
-  DEFAULT_TARGETS,
   MEAL_SLOTS,
   type MealSlotId,
   type MealSlotMeta,
+  type NutritionTargets,
   formatTodayHeading,
   mealSlotFromIso,
 } from '@/lib/nutrition';
@@ -17,6 +17,7 @@ import { MacroDetailSheet } from './MacroDetailSheet';
 
 interface NutritionScreenProps {
   nutrition: NutritionData;
+  nutritionTargets: NutritionTargets;
   mealTemplates: MealTemplateView[];
   onOpenLog: (mode: LogMode) => void;
   onOpenComposer: () => void;
@@ -39,6 +40,7 @@ function sourceIcon(source: string): IconName {
 
 export function NutritionScreen({
   nutrition,
+  nutritionTargets,
   mealTemplates,
   onOpenLog: _onOpenLog,
   onOpenComposer,
@@ -71,7 +73,11 @@ export function NutritionScreen({
       <Header />
 
       <div className="pad-x" style={{ marginTop: 14 }}>
-        <MacroSummaryCard totals={todayTotals} onOpen={() => setDetailOpen(true)} />
+        <MacroSummaryCard
+          totals={todayTotals}
+          targets={nutritionTargets}
+          onOpen={() => setDetailOpen(true)}
+        />
       </div>
 
       <div className="pad-x" style={{ marginTop: 14 }}>
@@ -92,7 +98,13 @@ export function NutritionScreen({
         />
       </div>
 
-      {detailOpen && <MacroDetailSheet totals={todayTotals} onClose={() => setDetailOpen(false)} />}
+      {detailOpen && (
+        <MacroDetailSheet
+          totals={todayTotals}
+          targets={nutritionTargets}
+          onClose={() => setDetailOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -155,9 +167,11 @@ function Header() {
 
 function MacroSummaryCard({
   totals,
+  targets,
   onOpen,
 }: {
   totals: NutritionData['todayTotals'];
+  targets: NutritionTargets;
   onOpen: () => void;
 }) {
   return (
@@ -181,7 +195,7 @@ function MacroSummaryCard({
           value={totals.kcal}
           unit=""
           label="kcal"
-          target={DEFAULT_TARGETS.kcal.value}
+          target={targets.kcal.value}
           targetUnit="kcal"
         />
         <MacroStat
@@ -189,7 +203,7 @@ function MacroSummaryCard({
           value={Math.round(totals.protein_g)}
           unit="g"
           label="Protein"
-          target={DEFAULT_TARGETS.protein_g.value}
+          target={targets.protein_g.value}
           targetUnit="g"
         />
         <MacroStat
@@ -197,7 +211,7 @@ function MacroSummaryCard({
           value={Math.round(totals.carbs_g)}
           unit="g"
           label="Kohlenhydrate"
-          target={DEFAULT_TARGETS.carbs_g.value}
+          target={targets.carbs_g.value}
           targetUnit="g"
         />
       </div>

@@ -1,16 +1,17 @@
 'use client';
 
-import { DEFAULT_TARGETS, type TargetSpec, formatTodayHeading } from '@/lib/nutrition';
+import { type NutritionTargets, type TargetSpec, formatTodayHeading } from '@/lib/nutrition';
 import { useSheetDismissDrag } from '@/lib/useSheetDismissDrag';
 import { Icon, type IconName } from '../Icon';
 import type { MealDayTotals } from '../types';
 
 interface MacroDetailSheetProps {
   totals: MealDayTotals;
+  targets: NutritionTargets;
   onClose: () => void;
 }
 
-export function MacroDetailSheet({ totals, onClose }: MacroDetailSheetProps) {
+export function MacroDetailSheet({ totals, targets, onClose }: MacroDetailSheetProps) {
   const { ref, style } = useSheetDismissDrag({ onClose });
 
   return (
@@ -71,7 +72,7 @@ export function MacroDetailSheet({ totals, onClose }: MacroDetailSheetProps) {
           </button>
         </div>
 
-        <KcalBlock value={totals.kcal} target={DEFAULT_TARGETS.kcal} />
+        <KcalBlock value={totals.kcal} target={targets.kcal} />
 
         <SectionHeading icon="leaf">Makronährstoffe</SectionHeading>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -79,21 +80,21 @@ export function MacroDetailSheet({ totals, onClose }: MacroDetailSheetProps) {
             icon="leaf"
             label="Protein"
             value={totals.protein_g}
-            target={DEFAULT_TARGETS.protein_g}
+            target={targets.protein_g}
             unit="g"
           />
           <NutrientCard
             icon="wheat"
             label="Kohlenhydrate"
             value={totals.carbs_g}
-            target={DEFAULT_TARGETS.carbs_g}
+            target={targets.carbs_g}
             unit="g"
           />
           <NutrientCard
             icon="droplet"
             label="Fett"
             value={totals.fat_g}
-            target={DEFAULT_TARGETS.fat_g}
+            target={targets.fat_g}
             unit="g"
           />
         </div>
@@ -104,28 +105,28 @@ export function MacroDetailSheet({ totals, onClose }: MacroDetailSheetProps) {
             icon="droplet"
             label="Zucker"
             value={totals.sugar_g}
-            target={DEFAULT_TARGETS.sugar_g}
+            target={targets.sugar_g}
             unit="g"
           />
           <NutrientCard
             icon="leaf"
             label="Ballaststoffe"
             value={totals.fiber_g}
-            target={DEFAULT_TARGETS.fiber_g}
+            target={targets.fiber_g}
             unit="g"
           />
           <NutrientCard
             icon="droplet"
             label="ges. Fettsäuren"
             value={totals.saturated_fat_g}
-            target={DEFAULT_TARGETS.saturated_fat_g}
+            target={targets.saturated_fat_g}
             unit="g"
           />
           <NutrientCard
             icon="droplet"
             label="Salz"
             value={totals.salt_g}
-            target={DEFAULT_TARGETS.salt_g}
+            target={targets.salt_g}
             unit="g"
             precision={1}
           />

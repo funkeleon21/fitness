@@ -2,6 +2,11 @@ import { WEIGHT_LOGGED, type WeightLoggedEvent } from './body/weight';
 import type { EventProvenance, EventSource } from './envelope';
 import { MEAL_LOGGED, type MealItem, type MealLoggedEvent } from './nutrition/meal';
 import {
+  NUTRITION_TARGETS_SET,
+  type NutritionTargetsSetEvent,
+  type NutritionTargetsSetPayload,
+} from './nutrition/targets';
+import {
   EVENT_CORRECTED,
   EVENT_RETRACTED,
   type EventCorrectedEvent,
@@ -83,6 +88,37 @@ export function createMealLogged(input: NewMealLoggedInput): MealLoggedEvent {
       ...(input.items !== undefined ? { items: input.items } : {}),
       ...(input.template_id !== undefined ? { template_id: input.template_id } : {}),
     },
+  };
+}
+
+export interface NewNutritionTargetsSetInput {
+  user_id: string;
+  payload: NutritionTargetsSetPayload;
+  occurred_at?: Date;
+  source: EventSource;
+  external_id?: string | null;
+  raw_input?: string | null;
+  confidence?: number | null;
+  provenance?: EventProvenance | null;
+}
+
+export function createNutritionTargetsSet(
+  input: NewNutritionTargetsSetInput,
+): NutritionTargetsSetEvent {
+  const now = new Date();
+  return {
+    id: crypto.randomUUID(),
+    user_id: input.user_id,
+    type: NUTRITION_TARGETS_SET,
+    version: 1,
+    occurred_at: input.occurred_at ?? now,
+    recorded_at: now,
+    source: input.source,
+    external_id: input.external_id ?? null,
+    confidence: input.confidence ?? null,
+    raw_input: input.raw_input ?? null,
+    provenance: input.provenance ?? null,
+    payload: input.payload,
   };
 }
 

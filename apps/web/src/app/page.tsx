@@ -1,10 +1,12 @@
 import { Dashboard } from '@/components/Dashboard';
 import type { DashboardData, MealPoint, MealTemplateView, NutritionData } from '@/components/types';
+import { type NutritionTargets, mergeTargets } from '@/lib/nutrition';
 import { createClient } from '@/lib/supabase/server';
 import {
   type MealDataPoint,
   type MealTemplate,
   getMealProjection,
+  getNutritionTargets,
   getWeightProjection,
   listMealTemplates,
 } from '@fitness/db';
@@ -61,11 +63,13 @@ export default async function HomePage() {
   } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  const [weight, meals, templates] = await Promise.all([
+  const [weight, meals, templates, persistedTargets] = await Promise.all([
     getWeightProjection(supabase, user.id),
     getMealProjection(supabase, user.id),
     listMealTemplates(supabase, user.id),
+    getNutritionTargets(supabase, user.id),
   ]);
+  const targets: NutritionTargets = mergeTargets(persistedTargets);
 
   const data: DashboardData = {
     series: weight.series.map((p) => ({
@@ -101,6 +105,7 @@ export default async function HomePage() {
     <Dashboard
       data={data}
       nutrition={nutrition}
+      nutritionTargets={targets}
       mealTemplates={mealTemplates}
       userName={name}
       initials={initials}

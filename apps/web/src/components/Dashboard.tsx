@@ -1,5 +1,6 @@
 'use client';
 
+import type { NutritionTargets } from '@/lib/nutrition';
 import dynamic from 'next/dynamic';
 import { useState } from 'react';
 import { Icon, type IconName } from './Icon';
@@ -36,12 +37,20 @@ type TemplateEdit = { kind: 'new' } | { kind: 'edit'; template: MealTemplateView
 interface DashboardProps {
   data: DashboardData;
   nutrition: NutritionData;
+  nutritionTargets: NutritionTargets;
   mealTemplates: MealTemplateView[];
   userName: string;
   initials: string;
 }
 
-export function Dashboard({ data, nutrition, mealTemplates, userName, initials }: DashboardProps) {
+export function Dashboard({
+  data,
+  nutrition,
+  nutritionTargets,
+  mealTemplates,
+  userName,
+  initials,
+}: DashboardProps) {
   const [screen, setScreen] = useState<ScreenId>('home');
   const [logMode, setLogMode] = useState<LogMode | null>(null);
   const [insightId, setInsightId] = useState<string | null>(null);
@@ -70,6 +79,7 @@ export function Dashboard({ data, nutrition, mealTemplates, userName, initials }
       <ScreenWrapper active={screen === 'nutrition'}>
         <NutritionScreen
           nutrition={nutrition}
+          nutritionTargets={nutritionTargets}
           mealTemplates={mealTemplates}
           onOpenLog={openLog}
           onOpenComposer={() => setComposerOpen(true)}
