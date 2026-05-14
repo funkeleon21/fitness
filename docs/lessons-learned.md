@@ -14,7 +14,7 @@ Pro Eintrag: Datum + Titel, Situation, Symptom, Lösung, optional Vorbeugung. Re
 
 **Lösung:** Trivial additiv — beide Imports nebeneinander, beide Sheet-Blöcke nacheinander. Kein Code-Verlust, keine Refactor-Konflikte. `pickerSlot`-State und `coachOpen`-State sind unabhängig.
 
-**Vorbeugend:** Bei UI-Screens, die viele Sheets nebeneinander rendern (NutritionScreen hat jetzt 4: Detail, Coach, TemplatePicker, dazu kommen aus Dashboard noch LogSheet/InsightDetail/MealTemplate/MealComposer), wachsen Import-Block und Render-Block parallel. Konflikte sind hier fast immer additiv — schnell mergen, statt darauf zu warten.
+**Vorbeugend:** Bei UI-Screens, die viele Sheets nebeneinander rendern (NutritionScreen hat jetzt 4: Detail, Coach, TemplatePicker, dazu kommen aus Dashboard noch InsightDetail/MealTemplate/MealComposer), wachsen Import-Block und Render-Block parallel. Konflikte sind hier fast immer additiv — schnell mergen, statt darauf zu warten.
 
 ---
 

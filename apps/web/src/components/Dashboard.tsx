@@ -5,7 +5,6 @@ import dynamic from 'next/dynamic';
 import { useState } from 'react';
 import { Icon, type IconName } from './Icon';
 import { HomeScreen } from './screens/HomeScreen';
-import type { LogMode } from './screens/LogSheet';
 import type { DashboardData, MealTemplateView, NutritionData } from './types';
 
 const BodyScreen = dynamic(() =>
@@ -20,7 +19,6 @@ const TrainingScreen = dynamic(() =>
 const InsightsScreen = dynamic(() =>
   import('./screens/InsightsScreen').then((m) => ({ default: m.InsightsScreen })),
 );
-const LogSheet = dynamic(() => import('./screens/LogSheet').then((m) => ({ default: m.LogSheet })));
 const InsightDetailSheet = dynamic(() =>
   import('./screens/InsightDetailSheet').then((m) => ({ default: m.InsightDetailSheet })),
 );
@@ -52,14 +50,11 @@ export function Dashboard({
   initials,
 }: DashboardProps) {
   const [screen, setScreen] = useState<ScreenId>('home');
-  const [logMode, setLogMode] = useState<LogMode | null>(null);
   const [insightId, setInsightId] = useState<string | null>(null);
   const [templateEdit, setTemplateEdit] = useState<TemplateEdit | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
 
   const navigate = (next: ScreenId) => setScreen(next);
-  const openLog = (mode: LogMode) => setLogMode(mode);
-  const closeLog = () => setLogMode(null);
 
   return (
     <div className="app-canvas">
@@ -69,7 +64,6 @@ export function Dashboard({
           userName={userName}
           initials={initials}
           onNavigate={navigate}
-          onOpenLog={openLog}
           onOpenInsight={setInsightId}
         />
       </ScreenWrapper>
@@ -82,7 +76,6 @@ export function Dashboard({
           nutritionTargets={nutritionTargets}
           mealTemplates={mealTemplates}
           userName={userName}
-          onOpenLog={openLog}
           onOpenComposer={() => setComposerOpen(true)}
           onCreateTemplate={() => setTemplateEdit({ kind: 'new' })}
           onEditTemplate={(t) => setTemplateEdit({ kind: 'edit', template: t })}
@@ -97,7 +90,6 @@ export function Dashboard({
 
       <TabBar current={screen} onChange={navigate} />
 
-      {logMode && <LogSheet mode={logMode} mealTemplates={mealTemplates} onClose={closeLog} />}
       {insightId && <InsightDetailSheet id={insightId} onClose={() => setInsightId(null)} />}
       {templateEdit && (
         <MealTemplateSheet mode={templateEdit} onClose={() => setTemplateEdit(null)} />
