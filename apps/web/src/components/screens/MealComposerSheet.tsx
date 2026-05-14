@@ -188,13 +188,8 @@ export function MealComposerSheet({ templates, onClose }: MealComposerSheetProps
   }
 
   return (
-    <button
-      type="button"
-      className="sheet-backdrop"
-      onClick={onClose}
-      aria-label="Schließen"
-      style={{ border: 'none', cursor: 'default', padding: 0 }}
-    >
+    // biome-ignore lint/a11y/useKeyWithClickEvents: backdrop is a presentational click target; sheet has its own X-button
+    <div className="sheet-backdrop" onClick={onClose} role="presentation">
       <div
         className="sheet"
         onClick={(e) => e.stopPropagation()}
@@ -263,7 +258,7 @@ export function MealComposerSheet({ templates, onClose }: MealComposerSheetProps
           onConfirm={(grams) => commitScannedItem(scanLookup, grams)}
         />
       )}
-    </button>
+    </div>
   );
 }
 

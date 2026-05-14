@@ -283,6 +283,7 @@ select {
   align-items: flex-end;
   justify-content: center;
   animation: fadeIn 200ms ease both;
+  cursor: pointer;
 }
 
 .sheet {
@@ -315,6 +316,28 @@ body:has(.sheet-backdrop) .tabbar {
   border-radius: 2px;
   background: rgba(60, 50, 30, 0.18);
   margin: 0 auto 14px;
+}
+
+/* Modifier für Sheets mit fixiertem Header + scrollbarem Body + fixiertem Footer
+   (z.B. Chat-Sheets). Standard-Sheet scrollt selbst; .sheet--flex deaktiviert das
+   und überlässt den Scroll dem inneren .sheet-flex-body. */
+.sheet--flex {
+  display: flex;
+  flex-direction: column;
+  height: 90dvh;
+  overflow: hidden;
+  padding: 0;
+}
+
+.sheet--flex .sheet-flex-header {
+  flex-shrink: 0;
+  padding: 14px 18px 8px;
+}
+
+.sheet--flex .sheet-flex-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: hidden;
 }
 
 /* ───────── Segmented control ───────── */

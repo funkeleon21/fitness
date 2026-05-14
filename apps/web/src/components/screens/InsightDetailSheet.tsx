@@ -58,13 +58,8 @@ export function InsightDetailSheet({ id, onClose }: InsightDetailSheetProps) {
   const d = DETAILS[id] ?? FALLBACK;
 
   return (
-    <button
-      type="button"
-      className="sheet-backdrop"
-      onClick={onClose}
-      aria-label="Schließen"
-      style={{ border: 'none', cursor: 'default', padding: 0 }}
-    >
+    // biome-ignore lint/a11y/useKeyWithClickEvents: backdrop is a presentational click target; sheet has its own X-button
+    <div className="sheet-backdrop" onClick={onClose} role="presentation">
       <div
         className="sheet"
         onClick={(e) => e.stopPropagation()}
@@ -192,6 +187,6 @@ export function InsightDetailSheet({ id, onClose }: InsightDetailSheetProps) {
           </button>
         </div>
       </div>
-    </button>
+    </div>
   );
 }
