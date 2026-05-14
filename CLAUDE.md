@@ -75,4 +75,4 @@ pnpm build
 
 ## Aktueller Stand
 
-Phase 0+1 (Gewicht) durchgestochen, Mahlzeiten-Domäne + Food-Memory live, Chat-Tools (lesen + schreiben für Gewicht und Mahlzeiten) produktiv. Foto-basierte Mahlzeit-Erkennung über `/api/recognize-meal` (Vision-LLM via Langdock). Supabase `cjwgisdobzztljizrnfn` (eu-west-1), Demo-Login via `signInWithPassword`. Offen: echte `ai_interpretation`-Events.
+Phase 0+1 (Gewicht) durchgestochen, Mahlzeiten-Domäne + Food-Memory live, Chat-Tools (lesen + schreiben für Gewicht und Mahlzeiten) produktiv. Foto-basierte Mahlzeit-Erkennung über `/api/recognize-meal` (Vision-LLM via Langdock), Barcode-Scan über `/api/lookup-barcode` (Open Food Facts). Supabase `cjwgisdobzztljizrnfn` (eu-west-1), Demo-Login via `signInWithPassword`. Offen: echte `ai_interpretation`-Events.
