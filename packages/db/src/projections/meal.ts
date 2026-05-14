@@ -16,6 +16,10 @@ export interface MealDataPoint {
   protein_g: number | null;
   carbs_g: number | null;
   fat_g: number | null;
+  sugar_g: number | null;
+  fiber_g: number | null;
+  saturated_fat_g: number | null;
+  salt_g: number | null;
   source: string;
   confidence: number | null;
   raw_input: string | null;
@@ -27,6 +31,10 @@ export interface MealDayTotals {
   protein_g: number;
   carbs_g: number;
   fat_g: number;
+  sugar_g: number;
+  fiber_g: number;
+  saturated_fat_g: number;
+  salt_g: number;
   count: number;
 }
 
@@ -81,6 +89,10 @@ export function projectMealEvents(
     protein_g?: number;
     carbs_g?: number;
     fat_g?: number;
+    sugar_g?: number;
+    fiber_g?: number;
+    saturated_fat_g?: number;
+    salt_g?: number;
   };
   type Correction = {
     id: string;
@@ -108,6 +120,10 @@ export function projectMealEvents(
         protein_g: parsed.data.protein_g ?? null,
         carbs_g: parsed.data.carbs_g ?? null,
         fat_g: parsed.data.fat_g ?? null,
+        sugar_g: parsed.data.sugar_g ?? null,
+        fiber_g: parsed.data.fiber_g ?? null,
+        saturated_fat_g: parsed.data.saturated_fat_g ?? null,
+        salt_g: parsed.data.salt_g ?? null,
         source: row.source,
         confidence: row.confidence,
         raw_input: row.raw_input,
@@ -131,6 +147,10 @@ export function projectMealEvents(
       if (typeof np.protein_g === 'number') fields.protein_g = np.protein_g;
       if (typeof np.carbs_g === 'number') fields.carbs_g = np.carbs_g;
       if (typeof np.fat_g === 'number') fields.fat_g = np.fat_g;
+      if (typeof np.sugar_g === 'number') fields.sugar_g = np.sugar_g;
+      if (typeof np.fiber_g === 'number') fields.fiber_g = np.fiber_g;
+      if (typeof np.saturated_fat_g === 'number') fields.saturated_fat_g = np.saturated_fat_g;
+      if (typeof np.salt_g === 'number') fields.salt_g = np.salt_g;
 
       if (Object.keys(fields).length === 0) continue;
 
@@ -170,6 +190,11 @@ export function projectMealEvents(
       if (correction.fields.protein_g !== undefined) point.protein_g = correction.fields.protein_g;
       if (correction.fields.carbs_g !== undefined) point.carbs_g = correction.fields.carbs_g;
       if (correction.fields.fat_g !== undefined) point.fat_g = correction.fields.fat_g;
+      if (correction.fields.sugar_g !== undefined) point.sugar_g = correction.fields.sugar_g;
+      if (correction.fields.fiber_g !== undefined) point.fiber_g = correction.fields.fiber_g;
+      if (correction.fields.saturated_fat_g !== undefined)
+        point.saturated_fat_g = correction.fields.saturated_fat_g;
+      if (correction.fields.salt_g !== undefined) point.salt_g = correction.fields.salt_g;
       anyApplied = true;
     }
     if (anyApplied) point.corrected = true;
@@ -186,6 +211,10 @@ export function projectMealEvents(
       protein_g: point.protein_g,
       carbs_g: point.carbs_g,
       fat_g: point.fat_g,
+      sugar_g: point.sugar_g,
+      fiber_g: point.fiber_g,
+      saturated_fat_g: point.saturated_fat_g,
+      salt_g: point.salt_g,
       source: point.source,
       confidence: point.confidence,
       raw_input: point.raw_input,
@@ -203,9 +232,23 @@ export function projectMealEvents(
       protein_g: acc.protein_g + (m.protein_g ?? 0),
       carbs_g: acc.carbs_g + (m.carbs_g ?? 0),
       fat_g: acc.fat_g + (m.fat_g ?? 0),
+      sugar_g: acc.sugar_g + (m.sugar_g ?? 0),
+      fiber_g: acc.fiber_g + (m.fiber_g ?? 0),
+      saturated_fat_g: acc.saturated_fat_g + (m.saturated_fat_g ?? 0),
+      salt_g: acc.salt_g + (m.salt_g ?? 0),
       count: acc.count + 1,
     }),
-    { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0, count: 0 },
+    {
+      kcal: 0,
+      protein_g: 0,
+      carbs_g: 0,
+      fat_g: 0,
+      sugar_g: 0,
+      fiber_g: 0,
+      saturated_fat_g: 0,
+      salt_g: 0,
+      count: 0,
+    },
   );
 
   const recent = all.slice(-20).reverse();

@@ -73,6 +73,32 @@ describe('mealLoggedEventSchema', () => {
     expect(result.success).toBe(true);
   });
 
+  it('accepts a meal event with detail nutrients', () => {
+    const result = mealLoggedEventSchema.safeParse({
+      ...validMealEvent,
+      payload: {
+        label: 'Müsli mit Beeren',
+        kcal: 480,
+        protein_g: 12,
+        carbs_g: 64,
+        fat_g: 16,
+        sugar_g: 28,
+        fiber_g: 7,
+        saturated_fat_g: 4,
+        salt_g: 0.3,
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects negative detail nutrient value', () => {
+    const result = mealLoggedEventSchema.safeParse({
+      ...validMealEvent,
+      payload: { label: 'Apfel', kcal: 90, sugar_g: -1 },
+    });
+    expect(result.success).toBe(false);
+  });
+
   it('rejects empty label', () => {
     const result = mealLoggedEventSchema.safeParse({
       ...validMealEvent,

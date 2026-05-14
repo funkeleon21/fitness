@@ -26,6 +26,9 @@ const InsightDetailSheet = dynamic(() =>
 const MealTemplateSheet = dynamic(() =>
   import('./screens/MealTemplateSheet').then((m) => ({ default: m.MealTemplateSheet })),
 );
+const MealComposerSheet = dynamic(() =>
+  import('./screens/MealComposerSheet').then((m) => ({ default: m.MealComposerSheet })),
+);
 
 type ScreenId = 'home' | 'body' | 'nutrition' | 'training' | 'insights';
 type TemplateEdit = { kind: 'new' } | { kind: 'edit'; template: MealTemplateView };
@@ -43,6 +46,7 @@ export function Dashboard({ data, nutrition, mealTemplates, userName, initials }
   const [logMode, setLogMode] = useState<LogMode | null>(null);
   const [insightId, setInsightId] = useState<string | null>(null);
   const [templateEdit, setTemplateEdit] = useState<TemplateEdit | null>(null);
+  const [composerOpen, setComposerOpen] = useState(false);
 
   const navigate = (next: ScreenId) => setScreen(next);
   const openLog = (mode: LogMode) => setLogMode(mode);
@@ -68,6 +72,7 @@ export function Dashboard({ data, nutrition, mealTemplates, userName, initials }
           nutrition={nutrition}
           mealTemplates={mealTemplates}
           onOpenLog={openLog}
+          onOpenComposer={() => setComposerOpen(true)}
           onCreateTemplate={() => setTemplateEdit({ kind: 'new' })}
           onEditTemplate={(t) => setTemplateEdit({ kind: 'edit', template: t })}
         />
@@ -86,6 +91,7 @@ export function Dashboard({ data, nutrition, mealTemplates, userName, initials }
       {templateEdit && (
         <MealTemplateSheet mode={templateEdit} onClose={() => setTemplateEdit(null)} />
       )}
+      {composerOpen && <MealComposerSheet onClose={() => setComposerOpen(false)} />}
     </div>
   );
 }

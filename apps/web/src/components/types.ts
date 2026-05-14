@@ -21,6 +21,10 @@ export interface MealPoint {
   protein_g: number | null;
   carbs_g: number | null;
   fat_g: number | null;
+  sugar_g: number | null;
+  fiber_g: number | null;
+  saturated_fat_g: number | null;
+  salt_g: number | null;
   source: string;
   confidence: number | null;
   corrected: boolean;
@@ -31,6 +35,10 @@ export interface MealDayTotals {
   protein_g: number;
   carbs_g: number;
   fat_g: number;
+  sugar_g: number;
+  fiber_g: number;
+  saturated_fat_g: number;
+  salt_g: number;
   count: number;
 }
 
@@ -47,6 +55,10 @@ export interface MealTemplateView {
   protein_g: number | null;
   carbs_g: number | null;
   fat_g: number | null;
+  sugar_g: number | null;
+  fiber_g: number | null;
+  saturated_fat_g: number | null;
+  salt_g: number | null;
   usage_count: number;
   last_used_at: string | null; // ISO
 }

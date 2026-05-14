@@ -51,18 +51,37 @@ export function mealSlotFromIso(iso: string): MealSlotId {
 }
 
 // Fallback-Tagesziele. Werden später durch persistierte User-Settings ersetzt (Agent-Tool).
+//
+// 'goal'  = Zielwert, den man erreichen will (z.B. Protein). Progress voll = gut.
+// 'limit' = Obergrenze, die man nicht überschreiten soll (z.B. Zucker, Salz). >100% = amber.
+export type TargetKind = 'goal' | 'limit';
+
+export interface TargetSpec {
+  value: number;
+  kind: TargetKind;
+}
+
 export interface NutritionTargets {
-  kcal: number;
-  protein_g: number;
-  carbs_g: number;
-  fat_g: number;
+  kcal: TargetSpec;
+  protein_g: TargetSpec;
+  carbs_g: TargetSpec;
+  fat_g: TargetSpec;
+  sugar_g: TargetSpec;
+  fiber_g: TargetSpec;
+  saturated_fat_g: TargetSpec;
+  salt_g: TargetSpec;
 }
 
 export const DEFAULT_TARGETS: NutritionTargets = {
-  kcal: 2000,
-  protein_g: 120,
-  carbs_g: 240,
-  fat_g: 65,
+  kcal: { value: 2000, kind: 'goal' },
+  protein_g: { value: 120, kind: 'goal' },
+  carbs_g: { value: 240, kind: 'goal' },
+  fat_g: { value: 65, kind: 'goal' },
+  // WHO/DGE-Richtwerte als Default. Sind persoenliche Setzungen, kommen spaeter aus User-Settings.
+  sugar_g: { value: 50, kind: 'limit' },
+  fiber_g: { value: 30, kind: 'goal' },
+  saturated_fat_g: { value: 20, kind: 'limit' },
+  salt_g: { value: 6, kind: 'limit' },
 };
 
 // "Heute, 24. Mai"

@@ -10,6 +10,11 @@ export const mealItemSchema = z.object({
   protein_g: z.number().min(0).max(1000).optional(),
   carbs_g: z.number().min(0).max(1000).optional(),
   fat_g: z.number().min(0).max(1000).optional(),
+  // Detail-Naehrwerte (optional). LLM-Ingestion kann sie nicht immer schaetzen.
+  sugar_g: z.number().min(0).max(1000).optional(),
+  fiber_g: z.number().min(0).max(1000).optional(),
+  saturated_fat_g: z.number().min(0).max(1000).optional(),
+  salt_g: z.number().min(0).max(100).optional(),
 });
 export type MealItem = z.infer<typeof mealItemSchema>;
 
@@ -19,6 +24,11 @@ export const mealLoggedPayloadSchema = z.object({
   protein_g: z.number().min(0).max(2000).optional(),
   carbs_g: z.number().min(0).max(2000).optional(),
   fat_g: z.number().min(0).max(2000).optional(),
+  // Detail-Naehrwerte (optional). Werden vom Detail-Sheet auf der Ernaehrungs-Seite gezeigt.
+  sugar_g: z.number().min(0).max(2000).optional(),
+  fiber_g: z.number().min(0).max(2000).optional(),
+  saturated_fat_g: z.number().min(0).max(2000).optional(),
+  salt_g: z.number().min(0).max(200).optional(),
   items: z.array(mealItemSchema).max(50).optional(),
   // ID einer meal_templates-Zeile, falls die Mahlzeit aus einer Vorlage entstanden ist.
   // Werte (kcal, Makros) sind trotzdem als Snapshot im Payload — Templates können sich ändern.

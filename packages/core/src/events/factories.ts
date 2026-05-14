@@ -43,6 +43,10 @@ export interface NewMealLoggedInput {
   protein_g?: number;
   carbs_g?: number;
   fat_g?: number;
+  sugar_g?: number;
+  fiber_g?: number;
+  saturated_fat_g?: number;
+  salt_g?: number;
   items?: MealItem[];
   template_id?: string;
   occurred_at: Date;
@@ -72,6 +76,10 @@ export function createMealLogged(input: NewMealLoggedInput): MealLoggedEvent {
       ...(input.protein_g !== undefined ? { protein_g: input.protein_g } : {}),
       ...(input.carbs_g !== undefined ? { carbs_g: input.carbs_g } : {}),
       ...(input.fat_g !== undefined ? { fat_g: input.fat_g } : {}),
+      ...(input.sugar_g !== undefined ? { sugar_g: input.sugar_g } : {}),
+      ...(input.fiber_g !== undefined ? { fiber_g: input.fiber_g } : {}),
+      ...(input.saturated_fat_g !== undefined ? { saturated_fat_g: input.saturated_fat_g } : {}),
+      ...(input.salt_g !== undefined ? { salt_g: input.salt_g } : {}),
       ...(input.items !== undefined ? { items: input.items } : {}),
       ...(input.template_id !== undefined ? { template_id: input.template_id } : {}),
     },

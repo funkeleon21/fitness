@@ -36,6 +36,13 @@
       "when": 1778707230066,
       "tag": "0004_goofy_wong",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1778755849099,
+      "tag": "0005_solid_random",
+      "breakpoints": true
     }
   ]
 }
