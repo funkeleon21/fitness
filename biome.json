@@ -12,7 +12,10 @@
       "**/node_modules",
       "**/migrations",
       "**/.turbo",
-      "**/coverage"
+      "**/coverage",
+      "apps/web/public/sw.js",
+      "apps/web/public/sw.js.map",
+      "apps/web/public/swe-worker-*.js"
     ]
   },
   "formatter": {

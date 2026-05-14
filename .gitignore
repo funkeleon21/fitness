@@ -6,6 +6,12 @@ out/
 .cache/
 coverage/
 
+# Serwist-generierte Service-Worker-Outputs (werden bei jedem Build neu erzeugt)
+apps/web/public/sw.js
+apps/web/public/sw.js.map
+apps/web/public/swe-worker-*.js
+apps/web/public/swe-worker-*.js.map
+
 .env
 .env.local
 .env.*.local
