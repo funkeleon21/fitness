@@ -6,6 +6,22 @@ Pro Eintrag: Datum + Titel, Situation, Symptom, Lösung, optional Vorbeugung. Re
 
 ---
 
+## 2026-05-14 — Paralleler PR fasste selbe Komponente an (Props-Signatur-Drift)
+
+**Situation:** Auf `claude/admiring-brown-a53aa9` (Karten-Redesign des `MacroDetailSheet`) gearbeitet. Während dieser PR offen war, wurde PR #29 (persönliche Tagesziele) gemerged, der die Signatur derselben Komponente änderte: `DEFAULT_TARGETS`-Konstante → `targets: NutritionTargets`-Prop, plus parallele Schema-/Projection-/Ingestion-/Interpretation-Erweiterungen.
+
+**Symptom:** GitHub meldete `mergeable: CONFLICTING` für PR #30. Auto-Merge im Worktree löste den Body der Komponente automatisch (das Innere referenziert ohnehin `targets.kcal` etc., was identisch ist), aber Imports (`DEFAULT_TARGETS` vs. `NutritionTargets`) und Funktions-Signatur (`{ totals, onClose }` vs. `{ totals, targets, onClose }`) blieben mit Konflikt-Markern stehen.
+
+**Lösung:** Beide Konflikt-Blöcke manuell kombiniert:
+- Import-Block: `NutritionTargets`-Typ aus main + `useSheetDismissDrag`-Hook aus dem eigenen Branch.
+- Funktions-Signatur: `{ totals, targets, onClose }` aus main + Hook-Aufruf `useSheetDismissDrag({ onClose })` direkt davor.
+
+Danach `pnpm typecheck && pnpm lint && pnpm test` plus visuelle Verifikation im Preview, weil der Konflikt eine reaktive Prop betraf.
+
+**Vorbeugend:** Bei UI-Komponenten-Redesigns früh prüfen, ob parallele Branches die gleiche Komponente anfassen (`git log --all --oneline -- <pfad>`). Wenn ja: nicht auf den eigenen PR-Merge warten, sondern proaktiv `git fetch && git merge origin/main` ausführen, sobald der Nachbar-PR gemerged ist — Konflikte sind dort am billigsten, wenn der Kontext noch frisch ist.
+
+---
+
 ## 2026-05-14 — Migrations-Drift durch Drizzle-Random-Namen
 
 **Situation:** Drizzle generierte die Migration `0005_solid_random.sql`. Beim direkten Anwenden via Supabase-MCP `apply_migration` habe ich einen sprechenden `name` gewählt (`0005_meal_templates_detail_nutrients`) statt des Dateinamens.
