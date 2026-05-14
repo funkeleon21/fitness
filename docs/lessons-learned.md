@@ -6,6 +6,18 @@ Pro Eintrag: Datum + Titel, Situation, Symptom, Lösung, optional Vorbeugung. Re
 
 ---
 
+## 2026-05-14 — Zwei Sheets nebeneinander in NutritionScreen (additiver Konflikt)
+
+**Situation:** Auf `feat/nutrition-targets-agent` ein neues `NutritionCoachSheet` + State `coachOpen` im `NutritionScreen` hinzugefügt. Parallel wurde PR #31 (Slot-Picker) gemerged, der ein `TemplatePickerSheet` + State `pickerSlot` an exakt derselben Stelle (Import-Block + Sheet-Render-Section am Ende von `NutritionScreen.tsx`) einfügte.
+
+**Symptom:** `mergeStateStatus: DIRTY`. Beide Branches haben strukturell identische Stellen modifiziert (neuer Import, neuer Sheet-Render-Block hinter `MacroDetailSheet`), Git konnte das nicht auto-resolven.
+
+**Lösung:** Trivial additiv — beide Imports nebeneinander, beide Sheet-Blöcke nacheinander. Kein Code-Verlust, keine Refactor-Konflikte. `pickerSlot`-State und `coachOpen`-State sind unabhängig.
+
+**Vorbeugend:** Bei UI-Screens, die viele Sheets nebeneinander rendern (NutritionScreen hat jetzt 4: Detail, Coach, TemplatePicker, dazu kommen aus Dashboard noch LogSheet/InsightDetail/MealTemplate/MealComposer), wachsen Import-Block und Render-Block parallel. Konflikte sind hier fast immer additiv — schnell mergen, statt darauf zu warten.
+
+---
+
 ## 2026-05-14 — Paralleler PR fasste selbe Komponente an (Props-Signatur-Drift)
 
 **Situation:** Auf `claude/admiring-brown-a53aa9` (Karten-Redesign des `MacroDetailSheet`) gearbeitet. Während dieser PR offen war, wurde PR #29 (persönliche Tagesziele) gemerged, der die Signatur derselben Komponente änderte: `DEFAULT_TARGETS`-Konstante → `targets: NutritionTargets`-Prop, plus parallele Schema-/Projection-/Ingestion-/Interpretation-Erweiterungen.

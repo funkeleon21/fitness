@@ -81,6 +81,7 @@ export function Dashboard({
           nutrition={nutrition}
           nutritionTargets={nutritionTargets}
           mealTemplates={mealTemplates}
+          userName={userName}
           onOpenLog={openLog}
           onOpenComposer={() => setComposerOpen(true)}
           onCreateTemplate={() => setTemplateEdit({ kind: 'new' })}
