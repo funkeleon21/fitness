@@ -70,6 +70,12 @@ export const mealTools: ChatToolset = ({ client, userId }) => ({
         .describe(
           'Salz in Gramm. null wenn nicht abschätzbar. Bei Fast-Food/Fertiggerichten realistisch hoch (2–5g).',
         ),
+      meal_type: z
+        .enum(['breakfast', 'lunch', 'dinner', 'snack'])
+        .nullable()
+        .describe(
+          'Slot der Mahlzeit. Setze nur, wenn der Nutzer es explizit erwähnt ("mein Frühstück", "Snack"). Sonst null — UI leitet den Slot aus occurred_at ab.',
+        ),
       occurred_at: z
         .string()
         .datetime()
@@ -102,6 +108,7 @@ export const mealTools: ChatToolset = ({ client, userId }) => ({
       fiber_g,
       saturated_fat_g,
       salt_g,
+      meal_type,
       occurred_at,
       confidence,
       raw_input,
@@ -118,6 +125,7 @@ export const mealTools: ChatToolset = ({ client, userId }) => ({
         fiber_g,
         saturated_fat_g,
         salt_g,
+        meal_type,
         occurred_at,
       });
       const result = await logMeal(client, {
@@ -131,6 +139,7 @@ export const mealTools: ChatToolset = ({ client, userId }) => ({
         fiber_g: fiber_g ?? undefined,
         saturated_fat_g: saturated_fat_g ?? undefined,
         salt_g: salt_g ?? undefined,
+        meal_type: meal_type ?? undefined,
         occurred_at: occurredAt,
         source: 'ai-extracted',
         external_id: toolExternalId('log_meal', {
@@ -143,6 +152,7 @@ export const mealTools: ChatToolset = ({ client, userId }) => ({
           fiber_g,
           saturated_fat_g,
           salt_g,
+          meal_type,
           occurred_at,
           raw_input: sourceInput,
         }),
@@ -240,6 +250,7 @@ export const mealTools: ChatToolset = ({ client, userId }) => ({
           protein_g: t.protein_g,
           carbs_g: t.carbs_g,
           fat_g: t.fat_g,
+          slot: t.slot,
           usage_count: t.usage_count,
         })),
       };
@@ -295,6 +306,7 @@ export const mealTools: ChatToolset = ({ client, userId }) => ({
         saturated_fat_g: tpl.saturated_fat_g ?? undefined,
         salt_g: tpl.salt_g ?? undefined,
         template_id: tpl.id,
+        meal_type: tpl.slot ?? undefined,
         occurred_at: occurredAt,
         source: 'ai-extracted',
         external_id: toolExternalId('log_meal_from_template', {

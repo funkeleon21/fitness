@@ -43,6 +43,9 @@ export function MealComposerSheet({ onClose }: MealComposerSheetProps) {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanLookup, setScanLookup] = useState<BarcodeLookupResult | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
+  // Slot vorausgewählt per Uhrzeit, User kann ändern. Wird beim Save als
+  // meal_type ans Event geschrieben — Vorrang vor occurred_at-Heuristik.
+  const [slot, setSlot] = useState<MealSlotId>(mealSlotFromIso(new Date().toISOString()));
 
   async function runAnalysis(imgs: CapturedImage[]) {
     setStage('analyzing');
@@ -189,6 +192,8 @@ export function MealComposerSheet({ onClose }: MealComposerSheetProps) {
           <ReviewStage
             result={result}
             onChange={setResult}
+            slot={slot}
+            onSlotChange={setSlot}
             chatLog={chatLog}
             onChat={refineWithChat}
             refining={refining}
@@ -201,7 +206,12 @@ export function MealComposerSheet({ onClose }: MealComposerSheetProps) {
         )}
 
         {stage === 'saving' && result && (
-          <SaveStage result={result} onBack={() => setStage('review')} onDone={onClose} />
+          <SaveStage
+            result={result}
+            slot={slot}
+            onBack={() => setStage('review')}
+            onDone={onClose}
+          />
         )}
       </div>
 
@@ -529,6 +539,8 @@ function AnalyzingStage() {
 function ReviewStage({
   result,
   onChange,
+  slot,
+  onSlotChange,
   chatLog,
   onChat,
   refining,
@@ -540,6 +552,8 @@ function ReviewStage({
 }: {
   result: RecognizedMeal;
   onChange: (r: RecognizedMeal) => void;
+  slot: MealSlotId;
+  onSlotChange: (slot: MealSlotId) => void;
   chatLog: ChatTurn[];
   onChat: (message: string) => void;
   refining: boolean;
@@ -624,14 +638,7 @@ function ReviewStage({
       <MacrosBlock result={result} onChange={onChange} />
 
       <Field label="Mahlzeitslot">
-        <SlotPicker
-          value={pickInitialSlot(result)}
-          onChange={(slot) => {
-            // Slot ist Anzeige-only — kein Persistenz-Feld. Wir leiten es spaeter aus occurred_at ab.
-            // Hier sammeln wir es in result.label nicht, sondern in einem ref. Vorerst no-op.
-            void slot;
-          }}
-        />
+        <SlotPicker value={slot} onChange={onSlotChange} />
       </Field>
 
       <ChatPanel
@@ -1109,10 +1116,12 @@ function ChatPanel({
 
 function SaveStage({
   result,
+  slot,
   onBack,
   onDone,
 }: {
   result: RecognizedMeal;
+  slot: MealSlotId;
   onBack: () => void;
   onDone: () => void;
 }) {
@@ -1134,6 +1143,7 @@ function SaveStage({
             fd.append(key, String(value));
           }
         }
+        fd.append('meal_type', slot);
         if (asTemplate) {
           fd.append('save_as_template', 'true');
           fd.append('template_name', templateName.trim() || result.label);
@@ -1285,10 +1295,6 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       {children}
     </div>
   );
-}
-
-function pickInitialSlot(_result: RecognizedMeal): MealSlotId {
-  return mealSlotFromIso(new Date().toISOString());
 }
 
 // Skaliert Per-100g-Nährwerte auf die gewählte Portionsgröße und fügt das

@@ -1,3 +1,4 @@
+import type { MealType } from '@fitness/core';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export interface MealTemplate {
@@ -12,6 +13,7 @@ export interface MealTemplate {
   fiber_g: number | null;
   saturated_fat_g: number | null;
   salt_g: number | null;
+  slot: MealType | null;
   usage_count: number;
   last_used_at: Date | null;
   created_at: Date;
@@ -29,6 +31,7 @@ export interface CreateMealTemplateInput {
   fiber_g?: number | null;
   saturated_fat_g?: number | null;
   salt_g?: number | null;
+  slot?: MealType | null;
 }
 
 export interface UpdateMealTemplateInput {
@@ -41,6 +44,7 @@ export interface UpdateMealTemplateInput {
   fiber_g?: number | null;
   saturated_fat_g?: number | null;
   salt_g?: number | null;
+  slot?: MealType | null;
 }
 
 interface MealTemplateRow {
@@ -55,6 +59,7 @@ interface MealTemplateRow {
   fiber_g: number | null;
   saturated_fat_g: number | null;
   salt_g: number | null;
+  slot: MealType | null;
   usage_count: number;
   last_used_at: string | null;
   created_at: string;
@@ -74,6 +79,7 @@ function rowToTemplate(row: MealTemplateRow): MealTemplate {
     fiber_g: row.fiber_g,
     saturated_fat_g: row.saturated_fat_g,
     salt_g: row.salt_g,
+    slot: row.slot,
     usage_count: row.usage_count,
     last_used_at: row.last_used_at ? new Date(row.last_used_at) : null,
     created_at: new Date(row.created_at),
@@ -129,6 +135,7 @@ export async function createMealTemplate(
       fiber_g: input.fiber_g ?? null,
       saturated_fat_g: input.saturated_fat_g ?? null,
       salt_g: input.salt_g ?? null,
+      slot: input.slot ?? null,
     })
     .select('*')
     .single();
@@ -153,6 +160,7 @@ export async function updateMealTemplate(
   if (input.fiber_g !== undefined) patch.fiber_g = input.fiber_g;
   if (input.saturated_fat_g !== undefined) patch.saturated_fat_g = input.saturated_fat_g;
   if (input.salt_g !== undefined) patch.salt_g = input.salt_g;
+  if (input.slot !== undefined) patch.slot = input.slot;
 
   const { data, error } = await client
     .from('meal_templates')

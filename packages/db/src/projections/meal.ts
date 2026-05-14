@@ -2,9 +2,11 @@ import {
   EVENT_CORRECTED,
   EVENT_RETRACTED,
   MEAL_LOGGED,
+  type MealType,
   eventCorrectedPayloadSchema,
   eventRetractedPayloadSchema,
   mealLoggedPayloadSchema,
+  mealTypeSchema,
 } from '@fitness/core';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -20,6 +22,7 @@ export interface MealDataPoint {
   fiber_g: number | null;
   saturated_fat_g: number | null;
   salt_g: number | null;
+  meal_type: MealType | null;
   source: string;
   confidence: number | null;
   raw_input: string | null;
@@ -93,6 +96,7 @@ export function projectMealEvents(
     fiber_g?: number;
     saturated_fat_g?: number;
     salt_g?: number;
+    meal_type?: MealType;
   };
   type Correction = {
     id: string;
@@ -124,6 +128,7 @@ export function projectMealEvents(
         fiber_g: parsed.data.fiber_g ?? null,
         saturated_fat_g: parsed.data.saturated_fat_g ?? null,
         salt_g: parsed.data.salt_g ?? null,
+        meal_type: parsed.data.meal_type ?? null,
         source: row.source,
         confidence: row.confidence,
         raw_input: row.raw_input,
@@ -151,6 +156,8 @@ export function projectMealEvents(
       if (typeof np.fiber_g === 'number') fields.fiber_g = np.fiber_g;
       if (typeof np.saturated_fat_g === 'number') fields.saturated_fat_g = np.saturated_fat_g;
       if (typeof np.salt_g === 'number') fields.salt_g = np.salt_g;
+      const mealTypeParsed = mealTypeSchema.safeParse(np.meal_type);
+      if (mealTypeParsed.success) fields.meal_type = mealTypeParsed.data;
 
       if (Object.keys(fields).length === 0) continue;
 
@@ -195,6 +202,7 @@ export function projectMealEvents(
       if (correction.fields.saturated_fat_g !== undefined)
         point.saturated_fat_g = correction.fields.saturated_fat_g;
       if (correction.fields.salt_g !== undefined) point.salt_g = correction.fields.salt_g;
+      if (correction.fields.meal_type !== undefined) point.meal_type = correction.fields.meal_type;
       anyApplied = true;
     }
     if (anyApplied) point.corrected = true;
@@ -215,6 +223,7 @@ export function projectMealEvents(
       fiber_g: point.fiber_g,
       saturated_fat_g: point.saturated_fat_g,
       salt_g: point.salt_g,
+      meal_type: point.meal_type,
       source: point.source,
       confidence: point.confidence,
       raw_input: point.raw_input,

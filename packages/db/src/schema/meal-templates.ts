@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  check,
   integer,
   pgPolicy,
   pgTable,
@@ -24,6 +25,8 @@ export const mealTemplates = pgTable(
     fiber_g: real('fiber_g'),
     saturated_fat_g: real('saturated_fat_g'),
     salt_g: real('salt_g'),
+    // Optionaler Default-Slot. null = "beliebig" (taucht in allen Slot-Pickern auf).
+    slot: text('slot'),
     usage_count: integer('usage_count').notNull().default(0),
     last_used_at: timestamp('last_used_at', { withTimezone: true }),
     created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -31,6 +34,10 @@ export const mealTemplates = pgTable(
   },
   (t) => [
     uniqueIndex('uniq_meal_templates_user_label').on(t.user_id, t.label),
+    check(
+      'meal_templates_slot_check',
+      sql`slot is null or slot in ('breakfast', 'lunch', 'dinner', 'snack')`,
+    ),
     pgPolicy('meal_templates_select_own', {
       for: 'select',
       to: 'authenticated',
