@@ -34,8 +34,9 @@ export function NutritionCoachSheet({ userName, onClose }: NutritionCoachSheetPr
           padding: 0,
           display: 'flex',
           flexDirection: 'column',
-          height: '90vh',
-          maxHeight: '90vh',
+          height: '90dvh',
+          maxHeight: '90dvh',
+          overflow: 'hidden',
           ...style,
         }}
       >
