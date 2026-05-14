@@ -146,7 +146,7 @@ function Header() {
 function MacroSummaryCard({ totals }: { totals: NutritionData['todayTotals'] }) {
   return (
     <div className="card rise" style={{ padding: '18px 16px' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
         <MacroStat
           icon="flame"
           value={totals.kcal}
@@ -169,14 +169,6 @@ function MacroSummaryCard({ totals }: { totals: NutritionData['todayTotals'] }) 
           unit="g"
           label="Kohlenhydrate"
           target={DEFAULT_TARGETS.carbs_g}
-          targetUnit="g"
-        />
-        <MacroStat
-          icon="droplet"
-          value={Math.round(totals.fat_g)}
-          unit="g"
-          label="Fett"
-          target={DEFAULT_TARGETS.fat_g}
           targetUnit="g"
         />
       </div>
