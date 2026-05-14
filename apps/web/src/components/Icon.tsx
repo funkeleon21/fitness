@@ -13,6 +13,7 @@ export type IconName =
   | 'arrow-right'
   | 'arrow-up-right'
   | 'sparkle'
+  | 'star'
   | 'moon'
   | 'sun'
   | 'footprints'
@@ -162,6 +163,13 @@ export function Icon({
         <svg {...props} fill="currentColor" stroke="none">
           <title>{label}</title>
           <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3zM19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14z" />
+        </svg>
+      );
+    case 'star':
+      return (
+        <svg {...props}>
+          <title>{label}</title>
+          <path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.8 6.8 19.1l1-5.8L3.5 9.2l5.9-.9L12 3z" />
         </svg>
       );
     case 'moon':

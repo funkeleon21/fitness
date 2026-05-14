@@ -1,6 +1,7 @@
 'use client';
 
 import { DEFAULT_TARGETS, type TargetSpec, formatTodayHeading } from '@/lib/nutrition';
+import { useSheetDismissDrag } from '@/lib/useSheetDismissDrag';
 import { Icon, type IconName } from '../Icon';
 import type { MealDayTotals } from '../types';
 
@@ -10,6 +11,8 @@ interface MacroDetailSheetProps {
 }
 
 export function MacroDetailSheet({ totals, onClose }: MacroDetailSheetProps) {
+  const { ref, style } = useSheetDismissDrag({ onClose });
+
   return (
     <button
       type="button"
@@ -19,20 +22,30 @@ export function MacroDetailSheet({ totals, onClose }: MacroDetailSheetProps) {
       style={{ border: 'none', cursor: 'default', padding: 0 }}
     >
       <div
+        ref={ref}
         className="sheet"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.stopPropagation()}
         // biome-ignore lint/a11y/useSemanticElements: bottom-sheet without native <dialog> lifecycle
         role="dialog"
         aria-modal="true"
+        style={{ textAlign: 'left', ...style }}
       >
         <div className="sheet-handle" />
-        <div className="row-between" style={{ marginBottom: 14 }}>
+        <div className="row-between" style={{ marginBottom: 18 }}>
           <div>
-            <div className="h-card" style={{ fontSize: 22 }}>
+            <div
+              style={{
+                fontFamily: 'var(--serif)',
+                fontSize: 28,
+                color: 'var(--ink)',
+                letterSpacing: '-0.02em',
+                lineHeight: 1.05,
+              }}
+            >
               Tagesnährwerte
             </div>
-            <div style={{ marginTop: 2, color: 'var(--ink-3)', fontSize: 13 }}>
+            <div style={{ marginTop: 4, color: 'var(--ink-3)', fontSize: 14 }}>
               {formatTodayHeading()}
             </div>
           </div>
@@ -60,23 +73,23 @@ export function MacroDetailSheet({ totals, onClose }: MacroDetailSheetProps) {
 
         <KcalBlock value={totals.kcal} target={DEFAULT_TARGETS.kcal} />
 
-        <SectionHeading>Makronährstoffe</SectionHeading>
+        <SectionHeading icon="leaf">Makronährstoffe</SectionHeading>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <NutrientRow
+          <NutrientCard
             icon="leaf"
             label="Protein"
             value={totals.protein_g}
             target={DEFAULT_TARGETS.protein_g}
             unit="g"
           />
-          <NutrientRow
+          <NutrientCard
             icon="wheat"
             label="Kohlenhydrate"
             value={totals.carbs_g}
             target={DEFAULT_TARGETS.carbs_g}
             unit="g"
           />
-          <NutrientRow
+          <NutrientCard
             icon="droplet"
             label="Fett"
             value={totals.fat_g}
@@ -85,33 +98,30 @@ export function MacroDetailSheet({ totals, onClose }: MacroDetailSheetProps) {
           />
         </div>
 
-        <SectionHeading>Energie-Verteilung</SectionHeading>
-        <EnergyDistribution totals={totals} />
-
-        <SectionHeading>Weitere Nährwerte</SectionHeading>
+        <SectionHeading icon="star">Weitere Nährwerte</SectionHeading>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <NutrientRow
+          <NutrientCard
             icon="droplet"
             label="Zucker"
             value={totals.sugar_g}
             target={DEFAULT_TARGETS.sugar_g}
             unit="g"
           />
-          <NutrientRow
+          <NutrientCard
             icon="leaf"
             label="Ballaststoffe"
             value={totals.fiber_g}
             target={DEFAULT_TARGETS.fiber_g}
             unit="g"
           />
-          <NutrientRow
+          <NutrientCard
             icon="droplet"
             label="ges. Fettsäuren"
             value={totals.saturated_fat_g}
             target={DEFAULT_TARGETS.saturated_fat_g}
             unit="g"
           />
-          <NutrientRow
+          <NutrientCard
             icon="droplet"
             label="Salz"
             value={totals.salt_g}
@@ -120,40 +130,44 @@ export function MacroDetailSheet({ totals, onClose }: MacroDetailSheetProps) {
             precision={1}
           />
         </div>
-
-        <div
-          style={{
-            marginTop: 18,
-            padding: '10px 12px',
-            background: 'var(--surface-2)',
-            borderRadius: 10,
-            fontSize: 11,
-            color: 'var(--ink-4)',
-            lineHeight: 1.45,
-          }}
-        >
-          Detail-Werte sind optional pro Mahlzeit erfassbar. Wenn unbekannt, lass sie weg —
-          Schätzungen sind nichts wert.
-        </div>
       </div>
     </button>
   );
 }
 
-function SectionHeading({ children }: { children: React.ReactNode }) {
+function SectionHeading({ icon, children }: { icon: IconName; children: React.ReactNode }) {
   return (
     <div
+      className="row-between"
       style={{
-        marginTop: 18,
+        marginTop: 22,
         marginBottom: 10,
-        fontFamily: 'var(--mono)',
-        fontSize: 10.5,
-        letterSpacing: '0.08em',
-        color: 'var(--ink-4)',
-        textTransform: 'uppercase',
+        alignItems: 'center',
       }}
     >
-      {children}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Icon name={icon} size={16} stroke="var(--sage-deep)" strokeWidth={1.6} />
+        <span
+          style={{
+            fontFamily: 'var(--sans)',
+            fontSize: 16,
+            color: 'var(--ink-2)',
+            fontWeight: 500,
+          }}
+        >
+          {children}
+        </span>
+      </div>
+      <span
+        style={{
+          fontFamily: 'var(--mono)',
+          fontSize: 11,
+          color: 'var(--ink-4)',
+          letterSpacing: '0.04em',
+        }}
+      >
+        Tagesziel
+      </span>
     </div>
   );
 }
@@ -166,60 +180,69 @@ function KcalBlock({ value, target }: { value: number; target: TargetSpec }) {
     <div
       style={{
         background: 'var(--surface-2)',
-        borderRadius: 14,
-        padding: '18px 18px',
+        borderRadius: 16,
+        padding: '16px 16px',
         border: '0.5px solid var(--hairline)',
+        display: 'flex',
+        gap: 14,
+        alignItems: 'flex-start',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-        <Icon name="flame" size={16} stroke="var(--sage-deep)" strokeWidth={1.6} />
+      <div
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 22,
+          background: 'var(--sage-wash)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}
+      >
+        <Icon name="flame" size={20} stroke="var(--sage-deep)" strokeWidth={1.6} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 14, color: 'var(--ink-3)', marginBottom: 2 }}>Kalorien</div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <div
+            style={{
+              fontFamily: 'var(--serif)',
+              fontSize: 36,
+              color: 'var(--ink)',
+              letterSpacing: '-0.02em',
+              lineHeight: 1,
+            }}
+          >
+            {value.toLocaleString('de-DE')}
+          </div>
+          <div style={{ color: 'var(--ink-3)', fontSize: 14 }}>
+            / {target.value.toLocaleString('de-DE')} kcal
+          </div>
+        </div>
+        <div className="progress" style={{ height: 6, marginTop: 12 }}>
+          <span style={{ width: `${clamped}%` }} />
+        </div>
         <div
           style={{
-            fontFamily: 'var(--mono)',
-            fontSize: 11,
-            letterSpacing: '0.06em',
+            marginTop: 8,
+            display: 'flex',
+            justifyContent: 'space-between',
+            fontSize: 12,
             color: 'var(--ink-3)',
           }}
         >
-          KALORIEN
+          <span>{Math.round(pct)} % des Ziels</span>
+          <span style={{ color: 'var(--sage-deep)' }}>
+            {remaining.toLocaleString('de-DE')} kcal verbleibend
+          </span>
         </div>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-        <div
-          style={{
-            fontFamily: 'var(--serif)',
-            fontSize: 36,
-            color: 'var(--ink)',
-            letterSpacing: '-0.02em',
-            lineHeight: 1,
-          }}
-        >
-          {value.toLocaleString('de-DE')}
-        </div>
-        <div style={{ color: 'var(--ink-3)', fontSize: 14 }}>
-          / {target.value.toLocaleString('de-DE')} kcal
-        </div>
-      </div>
-      <div className="progress" style={{ height: 6, marginTop: 12 }}>
-        <span style={{ width: `${clamped}%` }} />
-      </div>
-      <div
-        style={{
-          marginTop: 8,
-          display: 'flex',
-          justifyContent: 'space-between',
-          fontSize: 12,
-          color: 'var(--ink-3)',
-        }}
-      >
-        <span>{Math.round(pct)}% des Ziels</span>
-        <span>{remaining.toLocaleString('de-DE')} kcal verbleibend</span>
       </div>
     </div>
   );
 }
 
-function NutrientRow({
+function NutrientCard({
   icon,
   label,
   value,
@@ -243,108 +266,56 @@ function NutrientRow({
   const prefix = target.kind === 'limit' ? 'max. ' : '';
 
   return (
-    <div>
-      <div className="row-between" style={{ marginBottom: 6 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Icon name={icon} size={14} stroke="var(--sage-deep)" strokeWidth={1.6} />
-          <span style={{ fontSize: 13, color: 'var(--ink-2)' }}>{label}</span>
+    <div
+      style={{
+        background: 'var(--surface-2)',
+        borderRadius: 14,
+        padding: '12px 14px',
+        border: '0.5px solid var(--hairline)',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 18,
+            background: 'var(--sage-wash)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <Icon name={icon} size={16} stroke="var(--sage-deep)" strokeWidth={1.6} />
         </div>
-        <div style={{ fontFamily: 'var(--mono)', fontSize: 11.5, color: 'var(--ink-3)' }}>
-          <span style={{ color: over ? 'var(--amber)' : 'var(--ink)' }}>
-            {displayValue.toLocaleString('de-DE')} {unit}
-          </span>
-          <span style={{ color: 'var(--ink-4)' }}>
-            {' / '}
-            {prefix}
-            {target.value.toLocaleString('de-DE')} {unit}
-          </span>
+        <span style={{ fontSize: 15, color: 'var(--ink-2)', flex: 1, minWidth: 0 }}>{label}</span>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontFamily: 'var(--mono)', fontSize: 13 }}>
+            <span style={{ color: over ? 'var(--amber)' : 'var(--ink)' }}>
+              {displayValue.toLocaleString('de-DE')} {unit}
+            </span>
+            <span style={{ color: 'var(--ink-4)' }}>
+              {' / '}
+              {prefix}
+              {target.value.toLocaleString('de-DE')} {unit}
+            </span>
+          </div>
+          <div
+            style={{
+              fontFamily: 'var(--mono)',
+              fontSize: 11,
+              color: 'var(--ink-4)',
+              marginTop: 2,
+            }}
+          >
+            {Math.round(pct)} %
+          </div>
         </div>
       </div>
-      <div className="progress" style={{ height: 4 }}>
+      <div className="progress" style={{ height: 4, marginTop: 10 }}>
         <span style={{ width: `${clamped}%`, background: barColor }} />
       </div>
     </div>
-  );
-}
-
-function EnergyDistribution({ totals }: { totals: MealDayTotals }) {
-  const proteinKcal = totals.protein_g * 4;
-  const carbsKcal = totals.carbs_g * 4;
-  const fatKcal = totals.fat_g * 9;
-  const sum = proteinKcal + carbsKcal + fatKcal;
-
-  if (sum <= 0) {
-    return (
-      <div
-        style={{
-          padding: '12px',
-          background: 'var(--surface-2)',
-          borderRadius: 10,
-          color: 'var(--ink-4)',
-          fontSize: 12,
-        }}
-      >
-        Noch keine Makro-Werte erfasst.
-      </div>
-    );
-  }
-
-  const pP = (proteinKcal / sum) * 100;
-  const pC = (carbsKcal / sum) * 100;
-  const pF = (fatKcal / sum) * 100;
-
-  return (
-    <div>
-      <div
-        style={{
-          display: 'flex',
-          height: 8,
-          borderRadius: 4,
-          overflow: 'hidden',
-          background: 'var(--surface-3)',
-        }}
-      >
-        <div style={{ width: `${pP}%`, background: 'var(--sage-deep)' }} />
-        <div style={{ width: `${pC}%`, background: 'var(--sage)' }} />
-        <div style={{ width: `${pF}%`, background: 'var(--amber)' }} />
-      </div>
-      <div
-        style={{
-          marginTop: 8,
-          display: 'flex',
-          justifyContent: 'space-between',
-          fontSize: 11,
-          fontFamily: 'var(--mono)',
-          color: 'var(--ink-3)',
-          letterSpacing: '0.02em',
-        }}
-      >
-        <span>
-          <DotMarker color="var(--sage-deep)" /> {Math.round(pP)}% Protein
-        </span>
-        <span>
-          <DotMarker color="var(--sage)" /> {Math.round(pC)}% Carbs
-        </span>
-        <span>
-          <DotMarker color="var(--amber)" /> {Math.round(pF)}% Fett
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function DotMarker({ color }: { color: string }) {
-  return (
-    <span
-      style={{
-        display: 'inline-block',
-        width: 7,
-        height: 7,
-        borderRadius: '50%',
-        background: color,
-        marginRight: 4,
-        verticalAlign: 'middle',
-      }}
-    />
   );
 }
