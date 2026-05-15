@@ -2,9 +2,11 @@
 
 import { retractMealAction } from '@/app/actions';
 import type { MealSlotMeta } from '@/lib/nutrition';
+import { useState } from 'react';
 import { Icon, type IconName } from '../Icon';
 import { Sheet, SheetCloseButton } from '../Sheet';
 import type { MealPoint } from '../types';
+import { MealEditSheet } from './MealEditSheet';
 
 interface SlotDetailSheetProps {
   slot: MealSlotMeta;
@@ -28,6 +30,7 @@ function sourceIcon(source: string): IconName {
 
 export function SlotDetailSheet({ slot, meals, onClose, onAdd }: SlotDetailSheetProps) {
   const totalKcal = meals.reduce((s, m) => s + m.kcal, 0);
+  const [editing, setEditing] = useState<MealPoint | null>(null);
 
   return (
     <Sheet
@@ -73,9 +76,11 @@ export function SlotDetailSheet({ slot, meals, onClose, onAdd }: SlotDetailSheet
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {meals.map((m) => (
-          <MealDetailCard key={m.event_id} meal={m} />
+          <MealDetailCard key={m.event_id} meal={m} onEdit={() => setEditing(m)} />
         ))}
       </div>
+
+      {editing && <MealEditSheet meal={editing} onClose={() => setEditing(null)} />}
 
       <button
         type="button"
@@ -105,7 +110,7 @@ export function SlotDetailSheet({ slot, meals, onClose, onAdd }: SlotDetailSheet
   );
 }
 
-function MealDetailCard({ meal }: { meal: MealPoint }) {
+function MealDetailCard({ meal, onEdit }: { meal: MealPoint; onEdit: () => void }) {
   const macros: string[] = [];
   if (meal.protein_g !== null && meal.protein_g > 0)
     macros.push(`${Math.round(meal.protein_g)} g Protein`);
@@ -122,7 +127,23 @@ function MealDetailCard({ meal }: { meal: MealPoint }) {
         border: '0.5px solid var(--hairline)',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+      <button
+        type="button"
+        onClick={onEdit}
+        aria-label={`${meal.label} bearbeiten`}
+        className="pressable"
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: 10,
+          width: '100%',
+          background: 'transparent',
+          border: 'none',
+          padding: 0,
+          textAlign: 'left',
+          cursor: 'pointer',
+        }}
+      >
         <div
           style={{
             width: 28,
@@ -153,6 +174,7 @@ function MealDetailCard({ meal }: { meal: MealPoint }) {
           </div>
           <div className="mono-sm" style={{ marginTop: 4, fontSize: 11 }}>
             {formatTime(meal.occurred_at)} · {meal.kcal} kcal
+            {meal.corrected ? ' · korrigiert' : ''}
           </div>
           {macros.length > 0 && (
             <div
@@ -181,21 +203,23 @@ function MealDetailCard({ meal }: { meal: MealPoint }) {
             </div>
           )}
         </div>
-        {meal.confidence !== null && meal.confidence < 0.9 && (
-          <span
-            className="pill"
-            style={{
-              fontSize: 10,
-              padding: '2px 6px',
-              background: 'rgba(196,152,85,0.14)',
-              color: 'var(--amber)',
-              flexShrink: 0,
-            }}
-          >
-            ungefähr
-          </span>
-        )}
-      </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          {meal.confidence !== null && meal.confidence < 0.9 && (
+            <span
+              className="pill"
+              style={{
+                fontSize: 10,
+                padding: '2px 6px',
+                background: 'rgba(196,152,85,0.14)',
+                color: 'var(--amber)',
+              }}
+            >
+              ungefähr
+            </span>
+          )}
+          <Icon name="chevron-right" size={16} strokeWidth={1.6} stroke="var(--ink-4)" />
+        </div>
+      </button>
       <form
         action={retractMealAction}
         style={{ marginTop: 10, display: 'flex', justifyContent: 'flex-end' }}
