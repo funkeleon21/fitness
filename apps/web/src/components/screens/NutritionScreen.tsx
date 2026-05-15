@@ -1,6 +1,6 @@
 'use client';
 
-import { logMealFromTemplateAction, retractMealAction } from '@/app/actions';
+import { logMealFromTemplateAction } from '@/app/actions';
 import {
   MEAL_SLOTS,
   type MealSlotId,
@@ -14,6 +14,7 @@ import { Icon, type IconName } from '../Icon';
 import type { MealPoint, MealTemplateView, NutritionData } from '../types';
 import { MacroDetailSheet } from './MacroDetailSheet';
 import { NutritionCoachSheet } from './NutritionCoachSheet';
+import { SlotDetailSheet } from './SlotDetailSheet';
 import { TemplatePickerSheet } from './TemplatePickerSheet';
 
 interface NutritionScreenProps {
@@ -24,19 +25,6 @@ interface NutritionScreenProps {
   onOpenComposer: () => void;
   onCreateTemplate: () => void;
   onEditTemplate: (template: MealTemplateView) => void;
-}
-
-function formatTime(iso: string): string {
-  const d = new Date(iso);
-  const hh = d.getHours().toString().padStart(2, '0');
-  const mm = d.getMinutes().toString().padStart(2, '0');
-  return `${hh}:${mm}`;
-}
-
-function sourceIcon(source: string): IconName {
-  if (source === 'voice') return 'mic';
-  if (source === 'photo') return 'camera';
-  return 'text';
 }
 
 export function NutritionScreen({
@@ -52,6 +40,7 @@ export function NutritionScreen({
   const [pickerSlot, setPickerSlot] = useState<MealSlotId | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [coachOpen, setCoachOpen] = useState(false);
+  const [slotDetail, setSlotDetail] = useState<MealSlotId | null>(null);
 
   const mealsBySlot = useMemo(() => {
     const grouped = new Map<MealSlotId, MealPoint[]>();
@@ -63,6 +52,9 @@ export function NutritionScreen({
     }
     return grouped;
   }, [today]);
+
+  const slotDetailMeta = slotDetail ? MEAL_SLOTS.find((s) => s.id === slotDetail) : null;
+  const slotDetailMeals = slotDetail ? (mealsBySlot.get(slotDetail) ?? []) : [];
 
   return (
     <div className="screen-content scroll">
@@ -81,6 +73,7 @@ export function NutritionScreen({
           mealsBySlot={mealsBySlot}
           onOpenComposer={onOpenComposer}
           onSlotPlus={(slot) => setPickerSlot(slot)}
+          onOpenSlot={(slot) => setSlotDetail(slot)}
         />
       </div>
 
@@ -109,6 +102,18 @@ export function NutritionScreen({
           onCreateNew={() => {
             setPickerSlot(null);
             onOpenComposer();
+          }}
+        />
+      )}
+
+      {slotDetailMeta && (
+        <SlotDetailSheet
+          slot={slotDetailMeta}
+          meals={slotDetailMeals}
+          onClose={() => setSlotDetail(null)}
+          onAdd={() => {
+            setSlotDetail(null);
+            setPickerSlot(slotDetailMeta.id);
           }}
         />
       )}
@@ -308,10 +313,12 @@ function MealSlotsCard({
   mealsBySlot,
   onOpenComposer,
   onSlotPlus,
+  onOpenSlot,
 }: {
   mealsBySlot: Map<MealSlotId, MealPoint[]>;
   onOpenComposer: () => void;
   onSlotPlus: (slot: MealSlotId) => void;
+  onOpenSlot: (slot: MealSlotId) => void;
 }) {
   const [expanded, setExpanded] = useState(true);
 
@@ -352,6 +359,7 @@ function MealSlotsCard({
             meals={mealsBySlot.get(slot.id) ?? []}
             collapsed={!expanded && i >= 2}
             onPlus={() => onSlotPlus(slot.id)}
+            onOpen={() => onOpenSlot(slot.id)}
             isLast={i === MEAL_SLOTS.length - 1}
           />
         ))}
@@ -388,194 +396,164 @@ function SlotRow({
   meals,
   collapsed,
   onPlus,
+  onOpen,
   isLast,
 }: {
   slot: MealSlotMeta;
   meals: MealPoint[];
   collapsed: boolean;
   onPlus: () => void;
+  onOpen: () => void;
   isLast: boolean;
 }) {
   if (collapsed) return null;
   const hasMeals = meals.length > 0;
   const totalKcal = meals.reduce((s, m) => s + m.kcal, 0);
 
-  return (
-    <div
-      style={{
-        padding: '12px 0',
-        borderBottom: isLast ? 'none' : '0.5px solid var(--hairline)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 12,
-      }}
-    >
+  const borderBottom = isLast ? 'none' : '0.5px solid var(--hairline)';
+
+  if (!hasMeals) {
+    return (
       <div
         style={{
-          width: 38,
-          height: 38,
-          borderRadius: '50%',
-          background: slot.tint,
+          padding: '12px 0',
+          borderBottom,
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
-          color: slot.iconColor,
-          flexShrink: 0,
+          gap: 12,
         }}
       >
-        <Icon name={slot.icon} size={18} strokeWidth={1.6} stroke="currentColor" />
+        <SlotIcon slot={slot} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--ink)' }}>{slot.label}</div>
+          <div
+            style={{
+              fontSize: 12,
+              color: 'var(--ink-3)',
+              marginTop: 2,
+            }}
+          >
+            Noch nichts hinzugefügt
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onPlus}
+          aria-label={`${slot.label} hinzufügen`}
+          className="pressable"
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: 10,
+            background: 'transparent',
+            border: '1px dashed var(--hairline-strong)',
+            color: 'var(--ink-3)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            flexShrink: 0,
+          }}
+        >
+          <Icon name="plus" size={16} strokeWidth={2} />
+        </button>
       </div>
+    );
+  }
+
+  // Gefüllter Slot: zusammenfassende Zeile, beim Tap öffnet das SlotDetailSheet.
+  // Erste Mahlzeit + "+ N weitere", kcal-Pill, Chevron statt Plus.
+  const firstMeal = meals[0];
+  if (!firstMeal) {
+    // unreachable wegen hasMeals, aber TS will einen narrow.
+    return null;
+  }
+  const rest = meals.length - 1;
+  const subtitle = rest > 0 ? `${firstMeal.label} + ${rest} weitere` : firstMeal.label;
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={`${slot.label} Details öffnen`}
+      className="pressable"
+      style={{
+        padding: '14px 0',
+        borderBottom,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 14,
+        background: 'transparent',
+        border: 'none',
+        borderBottomStyle: isLast ? undefined : 'solid',
+        borderBottomWidth: isLast ? undefined : '0.5px',
+        borderBottomColor: isLast ? undefined : 'var(--hairline)',
+        width: '100%',
+        textAlign: 'left',
+        cursor: 'pointer',
+      }}
+    >
+      <SlotIcon slot={slot} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--ink)' }}>{slot.label}</div>
         <div
           style={{
-            fontSize: 12,
+            fontFamily: 'var(--serif)',
+            fontSize: 22,
+            lineHeight: 1.1,
+            color: 'var(--ink)',
+            letterSpacing: '-0.01em',
+          }}
+        >
+          {slot.label}
+        </div>
+        <div
+          style={{
+            marginTop: 4,
+            fontSize: 13,
             color: 'var(--ink-3)',
-            marginTop: 2,
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
           }}
         >
-          {hasMeals
-            ? `${meals.length} ${meals.length === 1 ? 'Eintrag' : 'Einträge'} · ${totalKcal} kcal`
-            : 'Noch nichts hinzugefügt'}
+          {subtitle}
         </div>
-        {hasMeals && (
-          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {meals.map((m) => (
-              <MealRow key={m.event_id} meal={m} />
-            ))}
-          </div>
-        )}
+        <div style={{ marginTop: 8 }}>
+          <span
+            style={{
+              display: 'inline-block',
+              padding: '4px 10px',
+              borderRadius: 999,
+              background: 'var(--surface-2)',
+              fontSize: 12,
+              color: 'var(--ink-2)',
+            }}
+          >
+            {totalKcal} kcal
+          </span>
+        </div>
       </div>
-      <button
-        type="button"
-        onClick={onPlus}
-        aria-label={`${slot.label} hinzufügen`}
-        className="pressable"
-        style={{
-          width: 38,
-          height: 38,
-          borderRadius: 10,
-          background: 'transparent',
-          border: '1px dashed var(--hairline-strong)',
-          color: 'var(--ink-3)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: 'pointer',
-          flexShrink: 0,
-        }}
-      >
-        <Icon name="plus" size={16} strokeWidth={2} />
-      </button>
-    </div>
+      <Icon name="chevron-right" size={18} strokeWidth={1.6} stroke="var(--ink-4)" />
+    </button>
   );
 }
 
-function MealRow({ meal }: { meal: MealPoint }) {
-  const [open, setOpen] = useState(false);
-  const macros: string[] = [];
-  if (meal.protein_g !== null && meal.protein_g > 0)
-    macros.push(`${Math.round(meal.protein_g)}g P`);
-  if (meal.carbs_g !== null && meal.carbs_g > 0) macros.push(`${Math.round(meal.carbs_g)}g K`);
-  if (meal.fat_g !== null && meal.fat_g > 0) macros.push(`${Math.round(meal.fat_g)}g F`);
-
+function SlotIcon({ slot }: { slot: MealSlotMeta }) {
   return (
     <div
       style={{
-        padding: '8px 10px',
-        background: 'var(--surface-2)',
-        borderRadius: 10,
+        width: 38,
+        height: 38,
+        borderRadius: '50%',
+        background: slot.tint,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: slot.iconColor,
+        flexShrink: 0,
       }}
     >
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="pressable"
-        style={{
-          width: '100%',
-          background: 'transparent',
-          border: 'none',
-          padding: 0,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          cursor: 'pointer',
-          textAlign: 'left',
-        }}
-      >
-        <div
-          style={{
-            width: 24,
-            height: 24,
-            borderRadius: 6,
-            background: 'var(--surface)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'var(--ink-3)',
-            flexShrink: 0,
-          }}
-        >
-          <Icon name={sourceIcon(meal.source)} size={12} />
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div
-            style={{
-              fontSize: 13,
-              fontWeight: 500,
-              color: 'var(--ink-2)',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {meal.label}
-          </div>
-          <div className="mono-sm" style={{ marginTop: 1, fontSize: 10 }}>
-            {formatTime(meal.occurred_at)} · {meal.kcal} kcal
-            {macros.length > 0 ? ` · ${macros.join(' · ')}` : ''}
-          </div>
-        </div>
-        {meal.confidence !== null && meal.confidence < 0.9 && (
-          <span
-            className="pill"
-            style={{
-              fontSize: 10,
-              padding: '2px 6px',
-              background: 'rgba(196,152,85,0.14)',
-              color: 'var(--amber)',
-            }}
-          >
-            ungefähr
-          </span>
-        )}
-      </button>
-      {open && (
-        <form
-          action={retractMealAction}
-          style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end' }}
-        >
-          <input type="hidden" name="event_id" value={meal.event_id} />
-          <button
-            type="submit"
-            className="pressable"
-            style={{
-              background: 'transparent',
-              border: '0.5px solid var(--hairline-strong)',
-              borderRadius: 8,
-              padding: '4px 8px',
-              fontSize: 11,
-              color: 'var(--ink-3)',
-              cursor: 'pointer',
-            }}
-          >
-            Eintrag zurückziehen
-          </button>
-        </form>
-      )}
+      <Icon name={slot.icon} size={18} strokeWidth={1.6} stroke="currentColor" />
     </div>
   );
 }
