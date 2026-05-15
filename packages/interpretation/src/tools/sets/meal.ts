@@ -76,6 +76,13 @@ export const mealTools: ChatToolset = ({ client, userId }) => ({
         .describe(
           'Slot der Mahlzeit. Setze nur, wenn der Nutzer es explizit erwähnt ("mein Frühstück", "Snack"). Sonst null — UI leitet den Slot aus occurred_at ab.',
         ),
+      pantry_item_id: z
+        .string()
+        .uuid()
+        .nullable()
+        .describe(
+          'UUID eines Pantry-Eintrags, falls der Nutzer dir ein konkretes Produkt aus seinem Vorrat bestätigt hat. Sehr wichtig: NIE raten. Setze diese ID nur, wenn der Nutzer auf deine Rückfrage („Meinst du Kölln Müsli Schoko aus deinem Vorrat?") explizit zugestimmt hat. Sonst null. Bei vagen Eingaben wie „ich hatte Müsli" zuerst per lookup_pantry suchen und rückfragen, statt diese ID zu raten.',
+        ),
       occurred_at: z
         .string()
         .datetime()
@@ -109,6 +116,7 @@ export const mealTools: ChatToolset = ({ client, userId }) => ({
       saturated_fat_g,
       salt_g,
       meal_type,
+      pantry_item_id,
       occurred_at,
       confidence,
       raw_input,
@@ -126,6 +134,7 @@ export const mealTools: ChatToolset = ({ client, userId }) => ({
         saturated_fat_g,
         salt_g,
         meal_type,
+        pantry_item_id,
         occurred_at,
       });
       const result = await logMeal(client, {
@@ -140,6 +149,7 @@ export const mealTools: ChatToolset = ({ client, userId }) => ({
         saturated_fat_g: saturated_fat_g ?? undefined,
         salt_g: salt_g ?? undefined,
         meal_type: meal_type ?? undefined,
+        pantry_item_id: pantry_item_id ?? undefined,
         occurred_at: occurredAt,
         source: 'ai-extracted',
         external_id: toolExternalId('log_meal', {
@@ -153,6 +163,7 @@ export const mealTools: ChatToolset = ({ client, userId }) => ({
           saturated_fat_g,
           salt_g,
           meal_type,
+          pantry_item_id,
           occurred_at,
           raw_input: sourceInput,
         }),
@@ -160,13 +171,78 @@ export const mealTools: ChatToolset = ({ client, userId }) => ({
         confidence,
         provenance: toolProvenance(sourceInput),
       });
+      // Pantry-Use-Tracking analog zur saveComposedMealAction. RLS filtert User.
+      if (pantry_item_id) {
+        const { data: row } = await client
+          .from('pantry_items')
+          .select('use_count')
+          .eq('id', pantry_item_id)
+          .maybeSingle();
+        await client
+          .from('pantry_items')
+          .update({
+            use_count: (row?.use_count ?? 0) + 1,
+            last_used_at: new Date().toISOString(),
+            is_archived: false,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', pantry_item_id);
+      }
       return {
         ok: true,
         event_id: result.event_id,
         label,
         kcal,
         occurred_at: occurredAt.toISOString(),
+        pantry_item_id: pantry_item_id ?? null,
       };
+    },
+  }),
+
+  lookup_pantry: tool({
+    description:
+      'Suche nach Einträgen in der persönlichen Zutaten-Bibliothek (Pantry) des Nutzers. Verwende dies, wenn der Nutzer ein vages Lebensmittel/Markenprodukt erwähnt („Müsli", „Joghurt", „der Riegel den ich immer habe") und du wissen willst, ob er einen passenden Pantry-Eintrag besitzt — BEVOR du log_meal aufrufst. Bei einem oder mehreren Treffern: frag zur Bestätigung („Meinst du …?"), übernimm dann pantry_item_id ins log_meal. Bei keinem Treffer: log_meal mit eigener Schätzung.',
+    inputSchema: z.object({
+      query: z
+        .string()
+        .min(1)
+        .max(120)
+        .describe(
+          'Such-String — wird gegen Label und Marke gematcht (case-insensitive Substring). Halt es knapp, z.B. „müsli", „joghurt", „kölln".',
+        ),
+    }),
+    execute: async ({ query }) => {
+      const q = `%${query.trim().replace(/[%_]/g, '\\$&')}%`;
+      const labelMatches = await client
+        .from('pantry_items')
+        .select(
+          'id, label, brand, kcal_per_100g, protein_g_per_100g, carbs_g_per_100g, fat_g_per_100g, serving_size_g, last_used_at, use_count',
+        )
+        .eq('is_archived', false)
+        .ilike('label', q)
+        .order('last_used_at', { ascending: false, nullsFirst: false })
+        .limit(10);
+
+      const brandMatches = await client
+        .from('pantry_items')
+        .select(
+          'id, label, brand, kcal_per_100g, protein_g_per_100g, carbs_g_per_100g, fat_g_per_100g, serving_size_g, last_used_at, use_count',
+        )
+        .eq('is_archived', false)
+        .ilike('brand', q)
+        .order('last_used_at', { ascending: false, nullsFirst: false })
+        .limit(10);
+
+      const seen = new Set<string>();
+      const merged: Record<string, unknown>[] = [];
+      for (const row of [...(labelMatches.data ?? []), ...(brandMatches.data ?? [])]) {
+        const id = row.id as string;
+        if (seen.has(id)) continue;
+        seen.add(id);
+        merged.push(row);
+        if (merged.length >= 10) break;
+      }
+      return { matches: merged };
     },
   }),
 

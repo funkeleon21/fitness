@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getMealContext } from './sections/meal';
 import { getNutritionTargetsContext } from './sections/nutrition-targets';
+import { getPantryContext } from './sections/pantry';
 import { getWeightContext } from './sections/weight';
 import { getWorkoutContext } from './sections/workout';
 import type { UserContextProvider, UserContextSection } from './types';
@@ -15,6 +16,7 @@ import type { UserContextProvider, UserContextSection } from './types';
 const PROVIDERS: UserContextProvider[] = [
   getWeightContext,
   getMealContext,
+  getPantryContext,
   getNutritionTargetsContext,
   getWorkoutContext,
 ];
