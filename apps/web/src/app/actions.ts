@@ -1,7 +1,7 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
-import type { MealType } from '@fitness/core';
+import { type MealType, type WorkoutExercise, workoutExerciseSchema } from '@fitness/core';
 import {
   createMealTemplate,
   deleteMealTemplate,
@@ -9,7 +9,7 @@ import {
   recordMealTemplateUsage,
   updateMealTemplate,
 } from '@fitness/db';
-import { correctEvent, logMeal, logWeight, retractEvent } from '@fitness/ingestion';
+import { correctEvent, logMeal, logWeight, logWorkout, retractEvent } from '@fitness/ingestion';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
@@ -154,6 +154,30 @@ function asTemplateNutrients(n: MealNutrients) {
 
 function parseBool(raw: FormDataEntryValue | null): boolean {
   return typeof raw === 'string' && raw === 'true';
+}
+
+// Übungsarray kommt aus dem Sheet als JSON-String. Validierung pro Element
+// via workoutExerciseSchema; null wenn das Feld fehlt oder leer ist.
+function parseOptionalExercisesJson(raw: FormDataEntryValue | null): WorkoutExercise[] | undefined {
+  if (typeof raw !== 'string' || raw.trim() === '') return undefined;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error('Ungueltiges exercises-JSON');
+  }
+  if (!Array.isArray(parsed)) throw new Error('exercises muss ein Array sein');
+  if (parsed.length === 0) return undefined;
+  if (parsed.length > 30) throw new Error('Zu viele Uebungen');
+  const out: WorkoutExercise[] = [];
+  for (const item of parsed) {
+    const result = workoutExerciseSchema.safeParse(item);
+    if (!result.success) {
+      throw new Error(`Ungueltige Uebung: ${result.error.message}`);
+    }
+    out.push(result.data);
+  }
+  return out;
 }
 
 export const logWeightAction = withAuth(async ({ supabase, userId }, formData) => {
@@ -343,6 +367,39 @@ export const correctMealAction = withAuth(async ({ supabase, userId }, formData)
     corrects_event_id: corrects,
     new_payload,
     reason: 'manual correction',
+    source: 'manual',
+  });
+});
+
+// ─── Training ──────────────────────────────────────────────────────────────
+
+export const logWorkoutAction = withAuth(async ({ supabase, userId }, formData) => {
+  const label = parseLabel(formData.get('label'));
+  const duration_min = parseOptionalNonNegativeNumber(
+    formData.get('duration_min'),
+    'duration_min',
+    600,
+  );
+  const exercises = parseOptionalExercisesJson(formData.get('exercises'));
+  const occurred_at = parseOccurredAt(formData.get('occurred_at'));
+
+  await logWorkout(supabase, {
+    user_id: userId,
+    label,
+    duration_min,
+    exercises,
+    occurred_at,
+    source: 'manual',
+  });
+});
+
+export const retractWorkoutAction = withAuth(async ({ supabase, userId }, formData) => {
+  const retracts = formData.get('event_id');
+  if (typeof retracts !== 'string') throw new Error('event_id fehlt');
+  await retractEvent(supabase, {
+    user_id: userId,
+    retracts_event_id: retracts,
+    reason: 'manual retraction',
     source: 'manual',
   });
 });
