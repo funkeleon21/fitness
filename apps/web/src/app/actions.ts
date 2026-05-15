@@ -1,7 +1,13 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
-import { type MealType, type WorkoutExercise, workoutExerciseSchema } from '@fitness/core';
+import {
+  type MealItem,
+  type MealType,
+  type WorkoutExercise,
+  mealItemSchema,
+  workoutExerciseSchema,
+} from '@fitness/core';
 import {
   createMealTemplate,
   createWorkoutTemplate,
@@ -161,6 +167,40 @@ function parseBool(raw: FormDataEntryValue | null): boolean {
   return typeof raw === 'string' && raw === 'true';
 }
 
+// Mahlzeit-Items kommen aus dem MealComposer als JSON-String. Pro Item wird
+// gegen mealItemSchema validiert; ungültige Felder werfen, damit das Event
+// nicht halbgar landet. undefined wenn das Feld fehlt oder leer ist.
+function parseOptionalMealItemsJson(raw: FormDataEntryValue | null): MealItem[] | undefined {
+  if (typeof raw !== 'string' || raw.trim() === '') return undefined;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error('Ungueltiges items-JSON');
+  }
+  if (!Array.isArray(parsed)) throw new Error('items muss ein Array sein');
+  if (parsed.length === 0) return undefined;
+  if (parsed.length > 50) throw new Error('Zu viele Items');
+  const out: MealItem[] = [];
+  for (const raw of parsed) {
+    if (typeof raw !== 'object' || raw === null) {
+      throw new Error('Item muss ein Objekt sein');
+    }
+    // null-Werte aus dem Frontend entfernen — das Schema akzeptiert optionale
+    // Felder, nicht aber `null`.
+    const cleaned: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+      if (v !== null) cleaned[k] = v;
+    }
+    const result = mealItemSchema.safeParse(cleaned);
+    if (!result.success) {
+      throw new Error(`Ungueltiges Item: ${result.error.message}`);
+    }
+    out.push(result.data);
+  }
+  return out;
+}
+
 // Übungsarray kommt aus dem Sheet als JSON-String. Validierung pro Element
 // via workoutExerciseSchema; null wenn das Feld fehlt oder leer ist.
 function parseOptionalExercisesJson(raw: FormDataEntryValue | null): WorkoutExercise[] | undefined {
@@ -277,6 +317,8 @@ export const saveComposedMealAction = withAuth(async ({ supabase, userId }, form
     typeof templateNameRaw === 'string' && templateNameRaw.trim().length > 0
       ? templateNameRaw.trim()
       : nutrients.label;
+  const pantry_item_id = parseOptionalUuid(formData.get('pantry_item_id'));
+  const items = parseOptionalMealItemsJson(formData.get('items_json'));
 
   let templateId: string | undefined;
   if (saveAsTemplate) {
@@ -291,8 +333,10 @@ export const saveComposedMealAction = withAuth(async ({ supabase, userId }, form
   await logMeal(supabase, {
     user_id: userId,
     ...nutrients,
+    items,
     meal_type,
     template_id: templateId,
+    pantry_item_id,
     occurred_at: occurredAt,
     source: 'manual',
   });
@@ -300,7 +344,44 @@ export const saveComposedMealAction = withAuth(async ({ supabase, userId }, form
   if (templateId) {
     await recordMealTemplateUsage(supabase, userId, templateId, occurredAt);
   }
+
+  // Pantry-Use-Tracking: alle referenzierten Pantry-IDs (top-level + per-item)
+  // bekommen use_count++ und last_used_at = jetzt. Reaktiviert ggf. archivierte
+  // Items. RLS filtert den User automatisch.
+  const referencedPantryIds = new Set<string>();
+  if (pantry_item_id) referencedPantryIds.add(pantry_item_id);
+  if (items) {
+    for (const it of items) {
+      if (it.pantry_item_id) referencedPantryIds.add(it.pantry_item_id);
+    }
+  }
+  for (const id of referencedPantryIds) {
+    await bumpPantryUsage(supabase, id);
+  }
 });
+
+async function bumpPantryUsage(
+  supabase: SupabaseServerClient,
+  pantryItemId: string,
+): Promise<void> {
+  // Erst den aktuellen use_count lesen — RPC für atomar-increment wäre sauberer,
+  // aber für ein Single-User-System ist Read+Write akzeptabel.
+  const { data } = await supabase
+    .from('pantry_items')
+    .select('use_count')
+    .eq('id', pantryItemId)
+    .maybeSingle();
+  const next = (data?.use_count ?? 0) + 1;
+  await supabase
+    .from('pantry_items')
+    .update({
+      use_count: next,
+      last_used_at: new Date().toISOString(),
+      is_archived: false,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', pantryItemId);
+}
 
 export const logMealFromTemplateAction = withAuth(async ({ supabase, userId }, formData) => {
   const id = parseOptionalUuid(formData.get('template_id'));

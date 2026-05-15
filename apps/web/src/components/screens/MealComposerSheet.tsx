@@ -2,7 +2,7 @@
 
 import { logMealFromTemplateAction, saveComposedMealAction } from '@/app/actions';
 import type { BarcodeLookupResult, PantrySimilarItem } from '@/app/api/lookup-barcode/route';
-import type { RecognizedMeal } from '@/app/api/recognize-meal/route';
+import type { RecognizedMeal, RecognizedPantryEntry } from '@/app/api/recognize-meal/route';
 import { MEAL_SLOTS, type MealSlotId, mealSlotFromIso } from '@/lib/nutrition';
 import dynamic from 'next/dynamic';
 import { useEffect, useRef, useState, useTransition } from 'react';
@@ -53,6 +53,19 @@ export function MealComposerSheet({ templates, onClose }: MealComposerSheetProps
     lookup: BarcodeLookupResult;
     candidates: PantrySimilarItem[];
   } | null>(null);
+  // Pantry-Items, die in den per-item suggested_pantry_id referenziert sind.
+  // Brauchen wir für die Bestätigungs-Pille (Anzeige) und das Übernehmen der
+  // exakten Nährwerte (Berechnung). Index nach Pantry-ID.
+  const [pantrySuggestionMap, setPantrySuggestionMap] = useState<
+    Map<string, RecognizedPantryEntry>
+  >(new Map());
+  // Items, deren Pantry-Vorschlag der User explizit abgelehnt hat — damit der
+  // Banner nicht wieder auftaucht, wenn Refinement das item nicht anspricht.
+  const [dismissedPantryByIdx, setDismissedPantryByIdx] = useState<Set<number>>(new Set());
+  // Items, für die der User den Pantry-Vorschlag bestätigt hat. Index → Pantry-ID.
+  // Wird beim Save als items[].pantry_item_id ins meal_logged-Event geschrieben
+  // und (auf Server-Seite) für use_count++ und last_used_at verwendet.
+  const [confirmedPantryByIdx, setConfirmedPantryByIdx] = useState<Map<number, string>>(new Map());
   // Slot vorausgewählt per Uhrzeit, User kann ändern. Wird beim Save als
   // meal_type ans Event geschrieben — Vorrang vor occurred_at-Heuristik.
   const [slot, setSlot] = useState<MealSlotId>(mealSlotFromIso(new Date().toISOString()));
@@ -69,9 +82,20 @@ export function MealComposerSheet({ templates, onClose }: MealComposerSheetProps
     slot: t.slot,
   }));
 
+  function ingestPantryFromResponse(pantry: RecognizedPantryEntry[] | undefined) {
+    if (!pantry || pantry.length === 0) return;
+    setPantrySuggestionMap((prev) => {
+      const next = new Map(prev);
+      for (const p of pantry) next.set(p.id, p);
+      return next;
+    });
+  }
+
   async function runAnalysis(imgs: CapturedImage[]) {
     setStage('analyzing');
     setError(null);
+    setDismissedPantryByIdx(new Set());
+    setConfirmedPantryByIdx(new Map());
     try {
       const res = await fetch('/api/recognize-meal', {
         method: 'POST',
@@ -84,6 +108,7 @@ export function MealComposerSheet({ templates, onClose }: MealComposerSheetProps
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? 'KI-Erkennung fehlgeschlagen');
       setResult(body.result as RecognizedMeal);
+      ingestPantryFromResponse(body.pantry as RecognizedPantryEntry[] | undefined);
       setStage('review');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unbekannter Fehler');
@@ -95,7 +120,16 @@ export function MealComposerSheet({ templates, onClose }: MealComposerSheetProps
     const empty: RecognizedMeal = {
       label: '',
       items: [
-        { label: '', amount_g: null, kcal: null, protein_g: null, carbs_g: null, fat_g: null },
+        {
+          label: '',
+          amount_g: null,
+          kcal: null,
+          protein_g: null,
+          carbs_g: null,
+          fat_g: null,
+          suggested_pantry_id: null,
+          match_confidence: null,
+        },
       ],
       totals: {
         kcal: 0,
@@ -198,6 +232,53 @@ export function MealComposerSheet({ templates, onClose }: MealComposerSheetProps
     if (stage === 'capture') setStage('review');
   }
 
+  // User bestätigt für ein Item den Pantry-Vorschlag → ersetze item.kcal/Makros
+  // mit den exakten Pantry-Werten (skaliert auf amount_g) und merke pantry_item_id
+  // für den Save. Labels werden auf das Pantry-Label aktualisiert.
+  function confirmPantryForItem(idx: number, pantryId: string) {
+    if (!result) return;
+    const pantry = pantrySuggestionMap.get(pantryId);
+    if (!pantry) return;
+    const item = result.items[idx];
+    if (!item) return;
+    const amount = item.amount_g ?? pantry.serving_size_g ?? 100;
+    const factor = amount / 100;
+    const scale = (per100: number | null): number | null =>
+      per100 === null ? null : Math.round(per100 * factor * 10) / 10;
+    const exactItem = {
+      label: pantry.brand ? `${pantry.brand} ${pantry.label}` : pantry.label,
+      amount_g: Math.round(amount),
+      kcal: scale(pantry.kcal_per_100g),
+      protein_g: scale(pantry.protein_g_per_100g),
+      carbs_g: scale(pantry.carbs_g_per_100g),
+      fat_g: scale(pantry.fat_g_per_100g),
+      suggested_pantry_id: null as string | null,
+      match_confidence: null as number | null,
+    };
+    const newItems = result.items.map((it, i) => (i === idx ? exactItem : it));
+    const newTotals = {
+      ...result.totals,
+      kcal: newItems.reduce((s, it) => s + (it.kcal ?? 0), 0),
+      protein_g: newItems.reduce<number | null>((s, it) => sumNullable(s, it.protein_g), null),
+      carbs_g: newItems.reduce<number | null>((s, it) => sumNullable(s, it.carbs_g), null),
+      fat_g: newItems.reduce<number | null>((s, it) => sumNullable(s, it.fat_g), null),
+    };
+    setResult({ ...result, items: newItems, totals: newTotals });
+    setConfirmedPantryByIdx((prev) => {
+      const next = new Map(prev);
+      next.set(idx, pantryId);
+      return next;
+    });
+  }
+
+  function dismissPantryForItem(idx: number) {
+    setDismissedPantryByIdx((prev) => {
+      const next = new Set(prev);
+      next.add(idx);
+      return next;
+    });
+  }
+
   async function refineWithChat(message: string) {
     if (!result) return;
     setRefining(true);
@@ -216,6 +297,7 @@ export function MealComposerSheet({ templates, onClose }: MealComposerSheetProps
       if (!res.ok) throw new Error(body.error ?? 'Refinement fehlgeschlagen');
       const updated = body.result as RecognizedMeal;
       setResult(updated);
+      ingestPantryFromResponse(body.pantry as RecognizedPantryEntry[] | undefined);
       setChatLog((log) => [
         ...log,
         {
@@ -275,6 +357,11 @@ export function MealComposerSheet({ templates, onClose }: MealComposerSheetProps
             onDismissScanError={() => setScanError(null)}
             onNext={() => setStage('saving')}
             onBackToCapture={() => setStage('capture')}
+            pantryMap={pantrySuggestionMap}
+            dismissedPantryByIdx={dismissedPantryByIdx}
+            confirmedPantryByIdx={confirmedPantryByIdx}
+            onConfirmPantry={confirmPantryForItem}
+            onDismissPantry={dismissPantryForItem}
           />
         )}
 
@@ -282,6 +369,7 @@ export function MealComposerSheet({ templates, onClose }: MealComposerSheetProps
           <SaveStage
             result={result}
             slot={slot}
+            confirmedPantryByIdx={confirmedPantryByIdx}
             onBack={() => setStage('review')}
             onDone={onClose}
           />
@@ -674,6 +762,11 @@ function ReviewStage({
   onDismissScanError,
   onNext,
   onBackToCapture,
+  pantryMap,
+  dismissedPantryByIdx,
+  confirmedPantryByIdx,
+  onConfirmPantry,
+  onDismissPantry,
 }: {
   result: RecognizedMeal;
   onChange: (r: RecognizedMeal) => void;
@@ -689,6 +782,11 @@ function ReviewStage({
   onDismissScanError: () => void;
   onNext: () => void;
   onBackToCapture: () => void;
+  pantryMap: Map<string, RecognizedPantryEntry>;
+  dismissedPantryByIdx: Set<number>;
+  confirmedPantryByIdx: Map<number, string>;
+  onConfirmPantry: (idx: number, pantryId: string) => void;
+  onDismissPantry: (idx: number) => void;
 }) {
   const [chatInput, setChatInput] = useState('');
 
@@ -707,6 +805,18 @@ function ReviewStage({
     onChange({ ...result, suggested_template_id: null, suggested_template_reason: null });
   }
 
+  // Pantry-Vorschläge pro Item, gefiltert auf nicht-bestätigt und nicht-dismissed.
+  const pantryBanners = result.items
+    .map((item, idx) => {
+      if (!item.suggested_pantry_id) return null;
+      if (dismissedPantryByIdx.has(idx)) return null;
+      if (confirmedPantryByIdx.has(idx)) return null;
+      const pantry = pantryMap.get(item.suggested_pantry_id);
+      if (!pantry) return null;
+      return { idx, item, pantry, confidence: item.match_confidence };
+    })
+    .filter((b): b is NonNullable<typeof b> => b !== null);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {matchedTemplate && (
@@ -717,6 +827,17 @@ function ReviewStage({
           onDismiss={dismissMatch}
         />
       )}
+
+      {pantryBanners.map((b) => (
+        <PantryMatchBanner
+          key={`pantry-${b.idx}`}
+          itemLabel={b.item.label}
+          pantry={b.pantry}
+          confidence={b.confidence}
+          onConfirm={() => onConfirmPantry(b.idx, b.pantry.id)}
+          onDismiss={() => onDismissPantry(b.idx)}
+        />
+      ))}
 
       <ConfidenceBanner confidence={result.confidence} hint={result.hint} />
 
@@ -999,7 +1120,16 @@ function ItemsChips({
       ...result,
       items: [
         ...result.items,
-        { label: t, amount_g: null, kcal: null, protein_g: null, carbs_g: null, fat_g: null },
+        {
+          label: t,
+          amount_g: null,
+          kcal: null,
+          protein_g: null,
+          carbs_g: null,
+          fat_g: null,
+          suggested_pantry_id: null,
+          match_confidence: null,
+        },
       ],
     });
     setDraft('');
@@ -1382,11 +1512,13 @@ function ChatPanel({
 function SaveStage({
   result,
   slot,
+  confirmedPantryByIdx,
   onBack,
   onDone,
 }: {
   result: RecognizedMeal;
   slot: MealSlotId;
+  confirmedPantryByIdx: Map<number, string>;
   onBack: () => void;
   onDone: () => void;
 }) {
@@ -1412,6 +1544,26 @@ function SaveStage({
         if (asTemplate) {
           fd.append('save_as_template', 'true');
           fd.append('template_name', templateName.trim() || result.label);
+        }
+        // Pantry-Bezug pro Item ans Event durchreichen, damit das meal_logged-
+        // Payload nachvollziehbar bleibt und der Server use_count/last_used_at
+        // hochzählen kann. Wenn genau ein Item bestätigt wurde, setzen wir die
+        // ID zusätzlich top-level für die Replay-Stabilität.
+        const pantryItemsPayload = result.items.map((it, idx) => ({
+          label: it.label,
+          amount_g: it.amount_g,
+          kcal: it.kcal,
+          protein_g: it.protein_g,
+          carbs_g: it.carbs_g,
+          fat_g: it.fat_g,
+          pantry_item_id: confirmedPantryByIdx.get(idx) ?? null,
+        }));
+        if (pantryItemsPayload.length > 0) {
+          fd.append('items_json', JSON.stringify(pantryItemsPayload));
+        }
+        if (confirmedPantryByIdx.size === 1) {
+          const onlyId = [...confirmedPantryByIdx.values()][0];
+          if (onlyId) fd.append('pantry_item_id', onlyId);
         }
         await saveComposedMealAction(fd);
         onDone();
@@ -1562,6 +1714,81 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+// Bestätigungs-Banner für einen LLM-Pantry-Vorschlag pro Item. Zeigt den
+// vorgeschlagenen Pantry-Eintrag und seine Konfidenz, lässt den Nutzer per Ja/Nein
+// entscheiden, ob die exakten Pantry-Nährwerte übernommen werden sollen.
+function PantryMatchBanner({
+  itemLabel,
+  pantry,
+  confidence,
+  onConfirm,
+  onDismiss,
+}: {
+  itemLabel: string;
+  pantry: RecognizedPantryEntry;
+  confidence: number | null;
+  onConfirm: () => void;
+  onDismiss: () => void;
+}) {
+  const conf = confidence !== null ? `${Math.round(confidence * 100)}% Konfidenz` : null;
+  return (
+    <div
+      style={{
+        background: 'var(--sage-wash)',
+        border: '0.5px solid rgba(110,122,78,0.22)',
+        borderRadius: 14,
+        padding: '12px 14px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+      }}
+    >
+      <div style={{ fontSize: 12.5, color: 'var(--ink-2)' }}>
+        <span style={{ color: 'var(--ink-3)' }}>Vorrat-Match für </span>
+        <b>{itemLabel || '(unbenannte Komponente)'}</b>
+        <span style={{ color: 'var(--ink-3)' }}>: Ist das </span>
+        <b>{pantry.brand ? `${pantry.brand} ${pantry.label}` : pantry.label}</b>?
+        {conf && <span style={{ color: 'var(--ink-4)' }}> · {conf}</span>}
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button
+          type="button"
+          onClick={onConfirm}
+          className="pressable"
+          style={{
+            padding: '7px 14px',
+            background: 'var(--sage-deep)',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 999,
+            fontSize: 12,
+            fontWeight: 500,
+            cursor: 'pointer',
+          }}
+        >
+          Ja, exakte Werte
+        </button>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="pressable"
+          style={{
+            padding: '7px 14px',
+            background: 'transparent',
+            color: 'var(--ink-3)',
+            border: '0.5px solid var(--hairline-strong)',
+            borderRadius: 999,
+            fontSize: 12,
+            cursor: 'pointer',
+          }}
+        >
+          Nein
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // Skaliert Per-100g-Nährwerte auf die gewählte Portionsgröße und fügt das
 // neue Item in result.items ein. totals werden client-side neu summiert.
 function insertItemFromLookup(
@@ -1583,6 +1810,13 @@ function insertItemFromLookup(
     protein_g: scale(lookup.nutrients_per_100g.protein_g),
     carbs_g: scale(lookup.nutrients_per_100g.carbs_g),
     fat_g: scale(lookup.nutrients_per_100g.fat_g),
+    // Per-Item Pantry-Bezug für die Barcode-Variante setzen wir nicht hier —
+    // die Lookup-Response trägt zwar pantry_item_id, aber wir lassen die
+    // Bestätigungs-Pille im OFF-/Pantry-Flow weg (Scan ist bereits explizite
+    // Bestätigung). Stattdessen pflanzen wir die Pantry-ID separat an die Save-
+    // Action. Type-Konformität:
+    suggested_pantry_id: null as string | null,
+    match_confidence: null as number | null,
   };
   const items = [...(prev?.items ?? []), newItem];
 

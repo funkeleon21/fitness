@@ -22,6 +22,7 @@ export interface LogMealInput {
   salt_g?: number;
   items?: MealItem[];
   template_id?: string;
+  pantry_item_id?: string;
   meal_type?: MealType;
   occurred_at: Date;
   source?: EventSource;
@@ -48,6 +49,7 @@ export async function logMeal(
     salt_g: input.salt_g,
     items: input.items,
     template_id: input.template_id,
+    pantry_item_id: input.pantry_item_id,
     meal_type: input.meal_type,
     occurred_at: input.occurred_at,
     source: input.source ?? 'manual',

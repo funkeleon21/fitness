@@ -25,6 +25,25 @@ const recognizedMealItemSchema = z.object({
   protein_g: z.number().min(0).max(1000).nullable(),
   carbs_g: z.number().min(0).max(1000).nullable(),
   fat_g: z.number().min(0).max(1000).nullable(),
+  // Wenn dieses Item klar einem Pantry-Eintrag des Nutzers entspricht, gibt
+  // das LLM die ID + Match-Konfidenz zurück. Die UI zeigt eine Bestätigungs-
+  // Pille — erst nach „Ja" werden die exakten Pantry-Nährwerte übernommen.
+  // KEINE uuid()-Validierung: Halluzinationen werden serverseitig gegen die
+  // Whitelist gefiltert.
+  suggested_pantry_id: z
+    .string()
+    .nullable()
+    .describe(
+      'UUID eines Pantry-Eintrags aus pantry[], wenn das Item klar diesem Produkt entspricht. Sonst null.',
+    ),
+  match_confidence: z
+    .number()
+    .min(0)
+    .max(1)
+    .nullable()
+    .describe(
+      'Konfidenz für den Pantry-Match (0–1). Nur setzen, wenn suggested_pantry_id gesetzt ist. >=0.7 für sichere Matches.',
+    ),
 });
 
 const recognizedMealSchema = z.object({
@@ -113,6 +132,13 @@ Wenn der User dir eine Liste seiner gespeicherten Vorlagen mitgibt (templates), 
 - Sind die Haupt-Komponenten gleich?
 Nur wenn ALLE drei Punkte zutreffen: gib suggested_template_id zurück und schreibe in suggested_template_reason kurz warum. Sonst null. Lieber konservativ — falsche Matches frustrieren den User mehr als ausbleibende.
 
+Pantry-Match (Zutaten-Bibliothek):
+Wenn der User dir eine Liste seiner gespeicherten Pantry-Items mitgibt (pantry — z.B. eingescannte Markenprodukte mit Label, Brand, kcal/100g), prüfe pro item[] separat, ob die Komponente klar einem Pantry-Eintrag entspricht:
+- Markenprodukt im Bild sichtbar? (Verpackung lesbar, Logo erkennbar)
+- Label-/Brand-Übereinstimmung deutlich? (nicht nur Produktkategorie wie „Müsli", sondern „Kölln Schoko-Müsli")
+- kcal-Range deiner Komponente plausibel zu kcal/100g × geschätzter Menge?
+Wenn ja: setze suggested_pantry_id auf die ID des passenden Pantry-Eintrags und match_confidence auf deine Konfidenz (0..1). Sonst beide null. NIE raten — Pantry-Matches lösen exakte Nährwerte aus, falsche Matches verfälschen die Bilanz schlimmer als unsichere Schätzungen.
+
 Refinement-Modus:
 Wenn previous_result + chat_message vorhanden, ist das eine Verfeinerung: nimm previous_result als Ausgangspunkt und passe basierend auf der chat_message an. Behalte items, die der Nutzer nicht anspricht, unverändert. Aktualisiere totals konsistent zu items. Template-Match nicht erneut prüfen — übernimm den Wert aus previous_result.
 
@@ -130,7 +156,9 @@ Antworte AUSSCHLIESSLICH mit einem einzigen JSON-Objekt, ohne Markdown-Fences, o
       "kcal": number|null,
       "protein_g": number|null,
       "carbs_g": number|null,
-      "fat_g": number|null
+      "fat_g": number|null,
+      "suggested_pantry_id": "string|null (UUID aus pantry[])",
+      "match_confidence": number|null (0..1, nur wenn suggested_pantry_id gesetzt)
     }
   ],
   "totals": {
@@ -171,6 +199,28 @@ const requestSchema = z.object({
   templates: z.array(templateRefSchema).max(100).optional(),
 });
 
+const PANTRY_CONTEXT_LIMIT = 30;
+
+interface PantryContextEntry {
+  id: string;
+  label: string;
+  brand: string | null;
+  kcal_per_100g: number | null;
+  protein_g_per_100g: number | null;
+  carbs_g_per_100g: number | null;
+  fat_g_per_100g: number | null;
+  sugar_g_per_100g: number | null;
+  fiber_g_per_100g: number | null;
+  saturated_fat_g_per_100g: number | null;
+  salt_g_per_100g: number | null;
+  serving_size_g: number | null;
+}
+
+// Was im Recognize-Response unter `pantry` rauskommt: nur die referenzierten
+// Items mit vollen Nährwerten, damit das Frontend die Übernahme exakt rechnen
+// kann. Top-Type, damit das Frontend ihn ohne Server-Import nutzen kann.
+export type RecognizedPantryEntry = PantryContextEntry;
+
 export async function POST(req: Request) {
   try {
     const supabase = await createClient();
@@ -204,6 +254,21 @@ export async function POST(req: Request) {
       );
     }
 
+    // Pantry-Items des Nutzers laden (Top-N aktive nach Last-Used).
+    // RLS filtert User automatisch.
+    let pantryContext: PantryContextEntry[] = [];
+    if (!previous_result) {
+      const pantryQuery = await supabase
+        .from('pantry_items')
+        .select(
+          'id, label, brand, kcal_per_100g, protein_g_per_100g, carbs_g_per_100g, fat_g_per_100g, sugar_g_per_100g, fiber_g_per_100g, saturated_fat_g_per_100g, salt_g_per_100g, serving_size_g',
+        )
+        .eq('is_archived', false)
+        .order('last_used_at', { ascending: false, nullsFirst: false })
+        .limit(PANTRY_CONTEXT_LIMIT);
+      pantryContext = (pantryQuery.data ?? []) as PantryContextEntry[];
+    }
+
     const userContent: UserContent = [];
 
     if (previous_result) {
@@ -217,6 +282,22 @@ export async function POST(req: Request) {
       userContent.push({
         type: 'text',
         text: `Gespeicherte Vorlagen des Nutzers (zum Matching):\n${JSON.stringify(templates, null, 2)}`,
+      });
+    }
+
+    if (pantryContext.length > 0) {
+      // Schlanker Pantry-View für den LLM-Prompt — Detail-Nährwerte braucht das
+      // Modell für den Match nicht, würde nur Tokens kosten.
+      const pantryForPrompt = pantryContext.map((p) => ({
+        id: p.id,
+        label: p.label,
+        brand: p.brand,
+        kcal_per_100g: p.kcal_per_100g,
+        serving_size_g: p.serving_size_g,
+      }));
+      userContent.push({
+        type: 'text',
+        text: `Pantry-Bibliothek des Nutzers (zum Matching pro item[]):\n${JSON.stringify(pantryForPrompt, null, 2)}`,
       });
     }
 
@@ -304,13 +385,45 @@ export async function POST(req: Request) {
       allowedIds.add(previous_result.suggested_template_id);
     const rawId = object.suggested_template_id;
     const idValid = rawId !== null && rawId.length > 0 && allowedIds.has(rawId);
+
+    // Pantry-IDs analog whitelisten. Bei Refinement vom Vorgänger übernehmen,
+    // damit der User-Confirmierte Pantry-Vorschlag nicht durch eine neue Runde
+    // gelöscht wird.
+    const allowedPantryIds = new Set<string>();
+    for (const p of pantryContext) allowedPantryIds.add(p.id);
+    if (previous_result) {
+      for (const it of previous_result.items) {
+        if (it.suggested_pantry_id) allowedPantryIds.add(it.suggested_pantry_id);
+      }
+    }
+    const validatedItems = object.items.map((it) => {
+      const rawPantry = it.suggested_pantry_id;
+      const pantryValid =
+        typeof rawPantry === 'string' && rawPantry.length > 0 && allowedPantryIds.has(rawPantry);
+      return {
+        ...it,
+        suggested_pantry_id: pantryValid ? rawPantry : null,
+        match_confidence: pantryValid ? it.match_confidence : null,
+      };
+    });
+
     const validated: RecognizedMeal = {
       ...object,
+      items: validatedItems,
       suggested_template_id: idValid ? rawId : null,
       suggested_template_reason: idValid ? object.suggested_template_reason : null,
     };
 
-    return new Response(JSON.stringify({ result: validated }), {
+    // Pantry-Daten, die im Result referenziert werden, mit zurückschicken —
+    // das Frontend braucht Label/Marke/Nährwerte/Portion für die
+    // Bestätigungs-Pille und das Übernehmen der exakten Werte.
+    const usedPantryIds = new Set<string>();
+    for (const it of validated.items) {
+      if (it.suggested_pantry_id) usedPantryIds.add(it.suggested_pantry_id);
+    }
+    const usedPantry: PantryContextEntry[] = pantryContext.filter((p) => usedPantryIds.has(p.id));
+
+    return new Response(JSON.stringify({ result: validated, pantry: usedPantry }), {
       status: 200,
       headers: { 'content-type': 'application/json' },
     });
