@@ -51,6 +51,57 @@ export interface NutritionData {
   recent: MealPoint[];
 }
 
+// Snapshot eines Trainings für die UI. Werte stammen aus der Workout-Projection,
+// inkl. ggf. angewendeter Korrektur-Events.
+export interface WorkoutExerciseView {
+  name: string;
+  sets: Array<{
+    reps?: number;
+    weight_kg?: number;
+    rpe?: number;
+    note?: string;
+  }>;
+  note?: string;
+}
+
+export interface WorkoutPoint {
+  event_id: string;
+  occurred_at: string; // ISO
+  label: string;
+  duration_min: number | null;
+  exercises: WorkoutExerciseView[] | null;
+  template_id: string | null;
+  source: string;
+  confidence: number | null;
+  corrected: boolean;
+}
+
+export interface WorkoutWeekTotalsView {
+  count: number;
+  totalSets: number;
+  totalDurationMin: number;
+}
+
+export interface TrainingData {
+  today: WorkoutPoint[];
+  thisWeek: WorkoutPoint[];
+  thisWeekTotals: WorkoutWeekTotalsView;
+  recent: WorkoutPoint[];
+}
+
+// Vorlage für eine Trainingseinheit. Hält nur die Struktur (welche Übungen,
+// wie viele Sätze pro Übung). Gewichte/Wdh. werden beim Loggen jedes Mal neu
+// eingetragen — eingefrorene Default-Werte würden mit Progressive Overload
+// veralten.
+export interface WorkoutTemplateView {
+  id: string;
+  label: string;
+  exercises: WorkoutExerciseView[];
+  default_duration_min: number | null;
+  usage_count: number;
+  last_used_at: string | null;
+}
+
 export interface MealTemplateView {
   id: string;
   label: string;

@@ -5,7 +5,13 @@ import dynamic from 'next/dynamic';
 import { useState } from 'react';
 import { Icon, type IconName } from './Icon';
 import { HomeScreen } from './screens/HomeScreen';
-import type { DashboardData, MealTemplateView, NutritionData } from './types';
+import type {
+  DashboardData,
+  MealTemplateView,
+  NutritionData,
+  TrainingData,
+  WorkoutTemplateView,
+} from './types';
 
 const BodyScreen = dynamic(() =>
   import('./screens/BodyScreen').then((m) => ({ default: m.BodyScreen })),
@@ -28,15 +34,30 @@ const MealTemplateSheet = dynamic(() =>
 const MealComposerSheet = dynamic(() =>
   import('./screens/MealComposerSheet').then((m) => ({ default: m.MealComposerSheet })),
 );
+const WorkoutLogSheet = dynamic(() =>
+  import('./screens/WorkoutLogSheet').then((m) => ({ default: m.WorkoutLogSheet })),
+);
+const WorkoutTemplateSheet = dynamic(() =>
+  import('./screens/WorkoutTemplateSheet').then((m) => ({ default: m.WorkoutTemplateSheet })),
+);
+const WorkoutTemplatePickerSheet = dynamic(() =>
+  import('./screens/WorkoutTemplatePickerSheet').then((m) => ({
+    default: m.WorkoutTemplatePickerSheet,
+  })),
+);
 
 type ScreenId = 'home' | 'body' | 'nutrition' | 'training' | 'insights';
 type TemplateEdit = { kind: 'new' } | { kind: 'edit'; template: MealTemplateView };
+type WorkoutTemplateEdit = { kind: 'new' } | { kind: 'edit'; template: WorkoutTemplateView };
+type WorkoutLogState = { mode: 'empty' } | { mode: 'fromTemplate'; template: WorkoutTemplateView };
 
 interface DashboardProps {
   data: DashboardData;
   nutrition: NutritionData;
   nutritionTargets: NutritionTargets;
   mealTemplates: MealTemplateView[];
+  training: TrainingData;
+  workoutTemplates: WorkoutTemplateView[];
   userName: string;
   initials: string;
 }
@@ -46,6 +67,8 @@ export function Dashboard({
   nutrition,
   nutritionTargets,
   mealTemplates,
+  training,
+  workoutTemplates,
   userName,
   initials,
 }: DashboardProps) {
@@ -53,6 +76,16 @@ export function Dashboard({
   const [insightId, setInsightId] = useState<string | null>(null);
   const [templateEdit, setTemplateEdit] = useState<TemplateEdit | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
+  const [workoutLog, setWorkoutLog] = useState<WorkoutLogState | null>(null);
+  const [workoutTemplateEdit, setWorkoutTemplateEdit] = useState<WorkoutTemplateEdit | null>(null);
+  const [workoutPickerOpen, setWorkoutPickerOpen] = useState(false);
+
+  // Plus-Knopf auf der Trainings-Seite: bei vorhandenen Vorlagen Picker, sonst
+  // direkt das leere Log-Sheet. Vermeidet einen unnötigen Klick im Empty-State.
+  const openWorkoutLog = () => {
+    if (workoutTemplates.length > 0) setWorkoutPickerOpen(true);
+    else setWorkoutLog({ mode: 'empty' });
+  };
 
   const navigate = (next: ScreenId) => setScreen(next);
 
@@ -82,7 +115,13 @@ export function Dashboard({
         />
       </ScreenWrapper>
       <ScreenWrapper active={screen === 'training'}>
-        <TrainingScreen />
+        <TrainingScreen
+          training={training}
+          workoutTemplates={workoutTemplates}
+          onOpenLog={openWorkoutLog}
+          onCreateTemplate={() => setWorkoutTemplateEdit({ kind: 'new' })}
+          onEditTemplate={(t) => setWorkoutTemplateEdit({ kind: 'edit', template: t })}
+        />
       </ScreenWrapper>
       <ScreenWrapper active={screen === 'insights'}>
         <InsightsScreen onOpenInsight={setInsightId} />
@@ -96,6 +135,32 @@ export function Dashboard({
       )}
       {composerOpen && (
         <MealComposerSheet templates={mealTemplates} onClose={() => setComposerOpen(false)} />
+      )}
+      {workoutPickerOpen && (
+        <WorkoutTemplatePickerSheet
+          templates={workoutTemplates}
+          onClose={() => setWorkoutPickerOpen(false)}
+          onPickTemplate={(tpl) => {
+            setWorkoutPickerOpen(false);
+            setWorkoutLog({ mode: 'fromTemplate', template: tpl });
+          }}
+          onPickEmpty={() => {
+            setWorkoutPickerOpen(false);
+            setWorkoutLog({ mode: 'empty' });
+          }}
+        />
+      )}
+      {workoutLog && (
+        <WorkoutLogSheet
+          fromTemplate={workoutLog.mode === 'fromTemplate' ? workoutLog.template : undefined}
+          onClose={() => setWorkoutLog(null)}
+        />
+      )}
+      {workoutTemplateEdit && (
+        <WorkoutTemplateSheet
+          mode={workoutTemplateEdit}
+          onClose={() => setWorkoutTemplateEdit(null)}
+        />
       )}
     </div>
   );

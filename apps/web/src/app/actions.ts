@@ -1,15 +1,20 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
-import type { MealType } from '@fitness/core';
+import { type MealType, type WorkoutExercise, workoutExerciseSchema } from '@fitness/core';
 import {
   createMealTemplate,
+  createWorkoutTemplate,
   deleteMealTemplate,
+  deleteWorkoutTemplate,
   getMealTemplate,
+  getWorkoutTemplate,
   recordMealTemplateUsage,
+  recordWorkoutTemplateUsage,
   updateMealTemplate,
+  updateWorkoutTemplate,
 } from '@fitness/db';
-import { correctEvent, logMeal, logWeight, retractEvent } from '@fitness/ingestion';
+import { correctEvent, logMeal, logWeight, logWorkout, retractEvent } from '@fitness/ingestion';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
@@ -154,6 +159,30 @@ function asTemplateNutrients(n: MealNutrients) {
 
 function parseBool(raw: FormDataEntryValue | null): boolean {
   return typeof raw === 'string' && raw === 'true';
+}
+
+// Übungsarray kommt aus dem Sheet als JSON-String. Validierung pro Element
+// via workoutExerciseSchema; null wenn das Feld fehlt oder leer ist.
+function parseOptionalExercisesJson(raw: FormDataEntryValue | null): WorkoutExercise[] | undefined {
+  if (typeof raw !== 'string' || raw.trim() === '') return undefined;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error('Ungueltiges exercises-JSON');
+  }
+  if (!Array.isArray(parsed)) throw new Error('exercises muss ein Array sein');
+  if (parsed.length === 0) return undefined;
+  if (parsed.length > 30) throw new Error('Zu viele Uebungen');
+  const out: WorkoutExercise[] = [];
+  for (const item of parsed) {
+    const result = workoutExerciseSchema.safeParse(item);
+    if (!result.success) {
+      throw new Error(`Ungueltige Uebung: ${result.error.message}`);
+    }
+    out.push(result.data);
+  }
+  return out;
 }
 
 export const logWeightAction = withAuth(async ({ supabase, userId }, formData) => {
@@ -345,4 +374,114 @@ export const correctMealAction = withAuth(async ({ supabase, userId }, formData)
     reason: 'manual correction',
     source: 'manual',
   });
+});
+
+// ─── Training ──────────────────────────────────────────────────────────────
+
+export const logWorkoutAction = withAuth(async ({ supabase, userId }, formData) => {
+  const label = parseLabel(formData.get('label'));
+  const duration_min = parseOptionalNonNegativeNumber(
+    formData.get('duration_min'),
+    'duration_min',
+    600,
+  );
+  const exercises = parseOptionalExercisesJson(formData.get('exercises'));
+  const occurred_at = parseOccurredAt(formData.get('occurred_at'));
+
+  await logWorkout(supabase, {
+    user_id: userId,
+    label,
+    duration_min,
+    exercises,
+    occurred_at,
+    source: 'manual',
+  });
+});
+
+export const retractWorkoutAction = withAuth(async ({ supabase, userId }, formData) => {
+  const retracts = formData.get('event_id');
+  if (typeof retracts !== 'string') throw new Error('event_id fehlt');
+  await retractEvent(supabase, {
+    user_id: userId,
+    retracts_event_id: retracts,
+    reason: 'manual retraction',
+    source: 'manual',
+  });
+});
+
+// ─── Workout-Templates ────────────────────────────────────────────────────
+
+export const createWorkoutTemplateAction = withAuth(async ({ supabase, userId }, formData) => {
+  const label = parseLabel(formData.get('label'));
+  const exercises = parseOptionalExercisesJson(formData.get('exercises'));
+  const default_duration_min = parseOptionalNonNegativeNumber(
+    formData.get('default_duration_min'),
+    'default_duration_min',
+    600,
+  );
+
+  await createWorkoutTemplate(supabase, {
+    user_id: userId,
+    label,
+    exercises,
+    default_duration_min,
+  });
+});
+
+export const updateWorkoutTemplateAction = withAuth(async ({ supabase, userId }, formData) => {
+  const id = formData.get('id');
+  if (typeof id !== 'string') throw new Error('id fehlt');
+
+  const label = parseLabel(formData.get('label'));
+  const exercises = parseOptionalExercisesJson(formData.get('exercises'));
+  const default_duration_min = parseOptionalNonNegativeNumber(
+    formData.get('default_duration_min'),
+    'default_duration_min',
+    600,
+  );
+
+  await updateWorkoutTemplate(supabase, userId, id, {
+    label,
+    exercises: exercises ?? [],
+    default_duration_min: default_duration_min ?? null,
+  });
+});
+
+export const deleteWorkoutTemplateAction = withAuth(async ({ supabase, userId }, formData) => {
+  const id = formData.get('id');
+  if (typeof id !== 'string') throw new Error('id fehlt');
+  await deleteWorkoutTemplate(supabase, userId, id);
+});
+
+// Loggt eine Trainingseinheit aus einer Vorlage. Der Caller (Log-Sheet) hat die
+// Übungen bereits mit aktuellen Gewichten/Wdh. überschrieben — die Vorlage hält
+// nur die Struktur. Das Template wird als template_id mitgegeben + usage_count
+// inkrementiert.
+export const logWorkoutFromTemplateAction = withAuth(async ({ supabase, userId }, formData) => {
+  const template_id = formData.get('template_id');
+  if (typeof template_id !== 'string') throw new Error('template_id fehlt');
+
+  const tpl = await getWorkoutTemplate(supabase, userId, template_id);
+  if (!tpl) throw new Error('Vorlage nicht gefunden');
+
+  const label = parseLabel(formData.get('label')); // Caller darf Label überschreiben (z.B. "Push-Day (heavy)")
+  const exercises = parseOptionalExercisesJson(formData.get('exercises'));
+  const duration_min = parseOptionalNonNegativeNumber(
+    formData.get('duration_min'),
+    'duration_min',
+    600,
+  );
+  const occurred_at = parseOccurredAt(formData.get('occurred_at'));
+
+  await logWorkout(supabase, {
+    user_id: userId,
+    label,
+    exercises,
+    duration_min,
+    template_id: tpl.id,
+    occurred_at,
+    source: 'manual',
+  });
+
+  await recordWorkoutTemplateUsage(supabase, userId, tpl.id, occurred_at);
 });

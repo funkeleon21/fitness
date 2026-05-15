@@ -1,14 +1,26 @@
 import { Dashboard } from '@/components/Dashboard';
-import type { DashboardData, MealPoint, MealTemplateView, NutritionData } from '@/components/types';
+import type {
+  DashboardData,
+  MealPoint,
+  MealTemplateView,
+  NutritionData,
+  TrainingData,
+  WorkoutPoint,
+  WorkoutTemplateView,
+} from '@/components/types';
 import { type NutritionTargets, mergeTargets } from '@/lib/nutrition';
 import { createClient } from '@/lib/supabase/server';
 import {
   type MealDataPoint,
   type MealTemplate,
+  type WorkoutDataPoint,
+  type WorkoutTemplate,
   getMealProjection,
   getNutritionTargets,
   getWeightProjection,
+  getWorkoutProjection,
   listMealTemplates,
+  listWorkoutTemplates,
 } from '@fitness/db';
 import { redirect } from 'next/navigation';
 
@@ -40,6 +52,31 @@ function mealToPoint(m: MealDataPoint): MealPoint {
   };
 }
 
+function workoutTemplateToView(t: WorkoutTemplate): WorkoutTemplateView {
+  return {
+    id: t.id,
+    label: t.label,
+    exercises: t.exercises,
+    default_duration_min: t.default_duration_min,
+    usage_count: t.usage_count,
+    last_used_at: t.last_used_at ? t.last_used_at.toISOString() : null,
+  };
+}
+
+function workoutToPoint(w: WorkoutDataPoint): WorkoutPoint {
+  return {
+    event_id: w.event_id,
+    occurred_at: w.occurred_at.toISOString(),
+    label: w.label,
+    duration_min: w.duration_min,
+    exercises: w.exercises,
+    template_id: w.template_id,
+    source: w.source,
+    confidence: w.confidence,
+    corrected: w.corrected,
+  };
+}
+
 function templateToView(t: MealTemplate): MealTemplateView {
   return {
     id: t.id,
@@ -65,10 +102,12 @@ export default async function HomePage() {
   } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  const [weight, meals, templates, persistedTargets] = await Promise.all([
+  const [weight, meals, workouts, templates, workoutTpls, persistedTargets] = await Promise.all([
     getWeightProjection(supabase, user.id),
     getMealProjection(supabase, user.id),
+    getWorkoutProjection(supabase, user.id),
     listMealTemplates(supabase, user.id),
+    listWorkoutTemplates(supabase, user.id),
     getNutritionTargets(supabase, user.id),
   ]);
   const targets: NutritionTargets = mergeTargets(persistedTargets);
@@ -101,6 +140,15 @@ export default async function HomePage() {
 
   const mealTemplates: MealTemplateView[] = templates.map(templateToView);
 
+  const training: TrainingData = {
+    today: workouts.today.map(workoutToPoint),
+    thisWeek: workouts.thisWeek.map(workoutToPoint),
+    thisWeekTotals: workouts.thisWeekTotals,
+    recent: workouts.recent.map(workoutToPoint),
+  };
+
+  const workoutTemplates: WorkoutTemplateView[] = workoutTpls.map(workoutTemplateToView);
+
   const { name, initials } = deriveNameAndInitials(user.email);
 
   return (
@@ -109,6 +157,8 @@ export default async function HomePage() {
       nutrition={nutrition}
       nutritionTargets={targets}
       mealTemplates={mealTemplates}
+      training={training}
+      workoutTemplates={workoutTemplates}
       userName={name}
       initials={initials}
     />
