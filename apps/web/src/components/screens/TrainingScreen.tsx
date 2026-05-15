@@ -29,15 +29,13 @@ export function TrainingScreen({
     <div className="screen-content scroll">
       <TrainingHeader onOpenLog={onOpenLog} />
 
-      {hasAny && (
-        <div className="pad-x" style={{ marginTop: 18 }}>
-          <WeekCard
-            allWorkouts={training.allWorkouts}
-            weekOffset={weekOffset}
-            onChange={setWeekOffset}
-          />
-        </div>
-      )}
+      <div className="pad-x" style={{ marginTop: 18 }}>
+        <WeekCard
+          allWorkouts={training.allWorkouts}
+          weekOffset={weekOffset}
+          onChange={setWeekOffset}
+        />
+      </div>
 
       {hasAny && (
         <>
