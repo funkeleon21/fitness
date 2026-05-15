@@ -25,7 +25,7 @@ packages/interpretation  KI-Analysen, Chat-Tools, Context-Provider
 
 ## Stack
 
-pnpm workspaces, TypeScript Project References, Biome, Vitest. Next.js auf Vercel, PWA-Service-Worker via Serwist. Postgres + Auth + Storage via Supabase. Drizzle ORM. Strict TS (`noUncheckedIndexedAccess`, `verbatimModuleSyntax`).
+pnpm workspaces, TypeScript Project References, Biome, Vitest. Next.js auf Vercel, PWA-Service-Worker via Serwist. Postgres + Auth + Storage via Supabase. Drizzle ORM. Sentry für Error-Tracking (`apps/web`, aktiv sobald `NEXT_PUBLIC_SENTRY_DSN` gesetzt). Strict TS (`noUncheckedIndexedAccess`, `verbatimModuleSyntax`).
 
 ## Disziplinen (verletzen = Bug)
 
