@@ -12,6 +12,7 @@ import {
   type EventCorrectedEvent,
   type EventRetractedEvent,
 } from './system/correction';
+import { WORKOUT_LOGGED, type WorkoutExercise, type WorkoutLoggedEvent } from './training/workout';
 
 export interface NewWeightLoggedInput {
   user_id: string;
@@ -89,6 +90,42 @@ export function createMealLogged(input: NewMealLoggedInput): MealLoggedEvent {
       ...(input.items !== undefined ? { items: input.items } : {}),
       ...(input.template_id !== undefined ? { template_id: input.template_id } : {}),
       ...(input.meal_type !== undefined ? { meal_type: input.meal_type } : {}),
+    },
+  };
+}
+
+export interface NewWorkoutLoggedInput {
+  user_id: string;
+  label: string;
+  occurred_at: Date;
+  duration_min?: number;
+  exercises?: WorkoutExercise[];
+  template_id?: string;
+  source: EventSource;
+  external_id?: string | null;
+  raw_input?: string | null;
+  confidence?: number | null;
+  provenance?: EventProvenance | null;
+}
+
+export function createWorkoutLogged(input: NewWorkoutLoggedInput): WorkoutLoggedEvent {
+  return {
+    id: crypto.randomUUID(),
+    user_id: input.user_id,
+    type: WORKOUT_LOGGED,
+    version: 1,
+    occurred_at: input.occurred_at,
+    recorded_at: new Date(),
+    source: input.source,
+    external_id: input.external_id ?? null,
+    confidence: input.confidence ?? null,
+    raw_input: input.raw_input ?? null,
+    provenance: input.provenance ?? null,
+    payload: {
+      label: input.label,
+      ...(input.duration_min !== undefined ? { duration_min: input.duration_min } : {}),
+      ...(input.exercises !== undefined ? { exercises: input.exercises } : {}),
+      ...(input.template_id !== undefined ? { template_id: input.template_id } : {}),
     },
   };
 }
