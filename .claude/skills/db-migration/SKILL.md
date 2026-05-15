@@ -35,7 +35,13 @@ Vergleiche mit `ls packages/db/migrations/*.sql`. Wenn frühere Migrationen loka
 ### 3. Migration anwenden
 
 - MCP: `apply_migration` auf `project_id` `cjwgisdobzztljizrnfn`.
-  - `name`: Dateiname ohne `.sql` (z.B. `0004_goofy_wong`).
+  - **`name`: exakt der Drizzle-Dateiname ohne `.sql`-Suffix.** Den Drizzle-generierten Slug (z.B. `0007_fat_dormammu`) **niemals** durch einen eigenen sprechenden Namen ersetzen (`0007_workout_templates` o.ä.) — der CI-Drift-Check vergleicht `supabase_migrations.schema_migrations.name` **exakt** mit dem Dateinamen. Jede Abweichung = roter Drift-Check = PR-Merge blockiert.
+
+    Zur Sicherheit den Namen nicht abtippen, sondern aus der Datei ableiten:
+    ```bash
+    ls packages/db/migrations/*.sql | sort | tail -1 | xargs basename | sed 's/\.sql$//'
+    ```
+    Output ist exakt der `name`-Parameter.
   - `query`: Inhalt der Datei. Die `--> statement-breakpoint`-Kommentare sind nur für `drizzle-kit migrate` — beim direkten Apply via MCP optional, schaden aber nicht.
 
 ### 4. Verifizieren
@@ -55,4 +61,5 @@ Erst nach erfolgreichem `apply_migration` und grünem `pnpm typecheck` committen
 - **CHECK-Constraint auf bestehende Daten ohne Vorab-Check** — der `ALTER TABLE ... ADD CONSTRAINT` failt, sobald eine einzige Zeile die Bedingung verletzt. Vorher mit `execute_sql` zählen.
 - **Mehrere Migrationen in falscher Reihenfolge anwenden** — Drizzle-Tracking zeigt sie dann in Apply-Reihenfolge statt Dateiname-Reihenfolge. Schema ist trotzdem korrekt, aber `drizzle-kit migrate` gegen eine frische DB sortiert nach Dateiname — Inkonsistenz vermeidbar.
 - **Migration committen ohne anzuwenden** — der CI-Drift-Check fängt das, aber besser direkt richtig machen.
+- **Eigenen sprechenden Migration-Namen statt Drizzle-Dateinamen** — z.B. `apply_migration({ name: "0007_workout_templates", … })` während die Datei `0007_fat_dormammu.sql` heißt. Tabelle wird zwar korrekt angelegt, aber der Drift-Check vergleicht Datei ↔ DB-Eintrag und schlägt fehl, PR ist blockiert. Fix nachträglich: `UPDATE supabase_migrations.schema_migrations SET name = '<drizzle-slug>' WHERE name = '<dein-erfundener-name>'`. Besser: gar nicht erst erfinden, den Bash-One-Liner aus Schritt 3 benutzen.
 - **Roll-Forward-Migrationen verwenden, um eine fehlerhafte Migration zu „reparieren"** — wenn die fehlerhafte Migration noch nicht in Prod ist: lokal löschen + Schema fixen + neu generieren. Wenn sie schon in Prod ist: neue korrigierende Migration drauf. Niemals die alte Datei nachträglich editieren — Drizzle bemerkt das nicht und Prod bleibt im falschen Zustand.
