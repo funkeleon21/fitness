@@ -14,6 +14,7 @@ import { Icon, type IconName } from '../Icon';
 import type { MealPoint, MealTemplateView, NutritionData } from '../types';
 import { MacroDetailSheet } from './MacroDetailSheet';
 import { NutritionCoachSheet } from './NutritionCoachSheet';
+import { PantrySheet } from './PantrySheet';
 import { SlotDetailSheet } from './SlotDetailSheet';
 import { TemplatePickerSheet } from './TemplatePickerSheet';
 
@@ -40,6 +41,7 @@ export function NutritionScreen({
   const [pickerSlot, setPickerSlot] = useState<MealSlotId | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [coachOpen, setCoachOpen] = useState(false);
+  const [pantryOpen, setPantryOpen] = useState(false);
   const [slotDetail, setSlotDetail] = useState<MealSlotId | null>(null);
 
   const mealsBySlot = useMemo(() => {
@@ -58,7 +60,7 @@ export function NutritionScreen({
 
   return (
     <div className="screen-content scroll">
-      <Header onOpenCoach={() => setCoachOpen(true)} />
+      <Header onOpenCoach={() => setCoachOpen(true)} onOpenPantry={() => setPantryOpen(true)} />
 
       <div className="pad-x" style={{ marginTop: 14 }}>
         <MacroSummaryCard
@@ -93,6 +95,7 @@ export function NutritionScreen({
         />
       )}
       {coachOpen && <NutritionCoachSheet userName={userName} onClose={() => setCoachOpen(false)} />}
+      {pantryOpen && <PantrySheet onClose={() => setPantryOpen(false)} />}
 
       {pickerSlot && (
         <TemplatePickerSheet
@@ -125,7 +128,13 @@ export function NutritionScreen({
  * Header
  * ──────────────────────────────────────────────────────────── */
 
-function Header({ onOpenCoach }: { onOpenCoach: () => void }) {
+function Header({
+  onOpenCoach,
+  onOpenPantry,
+}: {
+  onOpenCoach: () => void;
+  onOpenPantry: () => void;
+}) {
   return (
     <div
       style={{
@@ -171,7 +180,9 @@ function Header({ onOpenCoach }: { onOpenCoach: () => void }) {
         </button>
         <button
           type="button"
-          aria-label="Menü"
+          onClick={onOpenPantry}
+          aria-label="Vorrat öffnen"
+          title="Vorrat"
           className="pressable"
           style={{
             width: 38,
@@ -183,12 +194,10 @@ function Header({ onOpenCoach }: { onOpenCoach: () => void }) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: 18,
-            letterSpacing: '0.1em',
             cursor: 'pointer',
           }}
         >
-          ···
+          <Icon name="leaf" size={16} />
         </button>
       </div>
     </div>
