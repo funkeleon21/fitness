@@ -314,3 +314,35 @@ export const retractMealAction = withAuth(async ({ supabase, userId }, formData)
     source: 'manual',
   });
 });
+
+// Editiert eine geloggte Mahlzeit per Korrektur-Event (ADR-0004). Schreibt
+// die im Form übergebenen Felder ins new_payload — die Projection in
+// packages/db/src/projections/meal.ts wendet sie als Override an. Detail-
+// Nährwerte (sugar/fiber/...) und occurred_at sind hier nicht editierbar:
+// die ersten wären UI-Bloat im Edit-Sheet, die zweite ist bewusst nicht über
+// Korrektur änderbar (Order der Projection hängt am Original-Event).
+export const correctMealAction = withAuth(async ({ supabase, userId }, formData) => {
+  const corrects = formData.get('event_id');
+  if (typeof corrects !== 'string') throw new Error('event_id fehlt');
+
+  const label = parseLabel(formData.get('label'));
+  const kcal = parseNonNegativeNumber(formData.get('kcal'), 'kcal', 20000);
+  const protein_g = parseOptionalNonNegativeNumber(formData.get('protein_g'), 'protein_g', 2000);
+  const carbs_g = parseOptionalNonNegativeNumber(formData.get('carbs_g'), 'carbs_g', 2000);
+  const fat_g = parseOptionalNonNegativeNumber(formData.get('fat_g'), 'fat_g', 2000);
+  const meal_type = parseOptionalMealType(formData.get('meal_type'));
+
+  const new_payload: Record<string, unknown> = { label, kcal };
+  if (protein_g !== undefined) new_payload.protein_g = protein_g;
+  if (carbs_g !== undefined) new_payload.carbs_g = carbs_g;
+  if (fat_g !== undefined) new_payload.fat_g = fat_g;
+  if (meal_type !== undefined) new_payload.meal_type = meal_type;
+
+  await correctEvent(supabase, {
+    user_id: userId,
+    corrects_event_id: corrects,
+    new_payload,
+    reason: 'manual correction',
+    source: 'manual',
+  });
+});
