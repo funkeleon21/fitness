@@ -99,6 +99,10 @@ export function useSheetDismissDrag({
       if (!visualActive) {
         visualActive = true;
         sheet.style.willChange = 'transform';
+        // touch-action: none verhindert, dass iOS-Safari parallel zum Drag noch
+        // einen nativen Scroll/Bounce versucht zu starten — sonst stockt das
+        // Tracking, weil der Browser unsere Geste gleichzeitig auswerten will.
+        sheet.style.touchAction = 'none';
         const backdrop = backdropElRef.current;
         if (backdrop) backdrop.style.willChange = 'opacity';
       }
@@ -121,6 +125,7 @@ export function useSheetDismissDrag({
         if (sheet) {
           sheet.style.transition = '';
           sheet.style.willChange = '';
+          sheet.style.touchAction = '';
         }
         if (backdrop) {
           backdrop.style.transition = '';
@@ -165,6 +170,13 @@ export function useSheetDismissDrag({
         prevTime: performance.now(),
       };
       sheet.style.transition = '';
+      // slideUp-Keyframe-Animation (CSS, läuft 280ms beim Mount) hat höhere
+      // Priorität als inline-Styles, solange sie aktiv ist. Wenn der User
+      // direkt nach dem Öffnen anfängt zu draggen, würde unser transform
+      // sonst verworfen — bzw. das spätere translateY(100%) springt statt
+      // zu sliden. Sobald die Geste startet, können wir die Mount-Animation
+      // abschalten: das Sheet ist sichtbar, sie hat ihre Arbeit getan.
+      sheet.style.animation = 'none';
       const backdrop = backdropElRef.current;
       if (backdrop) backdrop.style.transition = '';
     };
@@ -232,6 +244,9 @@ export function useSheetDismissDrag({
         prevTime: performance.now(),
       };
       sheet.style.transition = '';
+      // Siehe Kommentar im Touch-Path: slideUp-Mount-Animation muss aus, sonst
+      // gewinnt sie gegen den direkt gesetzten transform beim Schließen.
+      sheet.style.animation = 'none';
       const backdrop = backdropElRef.current;
       if (backdrop) backdrop.style.transition = '';
     };
@@ -268,6 +283,14 @@ export function useSheetDismissDrag({
         if (sheet.scrollTop > 0) return;
         if (deltaY <= 0) return;
         drag.active = true;
+        // Auch im Body-Drag Pointer capturen, sonst verliert die Maus das
+        // Element, sobald sie über die Sheet-Grenze bewegt wird → Tracking
+        // reißt mitten in der Bewegung ab.
+        try {
+          (e.currentTarget as Element | null)?.setPointerCapture?.(e.pointerId);
+        } catch {
+          /* ignorieren — manche Browser/Devices unterstützen das nicht. */
+        }
       }
       updateVisual(Math.max(0, deltaY));
     };
