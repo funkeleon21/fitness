@@ -87,6 +87,10 @@ export interface TrainingData {
   thisWeek: WorkoutPoint[];
   thisWeekTotals: WorkoutWeekTotalsView;
   recent: WorkoutPoint[];
+  // Alle nicht-retracted Workouts, neuste zuerst. Wird im Training-Tab für die
+  // Wochen-Navigation gebraucht; Aggregate pro Kalenderwoche werden clientseitig
+  // daraus berechnet.
+  allWorkouts: WorkoutPoint[];
 }
 
 // Vorlage für eine Trainingseinheit. Hält nur die Struktur (welche Übungen,

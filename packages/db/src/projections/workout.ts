@@ -39,6 +39,11 @@ export interface WorkoutProjection {
   thisWeek: WorkoutDataPoint[];
   thisWeekTotals: WorkoutWeekTotals;
   recent: WorkoutDataPoint[];
+  // Alle nicht-retracted Workouts des Users, neuste zuerst. Wird vom Training-Tab
+  // für die Wochen-Navigation gebraucht: dort werden Mo–So-Aggregate clientseitig
+  // aus dieser Liste berechnet, abhängig von der gewählten Woche. `recent` bleibt
+  // davon unberührt (gecapped auf 20, weiter Quelle für Chat-Tools).
+  allWorkouts: WorkoutDataPoint[];
 }
 
 export interface WorkoutProjectionEventRow {
@@ -242,9 +247,10 @@ export function projectWorkoutEvents(
     { count: 0, totalSets: 0, totalDurationMin: 0 },
   );
 
-  const recent = all.slice(-20).reverse();
+  const newestFirst = [...all].reverse();
+  const recent = newestFirst.slice(0, 20);
 
-  return { today, thisWeek, thisWeekTotals, recent };
+  return { today, thisWeek, thisWeekTotals, recent, allWorkouts: newestFirst };
 }
 
 export async function getWorkoutProjection(

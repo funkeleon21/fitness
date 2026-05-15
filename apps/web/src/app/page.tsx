@@ -145,6 +145,7 @@ export default async function HomePage() {
     thisWeek: workouts.thisWeek.map(workoutToPoint),
     thisWeekTotals: workouts.thisWeekTotals,
     recent: workouts.recent.map(workoutToPoint),
+    allWorkouts: workouts.allWorkouts.map(workoutToPoint),
   };
 
   const workoutTemplates: WorkoutTemplateView[] = workoutTpls.map(workoutTemplateToView);
