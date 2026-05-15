@@ -425,12 +425,22 @@ function SlotRow({
       >
         <SlotIcon slot={slot} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--ink)' }}>{slot.label}</div>
           <div
             style={{
-              fontSize: 12,
+              fontFamily: 'var(--serif)',
+              fontSize: 17,
+              lineHeight: 1.1,
+              color: 'var(--ink)',
+              letterSpacing: '-0.01em',
+            }}
+          >
+            {slot.label}
+          </div>
+          <div
+            style={{
+              marginTop: 4,
+              fontSize: 13,
               color: 'var(--ink-3)',
-              marginTop: 2,
             }}
           >
             Noch nichts hinzugefügt
@@ -498,7 +508,7 @@ function SlotRow({
         <div
           style={{
             fontFamily: 'var(--serif)',
-            fontSize: 22,
+            fontSize: 17,
             lineHeight: 1.1,
             color: 'var(--ink)',
             letterSpacing: '-0.01em',
