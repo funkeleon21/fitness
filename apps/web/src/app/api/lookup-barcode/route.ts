@@ -9,6 +9,12 @@ export const runtime = 'nodejs';
 
 export type BarcodeLookupSource = 'pantry' | 'off' | 'off-alias';
 
+export interface PantrySimilarItem {
+  id: string;
+  label: string;
+  brand: string | null;
+}
+
 export interface BarcodeLookupResult {
   found: boolean;
   source: BarcodeLookupSource | null;
@@ -28,6 +34,10 @@ export interface BarcodeLookupResult {
     saturated_fat_g: number | null;
     salt_g: number | null;
   };
+  // Nur bei source='off' (neues Item angelegt) gefüllt: andere aktive Pantry-Items
+  // mit ähnlichem Label, die der Nutzer zum Mergen vorgeschlagen bekommt.
+  // Auto-Merge ist explizit nicht erlaubt — der Nutzer bestätigt im UI.
+  similar_pantry_items: PantrySimilarItem[];
 }
 
 const querySchema = z.object({
@@ -107,6 +117,7 @@ function pantryRowToResult(
   row: PantryItemRow,
   source: BarcodeLookupSource,
   barcode: string,
+  similar: PantrySimilarItem[] = [],
 ): BarcodeLookupResult {
   return {
     found: true,
@@ -127,7 +138,31 @@ function pantryRowToResult(
       saturated_fat_g: row.saturated_fat_g_per_100g,
       salt_g: row.salt_g_per_100g,
     },
+    similar_pantry_items: similar,
   };
+}
+
+// Fuzzy-Ähnlichkeit über Token-Overlap. Bewusst simpel — Token-Jaccard reicht
+// für „Müsli Schoko" vs. „Schoko-Müsli" als Auslöser. Eine Levenshtein-Lösung
+// wäre besser für Typos, aber der Confirm-Dialog ist ohnehin nur Vorschlag.
+function tokenize(s: string): Set<string> {
+  return new Set(
+    s
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, ' ')
+      .split(' ')
+      .filter((t) => t.length >= 3),
+  );
+}
+
+function tokensOverlap(a: string, b: string): boolean {
+  const A = tokenize(a);
+  const B = tokenize(b);
+  if (A.size === 0 || B.size === 0) return false;
+  let common = 0;
+  for (const t of A) if (B.has(t)) common++;
+  // Mindestens ein nicht-trivialer Treffer, der nicht nur Stoppwörter sind.
+  return common >= 1;
 }
 
 // OFF-Call mit Timeout + 1 Retry bei 5xx. Wirft bei Netzwerkfehler/Timeout/Server-Error.
@@ -247,6 +282,7 @@ export async function GET(req: Request) {
           saturated_fat_g: null,
           salt_g: null,
         },
+        similar_pantry_items: [],
       };
       return jsonResponse({ result: empty });
     }
@@ -288,6 +324,7 @@ export async function GET(req: Request) {
           saturated_fat_g: nutrients.saturated_fat_g_per_100g,
           salt_g: nutrients.salt_g_per_100g,
         },
+        similar_pantry_items: [],
       };
       return jsonResponse({ result: empty });
     }
@@ -369,7 +406,25 @@ export async function GET(req: Request) {
       return jsonResponse({ error: insertAlias.error.message }, 500);
     }
 
-    return jsonResponse({ result: pantryRowToResult(newItem, 'off', code) });
+    // Ähnliche aktive Pantry-Items für Merge-Vorschlag suchen (Confirm-Dialog im UI).
+    // Wir laden alle aktiven Items des Users (mit Ausnahme des neuen) und filtern
+    // clientseitig per Token-Overlap. Bei einer kleinen Pantry pro Nutzer kostet
+    // das nichts; bei größeren Mengen wäre ein pg_trgm-Index die saubere Lösung.
+    const candidatesForMerge = await supabase
+      .from('pantry_items')
+      .select('id, label, brand')
+      .eq('is_archived', false)
+      .neq('id', newItem.id);
+    const similar: PantrySimilarItem[] = (candidatesForMerge.data ?? [])
+      .filter((c) => tokensOverlap(c.label, label))
+      .slice(0, 5)
+      .map((c) => ({
+        id: c.id as string,
+        label: c.label as string,
+        brand: c.brand as string | null,
+      }));
+
+    return jsonResponse({ result: pantryRowToResult(newItem, 'off', code, similar) });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
     return jsonResponse({ error: message }, 500);

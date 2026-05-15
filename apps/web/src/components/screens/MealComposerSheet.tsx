@@ -1,7 +1,7 @@
 'use client';
 
 import { logMealFromTemplateAction, saveComposedMealAction } from '@/app/actions';
-import type { BarcodeLookupResult } from '@/app/api/lookup-barcode/route';
+import type { BarcodeLookupResult, PantrySimilarItem } from '@/app/api/lookup-barcode/route';
 import type { RecognizedMeal } from '@/app/api/recognize-meal/route';
 import { MEAL_SLOTS, type MealSlotId, mealSlotFromIso } from '@/lib/nutrition';
 import dynamic from 'next/dynamic';
@@ -46,6 +46,13 @@ export function MealComposerSheet({ templates, onClose }: MealComposerSheetProps
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanLookup, setScanLookup] = useState<BarcodeLookupResult | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
+  // Wenn der Lookup nach einem neuen OFF-Treffer ähnliche Pantry-Items findet,
+  // zeigt das UI vor dem PortionDialog noch eine Rückfrage „Ist das dasselbe
+  // wie …?" — bei „Ja" wird gemergt, bei „Nein" geht's normal weiter.
+  const [scanMergeContext, setScanMergeContext] = useState<{
+    lookup: BarcodeLookupResult;
+    candidates: PantrySimilarItem[];
+  } | null>(null);
   // Slot vorausgewählt per Uhrzeit, User kann ändern. Wird beim Save als
   // meal_type ans Event geschrieben — Vorrang vor occurred_at-Heuristik.
   const [slot, setSlot] = useState<MealSlotId>(mealSlotFromIso(new Date().toISOString()));
@@ -135,10 +142,53 @@ export function MealComposerSheet({ templates, onClose }: MealComposerSheetProps
         setScanError(`Barcode ${barcode} ist nicht in Open Food Facts hinterlegt.`);
         return;
       }
+      // Neuer OFF-Eintrag + ähnliche Items vorhanden → Merge-Rückfrage zuerst.
+      if (lookup.source === 'off' && lookup.similar_pantry_items.length > 0) {
+        setScanMergeContext({ lookup, candidates: lookup.similar_pantry_items });
+        return;
+      }
       setScanLookup(lookup);
     } catch (e) {
       setScanError(e instanceof Error ? e.message : 'Lookup fehlgeschlagen.');
     }
+  }
+
+  async function confirmMergeWithCandidate(target: PantrySimilarItem) {
+    const ctx = scanMergeContext;
+    if (!ctx || !ctx.lookup.pantry_item_id) return;
+    try {
+      const res = await fetch('/api/pantry/merge', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ source_id: ctx.lookup.pantry_item_id, target_id: target.id }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? 'Merge fehlgeschlagen');
+      // Nach dem Merge zeigen wir den Ziel-Eintrag — wir haben dessen Nährwerte
+      // hier nicht im Detail, also fragen wir den Lookup ein zweites Mal nach
+      // dem Barcode; das trifft jetzt den Pantry-Cache.
+      const refetch = await fetch(
+        `/api/lookup-barcode?code=${encodeURIComponent(ctx.lookup.barcode)}`,
+      );
+      const refetchBody = await refetch.json();
+      if (refetch.ok && refetchBody?.result) {
+        setScanLookup(refetchBody.result as BarcodeLookupResult);
+      } else {
+        // Fallback: das ursprüngliche Lookup-Ergebnis weiterverwenden.
+        setScanLookup(ctx.lookup);
+      }
+    } catch (e) {
+      setScanError(e instanceof Error ? e.message : 'Merge fehlgeschlagen.');
+    } finally {
+      setScanMergeContext(null);
+    }
+  }
+
+  function declineMerge() {
+    if (scanMergeContext) {
+      setScanLookup(scanMergeContext.lookup);
+    }
+    setScanMergeContext(null);
   }
 
   function commitScannedItem(lookup: BarcodeLookupResult, portionG: number) {
@@ -244,6 +294,15 @@ export function MealComposerSheet({ templates, onClose }: MealComposerSheetProps
           onClose={() => setScannerOpen(false)}
         />
       )}
+      {scanMergeContext && (
+        <ScanMergeDialog
+          newLabel={scanMergeContext.lookup.label ?? scanMergeContext.lookup.barcode}
+          newBrand={scanMergeContext.lookup.brand}
+          candidates={scanMergeContext.candidates}
+          onConfirm={confirmMergeWithCandidate}
+          onDecline={declineMerge}
+        />
+      )}
       {scanLookup && (
         <PortionDialog
           lookup={scanLookup}
@@ -252,6 +311,66 @@ export function MealComposerSheet({ templates, onClose }: MealComposerSheetProps
         />
       )}
     </>
+  );
+}
+
+function ScanMergeDialog({
+  newLabel,
+  newBrand,
+  candidates,
+  onConfirm,
+  onDecline,
+}: {
+  newLabel: string;
+  newBrand: string | null;
+  candidates: PantrySimilarItem[];
+  onConfirm: (target: PantrySimilarItem) => void;
+  onDecline: () => void;
+}) {
+  return (
+    <Sheet onClose={onDecline} backdropStyle={{ zIndex: 100 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div className="h-card" style={{ fontSize: 18 }}>
+          Ist das dasselbe Produkt?
+        </div>
+        <div style={{ fontSize: 13, color: 'var(--ink-3)' }}>
+          Du hast gerade <b>{newLabel}</b>
+          {newBrand ? ` (${newBrand})` : ''} gescannt. Diese aktiven Einträge in deinem Vorrat
+          klingen ähnlich:
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {candidates.map((cand) => (
+            <button
+              key={cand.id}
+              type="button"
+              onClick={() => onConfirm(cand)}
+              className="card pressable"
+              style={{
+                width: '100%',
+                textAlign: 'left',
+                padding: '12px 14px',
+                background: 'var(--surface)',
+                border: '0.5px solid var(--hairline)',
+                cursor: 'pointer',
+              }}
+            >
+              <div style={{ fontSize: 14, fontWeight: 500 }}>{cand.label}</div>
+              {cand.brand && (
+                <div style={{ fontSize: 11, color: 'var(--ink-3)' }}>{cand.brand}</div>
+              )}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={onDecline}
+          className="filter-pill"
+          style={{ alignSelf: 'flex-start', padding: '10px 16px' }}
+        >
+          Nein, neuer Eintrag
+        </button>
+      </div>
+    </Sheet>
   );
 }
 
