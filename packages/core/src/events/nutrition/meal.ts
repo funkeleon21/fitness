@@ -20,6 +20,10 @@ export const mealItemSchema = z.object({
   fiber_g: z.number().min(0).max(1000).optional(),
   saturated_fat_g: z.number().min(0).max(1000).optional(),
   salt_g: z.number().min(0).max(100).optional(),
+  // Pantry-Bezug. Wenn der Nutzer für diese Komponente einen Pantry-Eintrag
+  // bestätigt hat, stehen seine Nährwerte (skaliert auf amount_g) genau hier.
+  // Replay/Projektionen können darüber den Eintrag rekonstruieren.
+  pantry_item_id: z.string().uuid().optional(),
 });
 export type MealItem = z.infer<typeof mealItemSchema>;
 
@@ -38,6 +42,10 @@ export const mealLoggedPayloadSchema = z.object({
   // ID einer meal_templates-Zeile, falls die Mahlzeit aus einer Vorlage entstanden ist.
   // Werte (kcal, Makros) sind trotzdem als Snapshot im Payload — Templates können sich ändern.
   template_id: z.string().uuid().optional(),
+  // ID einer pantry_items-Zeile, falls die Mahlzeit (oder ihr dominantes Element)
+  // einem Pantry-Eintrag entspricht. Werte sind als Snapshot im Payload, da
+  // pantry_items.nutrients über Editieren oder Merges nachträglich verschieben kann.
+  pantry_item_id: z.string().uuid().optional(),
   // Explizit gesetzter Slot. UI/Projection priorisiert das gegenüber occurred_at-Heuristik.
   meal_type: mealTypeSchema.optional(),
 });

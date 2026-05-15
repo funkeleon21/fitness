@@ -55,6 +55,7 @@ export interface NewMealLoggedInput {
   salt_g?: number;
   items?: MealItem[];
   template_id?: string;
+  pantry_item_id?: string;
   meal_type?: MealType;
   occurred_at: Date;
   source: EventSource;
@@ -89,6 +90,7 @@ export function createMealLogged(input: NewMealLoggedInput): MealLoggedEvent {
       ...(input.salt_g !== undefined ? { salt_g: input.salt_g } : {}),
       ...(input.items !== undefined ? { items: input.items } : {}),
       ...(input.template_id !== undefined ? { template_id: input.template_id } : {}),
+      ...(input.pantry_item_id !== undefined ? { pantry_item_id: input.pantry_item_id } : {}),
       ...(input.meal_type !== undefined ? { meal_type: input.meal_type } : {}),
     },
   };
