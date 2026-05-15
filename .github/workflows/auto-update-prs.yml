@@ -1,0 +1,38 @@
+name: Auto-Update-PRs
+
+# Nach jedem Push auf main: alle offenen PRs gegen main rebasen.
+# Verhindert das `branch is out of date`-Problem bei mehreren parallelen
+# PRs unter `required_status_checks.strict = true`. Im Zusammenspiel mit
+# Auto-Merge (.github/workflows/auto-merge.yml) entsteht eine Treppe:
+# PR1 mergt → updatet PR2 → CI grün → PR2 mergt → updatet PR3 → …
+#
+# Bei Merge-Konflikten failt `gh pr update-branch` für den betroffenen PR;
+# `|| true` sorgt dafür, dass andere PRs trotzdem weiterlaufen.
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: gh pr update-branch für jeden offenen PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -u
+          numbers=$(gh pr list --repo "$REPO" --state open --base main --json number --jq '.[].number')
+          if [ -z "$numbers" ]; then
+            echo "Keine offenen PRs."
+            exit 0
+          fi
+          for n in $numbers; do
+            echo "::group::PR #$n"
+            gh pr update-branch "$n" --repo "$REPO" || echo "PR #$n nicht updatable (Konflikt?)"
+            echo "::endgroup::"
+          done

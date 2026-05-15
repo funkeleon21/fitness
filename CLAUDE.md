@@ -70,7 +70,7 @@ pnpm build
 1. Nie direkt auf `main` pushen (branch-protected, required check `lint · typecheck · test · build`).
 2. Jede Änderung als PR auf Feature-Branch (`feat/*`, `fix/*`, `chore/*`, `docs/*`).
 3. Auto-Merge wird durch [.github/workflows/auto-merge.yml](.github/workflows/auto-merge.yml) automatisch aktiviert, sobald ein PR geöffnet, wiedereröffnet oder aus Draft genommen wird. GitHub mergt squash, sobald CI grün und Branch up-to-date, danach Branch-Delete. Manuell falls nötig: `gh pr merge <n> --auto --squash`.
-4. Wenn Branch hinter main: `gh pr update-branch <n>` (strict-Modus).
+4. Branches werden bei jedem main-Push automatisch up-to-date gehalten — siehe [.github/workflows/auto-update-prs.yml](.github/workflows/auto-update-prs.yml). Bei Merge-Konflikt failt das Update für den betroffenen PR, dann manuell rebasen.
 5. Vercel deployt auto: PR-Branches als Preview, `main` als Production (`fitness-web-self-three.vercel.app`).
 
 ## Aktueller Stand
