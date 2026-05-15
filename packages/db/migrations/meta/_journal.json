@@ -50,6 +50,13 @@
       "when": 1778761739982,
       "tag": "0006_secret_frightful_four",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1778853917923,
+      "tag": "0007_fat_dormammu",
+      "breakpoints": true
     }
   ]
 }

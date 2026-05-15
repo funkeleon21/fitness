@@ -1,6 +1,10 @@
 'use client';
 
-import { logWorkoutAction, logWorkoutFromTemplateAction } from '@/app/actions';
+import {
+  createWorkoutTemplateAction,
+  deleteWorkoutTemplateAction,
+  updateWorkoutTemplateAction,
+} from '@/app/actions';
 import { useState, useTransition } from 'react';
 import { Icon } from '../Icon';
 import { Sheet, SheetCloseButton } from '../Sheet';
@@ -18,31 +22,45 @@ interface DraftExercise {
   sets: DraftSet[];
 }
 
-interface WorkoutLogSheetProps {
+export type WorkoutTemplateSheetMode =
+  | { kind: 'new' }
+  | { kind: 'edit'; template: WorkoutTemplateView };
+
+interface WorkoutTemplateSheetProps {
+  mode: WorkoutTemplateSheetMode;
   onClose: () => void;
-  /**
-   * Optionale Vorbelegung aus einer Workout-Vorlage. Wenn gesetzt:
-   *  - Label + Default-Dauer + Übungen werden vorausgefüllt
-   *  - Save geht über logWorkoutFromTemplateAction, damit usage_count steigt
-   *    und template_id im Event landet.
-   */
-  fromTemplate?: WorkoutTemplateView;
 }
 
 function newId(): string {
   return Math.random().toString(36).slice(2, 10);
 }
 
-function newSet(): DraftSet {
+function emptySet(): DraftSet {
   return { id: newId(), reps: '', weight_kg: '' };
 }
 
-function newExercise(): DraftExercise {
-  return { id: newId(), name: '', sets: [newSet()] };
+function emptyExercise(): DraftExercise {
+  return { id: newId(), name: '', sets: [emptySet()] };
 }
 
-// Wandelt einen Draft-Satz in das Schema-Format. Leere Strings → undefined,
-// damit die optionalen Schema-Felder nicht mit NaN belegt werden.
+// Vorlage → Draft. Bestehende Werte (Default-Reps, Default-Gewicht) werden
+// als Vorschlag übernommen, der Nutzer kann sie editieren oder leeren.
+function templateToDrafts(tpl: WorkoutTemplateView): DraftExercise[] {
+  if (tpl.exercises.length === 0) return [];
+  return tpl.exercises.map((ex) => ({
+    id: newId(),
+    name: ex.name,
+    sets:
+      ex.sets.length > 0
+        ? ex.sets.map((s) => ({
+            id: newId(),
+            reps: s.reps !== undefined ? String(s.reps) : '',
+            weight_kg: s.weight_kg !== undefined ? String(s.weight_kg) : '',
+          }))
+        : [emptySet()],
+  }));
+}
+
 function setToPayload(s: DraftSet): { reps?: number; weight_kg?: number } {
   const out: { reps?: number; weight_kg?: number } = {};
   const reps = s.reps.trim();
@@ -58,72 +76,43 @@ function setToPayload(s: DraftSet): { reps?: number; weight_kg?: number } {
   return out;
 }
 
-function templateToDrafts(tpl: WorkoutTemplateView): DraftExercise[] {
-  return tpl.exercises.map((ex) => ({
-    id: newId(),
-    name: ex.name,
-    sets:
-      ex.sets.length > 0
-        ? ex.sets.map((s) => ({
-            id: newId(),
-            // Default-Wdh. aus der Vorlage werden vorgeschlagen, der Nutzer
-            // überschreibt sie mit dem heutigen Wert. Gewicht bewusst leer —
-            // siehe Begründung in workout-templates.ts (Progressive Overload).
-            reps: s.reps !== undefined ? String(s.reps) : '',
-            weight_kg: '',
-          }))
-        : [newSet()],
-  }));
-}
+export function WorkoutTemplateSheet({ mode, onClose }: WorkoutTemplateSheetProps) {
+  const isEdit = mode.kind === 'edit';
+  const initial = mode.kind === 'edit' ? mode.template : null;
 
-export function WorkoutLogSheet({ onClose, fromTemplate }: WorkoutLogSheetProps) {
   const [pending, startTransition] = useTransition();
-  const [label, setLabel] = useState(fromTemplate?.label ?? '');
+  const [deleting, startDelete] = useTransition();
+  const [label, setLabel] = useState(initial?.label ?? '');
   const [duration, setDuration] = useState(
-    fromTemplate?.default_duration_min !== null && fromTemplate?.default_duration_min !== undefined
-      ? String(fromTemplate.default_duration_min)
+    initial?.default_duration_min !== null && initial?.default_duration_min !== undefined
+      ? String(initial.default_duration_min)
       : '',
   );
   const [exercises, setExercises] = useState<DraftExercise[]>(
-    fromTemplate ? templateToDrafts(fromTemplate) : [],
+    initial ? templateToDrafts(initial) : [emptyExercise()],
   );
   const [error, setError] = useState<string | null>(null);
 
-  const addExercise = () => {
-    setExercises((prev) => [...prev, newExercise()]);
-  };
-
-  const removeExercise = (id: string) => {
-    setExercises((prev) => prev.filter((e) => e.id !== id));
-  };
-
-  const updateExerciseName = (id: string, name: string) => {
+  const addExercise = () => setExercises((prev) => [...prev, emptyExercise()]);
+  const removeExercise = (id: string) => setExercises((prev) => prev.filter((e) => e.id !== id));
+  const updateExerciseName = (id: string, name: string) =>
     setExercises((prev) => prev.map((e) => (e.id === id ? { ...e, name } : e)));
-  };
-
-  const addSet = (exerciseId: string) => {
+  const addSet = (exId: string) =>
     setExercises((prev) =>
-      prev.map((e) => (e.id === exerciseId ? { ...e, sets: [...e.sets, newSet()] } : e)),
+      prev.map((e) => (e.id === exId ? { ...e, sets: [...e.sets, emptySet()] } : e)),
     );
-  };
-
-  const removeSet = (exerciseId: string, setId: string) => {
+  const removeSet = (exId: string, setId: string) =>
+    setExercises((prev) =>
+      prev.map((e) => (e.id === exId ? { ...e, sets: e.sets.filter((s) => s.id !== setId) } : e)),
+    );
+  const updateSet = (exId: string, setId: string, patch: Partial<DraftSet>) =>
     setExercises((prev) =>
       prev.map((e) =>
-        e.id === exerciseId ? { ...e, sets: e.sets.filter((s) => s.id !== setId) } : e,
-      ),
-    );
-  };
-
-  const updateSet = (exerciseId: string, setId: string, patch: Partial<DraftSet>) => {
-    setExercises((prev) =>
-      prev.map((e) =>
-        e.id === exerciseId
+        e.id === exId
           ? { ...e, sets: e.sets.map((s) => (s.id === setId ? { ...s, ...patch } : s)) }
           : e,
       ),
     );
-  };
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -131,13 +120,10 @@ export function WorkoutLogSheet({ onClose, fromTemplate }: WorkoutLogSheetProps)
 
     const trimmedLabel = label.trim();
     if (trimmedLabel === '') {
-      setError('Bitte gib der Einheit eine Bezeichnung (z.B. „Push-Day", „5km Lauf").');
+      setError('Bitte gib der Vorlage einen Namen (z.B. „Push-Day").');
       return;
     }
 
-    // Übungen serialisieren: leere Sätze rausfiltern, Übungen ohne validen Satz
-    // ebenfalls. Falls am Ende nichts übrig bleibt, geht das Workout ohne
-    // exercises-Feld raus (Cardio-Pfad).
     const serialized: Array<{
       name: string;
       sets: Array<{ reps?: number; weight_kg?: number }>;
@@ -145,27 +131,47 @@ export function WorkoutLogSheet({ onClose, fromTemplate }: WorkoutLogSheetProps)
     for (const ex of exercises) {
       const trimmedName = ex.name.trim();
       if (trimmedName === '') continue;
-      const sets = ex.sets
-        .map(setToPayload)
-        .filter((s) => s.reps !== undefined || s.weight_kg !== undefined);
-      if (sets.length === 0) continue;
+      const sets = ex.sets.map(setToPayload);
+      // Sätze in der Vorlage dürfen ohne reps/weight_kg sein — die Struktur
+      // („3 Sätze") ist auch dann sinnvoll. Komplett-leere Sätze (kein Marker)
+      // werden trotzdem behalten, weil sie die Satz-Anzahl prägen.
       serialized.push({ name: trimmedName, sets });
+    }
+    if (serialized.length === 0) {
+      setError('Mindestens eine Übung mit Namen ist nötig.');
+      return;
     }
 
     const fd = new FormData();
     fd.set('label', trimmedLabel);
-    if (duration.trim() !== '') fd.set('duration_min', duration);
-    if (serialized.length > 0) fd.set('exercises', JSON.stringify(serialized));
-    if (fromTemplate) fd.set('template_id', fromTemplate.id);
+    fd.set('exercises', JSON.stringify(serialized));
+    if (duration.trim() !== '') fd.set('default_duration_min', duration);
+    if (isEdit && initial) fd.set('id', initial.id);
 
     startTransition(async () => {
       try {
-        if (fromTemplate) await logWorkoutFromTemplateAction(fd);
-        else await logWorkoutAction(fd);
+        if (isEdit) await updateWorkoutTemplateAction(fd);
+        else await createWorkoutTemplateAction(fd);
         onClose();
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
         setError(`Speichern fehlgeschlagen: ${message}`);
+      }
+    });
+  };
+
+  const onDelete = () => {
+    if (!initial) return;
+    if (!window.confirm(`Vorlage „${initial.label}" wirklich löschen?`)) return;
+    const fd = new FormData();
+    fd.set('id', initial.id);
+    startDelete(async () => {
+      try {
+        await deleteWorkoutTemplateAction(fd);
+        onClose();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
+        setError(`Löschen fehlgeschlagen: ${message}`);
       }
     });
   };
@@ -185,12 +191,10 @@ export function WorkoutLogSheet({ onClose, fromTemplate }: WorkoutLogSheetProps)
                 lineHeight: 1.05,
               }}
             >
-              Training loggen
+              {isEdit ? 'Vorlage bearbeiten' : 'Neue Vorlage'}
             </div>
             <div style={{ marginTop: 2, color: 'var(--ink-3)', fontSize: 13 }}>
-              {fromTemplate
-                ? `Aus „${fromTemplate.label}" — nur noch Gewichte eintragen.`
-                : 'Bezeichnung reicht. Übungen + Sätze sind optional.'}
+              Nur die Struktur — Gewichte trägst du beim Loggen frisch ein.
             </div>
           </div>
           <SheetCloseButton onClose={onClose} />
@@ -198,19 +202,19 @@ export function WorkoutLogSheet({ onClose, fromTemplate }: WorkoutLogSheetProps)
       }
     >
       <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <Field label="Bezeichnung">
+        <Field label="Name">
           <input
             type="text"
             value={label}
             onChange={(e) => setLabel(e.target.value)}
-            placeholder="Push-Day, 5km Lauf, Mobility…"
+            placeholder="Push-Day, Pull-Day, Beine…"
             maxLength={200}
             required
             style={inputStyle}
           />
         </Field>
 
-        <Field label="Dauer (optional)">
+        <Field label="Default-Dauer (optional)">
           <NumberInput
             value={duration}
             onChange={setDuration}
@@ -229,58 +233,30 @@ export function WorkoutLogSheet({ onClose, fromTemplate }: WorkoutLogSheetProps)
               marginBottom: 8,
             }}
           >
-            <span style={{ fontSize: 12, color: 'var(--ink-3)', fontWeight: 500 }}>
-              Übungen (optional)
-            </span>
-            {exercises.length > 0 && (
-              <button
-                type="button"
-                onClick={addExercise}
-                className="pressable"
-                style={addButtonStyle}
-              >
-                <Icon name="plus" size={12} strokeWidth={2} /> Übung
-              </button>
-            )}
-          </div>
-          {exercises.length === 0 ? (
+            <span style={{ fontSize: 12, color: 'var(--ink-3)', fontWeight: 500 }}>Übungen</span>
             <button
               type="button"
               onClick={addExercise}
               className="pressable"
-              style={{
-                width: '100%',
-                padding: '14px',
-                borderRadius: 12,
-                border: '1px dashed var(--hairline-strong)',
-                background: 'transparent',
-                color: 'var(--ink-3)',
-                fontFamily: 'var(--sans)',
-                fontSize: 13,
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 6,
-              }}
+              style={addButtonStyle}
             >
-              <Icon name="plus" size={14} strokeWidth={2} /> Erste Übung hinzufügen
+              <Icon name="plus" size={12} strokeWidth={2} /> Übung
             </button>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {exercises.map((ex) => (
-                <ExerciseBlock
-                  key={ex.id}
-                  exercise={ex}
-                  onNameChange={(name) => updateExerciseName(ex.id, name)}
-                  onAddSet={() => addSet(ex.id)}
-                  onRemoveSet={(setId) => removeSet(ex.id, setId)}
-                  onUpdateSet={(setId, patch) => updateSet(ex.id, setId, patch)}
-                  onRemove={() => removeExercise(ex.id)}
-                />
-              ))}
-            </div>
-          )}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {exercises.map((ex) => (
+              <ExerciseBlock
+                key={ex.id}
+                exercise={ex}
+                onNameChange={(name) => updateExerciseName(ex.id, name)}
+                onAddSet={() => addSet(ex.id)}
+                onRemoveSet={(setId) => removeSet(ex.id, setId)}
+                onUpdateSet={(setId, patch) => updateSet(ex.id, setId, patch)}
+                onRemove={() => removeExercise(ex.id)}
+                showRemove={exercises.length > 1}
+              />
+            ))}
+          </div>
         </div>
 
         {error && (
@@ -300,7 +276,7 @@ export function WorkoutLogSheet({ onClose, fromTemplate }: WorkoutLogSheetProps)
 
         <button
           type="submit"
-          disabled={pending}
+          disabled={pending || deleting}
           className="pressable"
           style={{
             marginTop: 4,
@@ -313,12 +289,34 @@ export function WorkoutLogSheet({ onClose, fromTemplate }: WorkoutLogSheetProps)
             fontFamily: 'var(--sans)',
             fontSize: 14,
             fontWeight: 500,
-            cursor: pending ? 'wait' : 'pointer',
-            opacity: pending ? 0.7 : 1,
+            cursor: pending || deleting ? 'wait' : 'pointer',
+            opacity: pending || deleting ? 0.7 : 1,
           }}
         >
-          {pending ? 'Speichern…' : 'Training speichern'}
+          {pending ? 'Speichern…' : isEdit ? 'Vorlage aktualisieren' : 'Vorlage speichern'}
         </button>
+
+        {isEdit && (
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={pending || deleting}
+            className="pressable"
+            style={{
+              width: '100%',
+              padding: '10px',
+              borderRadius: 10,
+              background: 'transparent',
+              color: 'var(--amber)',
+              border: '0.5px solid rgba(196,152,85,0.5)',
+              fontFamily: 'var(--sans)',
+              fontSize: 13,
+              cursor: deleting ? 'wait' : 'pointer',
+            }}
+          >
+            {deleting ? 'Löschen…' : 'Vorlage löschen'}
+          </button>
+        )}
       </form>
     </Sheet>
   );
@@ -331,6 +329,7 @@ function ExerciseBlock({
   onRemoveSet,
   onUpdateSet,
   onRemove,
+  showRemove,
 }: {
   exercise: DraftExercise;
   onNameChange: (name: string) => void;
@@ -338,6 +337,7 @@ function ExerciseBlock({
   onRemoveSet: (setId: string) => void;
   onUpdateSet: (setId: string, patch: Partial<DraftSet>) => void;
   onRemove: () => void;
+  showRemove: boolean;
 }) {
   return (
     <div
@@ -360,15 +360,17 @@ function ExerciseBlock({
           maxLength={200}
           style={{ ...inputStyle, flex: 1, background: 'var(--surface)' }}
         />
-        <button
-          type="button"
-          onClick={onRemove}
-          aria-label="Übung entfernen"
-          className="pressable"
-          style={iconButtonStyle}
-        >
-          <Icon name="x" size={14} strokeWidth={2} stroke="var(--ink-3)" />
-        </button>
+        {showRemove && (
+          <button
+            type="button"
+            onClick={onRemove}
+            aria-label="Übung entfernen"
+            className="pressable"
+            style={iconButtonStyle}
+          >
+            <Icon name="x" size={14} strokeWidth={2} stroke="var(--ink-3)" />
+          </button>
+        )}
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -389,14 +391,14 @@ function ExerciseBlock({
               value={s.reps}
               onChange={(v) => onUpdateSet(s.id, { reps: v })}
               suffix="Wdh."
-              placeholder="Wdh."
+              placeholder="Default"
               step={1}
             />
             <NumberInput
               value={s.weight_kg}
               onChange={(v) => onUpdateSet(s.id, { weight_kg: v })}
               suffix="kg"
-              placeholder="kg"
+              placeholder="Default"
               step={0.5}
             />
             {exercise.sets.length > 1 && (
@@ -468,7 +470,7 @@ const addButtonStyle: React.CSSProperties = {
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    // biome-ignore lint/a11y/noLabelWithoutControl: das input/control wird via children innerhalb des labels gerendert — Biome erkennt den dynamischen Slot statisch nicht.
+    // biome-ignore lint/a11y/noLabelWithoutControl: das input wird via children innerhalb des labels gerendert — Biome erkennt den dynamischen Slot statisch nicht.
     <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       <span style={{ fontSize: 12, color: 'var(--ink-3)', fontWeight: 500 }}>{label}</span>
       {children}
