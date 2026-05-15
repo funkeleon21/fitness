@@ -13,6 +13,8 @@ export function formatApprovalSummary(toolName: string, input: unknown): string 
     saturated_fat_g?: unknown;
     salt_g?: unknown;
     template_id?: unknown;
+    duration_min?: unknown;
+    exercises?: unknown;
   };
   const kg = typeof obj.kg === 'number' ? `${obj.kg.toFixed(1).replace('.', ',')} kg` : null;
   const when = formatApprovalTime(obj.occurred_at);
@@ -39,6 +41,25 @@ export function formatApprovalSummary(toolName: string, input: unknown): string 
   }
   if (toolName === 'retract_meal') {
     return 'Mahlzeit-Eintrag zurückziehen';
+  }
+
+  if (toolName === 'log_workout' && typeof obj.label === 'string') {
+    const parts: string[] = [obj.label];
+    if (Array.isArray(obj.exercises) && obj.exercises.length > 0) {
+      parts.push(`${obj.exercises.length} ${obj.exercises.length === 1 ? 'Übung' : 'Übungen'}`);
+    }
+    if (typeof obj.duration_min === 'number') parts.push(`${obj.duration_min} min`);
+    const head = parts.join(' · ');
+    return when ? `${head} — ${when}` : `${head} — jetzt`;
+  }
+  if (toolName === 'log_workout_from_template') {
+    const fallback = typeof obj.label === 'string' ? obj.label : 'Vorlage';
+    return when
+      ? `Training „${fallback}" eintragen — ${when}`
+      : `Training „${fallback}" eintragen — jetzt`;
+  }
+  if (toolName === 'retract_workout') {
+    return 'Trainings-Eintrag zurückziehen';
   }
 
   if (toolName === 'set_nutrition_targets') {
@@ -75,6 +96,9 @@ export const TOOL_LABELS: Record<string, { running: string; done: string }> = {
   log_meal: { running: 'Mahlzeit speichern…', done: 'Mahlzeit gespeichert' },
   log_meal_from_template: { running: 'Vorlage speichern…', done: 'Mahlzeit gespeichert' },
   retract_meal: { running: 'Mahlzeit zurückziehen…', done: 'Mahlzeit zurückgezogen' },
+  log_workout: { running: 'Training speichern…', done: 'Training gespeichert' },
+  log_workout_from_template: { running: 'Vorlage speichern…', done: 'Training gespeichert' },
+  retract_workout: { running: 'Training zurückziehen…', done: 'Training zurückgezogen' },
   set_nutrition_targets: { running: 'Tagesziele speichern…', done: 'Tagesziele gespeichert' },
 };
 
@@ -82,12 +106,20 @@ export const INTERNAL_READ_TOOL_LABELS: Record<string, string> = {
   list_recent_weight_entries: 'Letzte Gewichts-Einträge lesen…',
   list_recent_meal_entries: 'Letzte Mahlzeiten lesen…',
   list_meal_templates: 'Mahlzeit-Vorlagen lesen…',
+  list_recent_workouts: 'Letzte Trainings lesen…',
+  list_workout_templates: 'Trainings-Vorlagen lesen…',
   get_nutrition_targets: 'Aktuelle Tagesziele lesen…',
 };
 
 export function formatToolDetail(toolName: string, input: unknown): string {
   if (typeof input !== 'object' || input === null) return '';
-  const obj = input as { kg?: unknown; kcal?: unknown; label?: unknown };
+  const obj = input as {
+    kg?: unknown;
+    kcal?: unknown;
+    label?: unknown;
+    exercises?: unknown;
+    duration_min?: unknown;
+  };
 
   if ((toolName === 'log_weight' || toolName === 'correct_weight') && typeof obj.kg === 'number') {
     return `${obj.kg.toFixed(1).replace('.', ',')} kg`;
@@ -95,6 +127,11 @@ export function formatToolDetail(toolName: string, input: unknown): string {
   if (toolName === 'log_meal' && typeof obj.label === 'string') {
     const kcal = typeof obj.kcal === 'number' ? ` · ${Math.round(obj.kcal)} kcal` : '';
     return `${obj.label}${kcal}`;
+  }
+  if (toolName === 'log_workout' && typeof obj.label === 'string') {
+    const exCount = Array.isArray(obj.exercises) ? obj.exercises.length : 0;
+    const tail = exCount > 0 ? ` · ${exCount} ${exCount === 1 ? 'Übung' : 'Übungen'}` : '';
+    return `${obj.label}${tail}`;
   }
   if (toolName === 'set_nutrition_targets' && typeof obj.kcal === 'number') {
     return `${obj.kcal.toLocaleString('de-DE')} kcal`;
