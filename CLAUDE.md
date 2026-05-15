@@ -25,7 +25,7 @@ packages/interpretation  KI-Analysen, Chat-Tools, Context-Provider
 
 ## Stack
 
-pnpm workspaces, TypeScript Project References, Biome, Vitest. Next.js auf Vercel, PWA-Service-Worker via Serwist. Postgres + Auth + Storage via Supabase. Drizzle ORM. Sentry für Error-Tracking (`apps/web`, aktiv sobald `NEXT_PUBLIC_SENTRY_DSN` gesetzt). Strict TS (`noUncheckedIndexedAccess`, `verbatimModuleSyntax`).
+pnpm workspaces, TypeScript Project References, Biome, Vitest. Next.js auf Vercel, PWA-Service-Worker via Serwist. Postgres + Auth + Storage via Supabase. Drizzle ORM. Strict TS (`noUncheckedIndexedAccess`, `verbatimModuleSyntax`).
 
 ## Disziplinen (verletzen = Bug)
 
@@ -75,4 +75,4 @@ pnpm build
 
 ## Aktueller Stand
 
-Phase 0+1 (Gewicht) durchgestochen, Mahlzeiten-Domäne + Food-Memory live, Trainings-Domäne durchgestochen inkl. `WorkoutLogSheet`, `workout_templates`-Tabelle und „Workout Memory"-Card. Labor-Chat-Tools (lesen + schreiben) für alle vier Domänen produktiv: Gewicht, Mahlzeiten, persönliche Tagesziele und Training (inkl. `log_workout_from_template`). Zwei Agenten teilen sich die Chat-UI (`apps/web/src/components/chat/`): Labor (`/api/chat`, alle Tools) und Coach (`/api/nutrition-coach`, gefiltertes Tool-Set + BMR/TDEE-Prompt — bewusst ohne Training-Tools). Foto-basierte Mahlzeit-Erkennung über `/api/recognize-meal` (Vision-LLM via Langdock), Barcode-Scan über `/api/lookup-barcode` (Open Food Facts). Supabase `cjwgisdobzztljizrnfn` (eu-west-1), Demo-Login via `signInWithPassword`. Offen: echte `ai_interpretation`-Events.
+Phase 0+1 (Gewicht) durchgestochen, Mahlzeiten-Domäne + Food-Memory live, Trainings-Domäne durchgestochen inkl. `WorkoutLogSheet`, `workout_templates`-Tabelle und „Workout Memory"-Card. Labor-Chat-Tools (lesen + schreiben) für alle vier Domänen produktiv: Gewicht, Mahlzeiten, persönliche Tagesziele und Training (inkl. `log_workout_from_template`). Zwei Agenten teilen sich die Chat-UI (`apps/web/src/components/chat/`): Labor (`/api/chat`, alle Tools) und Coach (`/api/nutrition-coach`, gefiltertes Tool-Set + BMR/TDEE-Prompt — bewusst ohne Training-Tools). Foto-basierte Mahlzeit-Erkennung über `/api/recognize-meal` (Vision-LLM via Langdock), Barcode-Scan über `/api/lookup-barcode` cache-first über die persönliche Zutaten-Bibliothek (`pantry_items` + `pantry_barcodes`), Open Food Facts nur als Quelle bei Miss — robust gegen OFF-Ausfälle für bereits gesehene Produkte. Pantry-UI im NutritionScreen via `PantrySheet` (Liste, Edit, Merge, Archiv mit 90-Tage-Lazy-Aging), CRUD über `/api/pantry`; nach Scan eines neuen Produkts zeigt der MealComposer einen Merge-Vorschlag, falls ähnliche Pantry-Items existieren. Supabase `cjwgisdobzztljizrnfn` (eu-west-1), Demo-Login via `signInWithPassword`. Offen: echte `ai_interpretation`-Events.
