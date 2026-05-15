@@ -1,0 +1,27 @@
+name: Auto-Merge
+
+# Aktiviert GitHub-Auto-Merge (squash) für jeden neu eröffneten,
+# wiedereröffneten oder aus dem Draft-Status genommenen PR. Mergt
+# tatsächlich erst, wenn alle Branch-Protection-Bedingungen erfüllt
+# sind (required check „lint · typecheck · test · build" aus ci.yml,
+# Branch up-to-date). Bleibt sicher, weil Auto-Merge sich von selbst
+# deaktiviert, sobald jemand neue Commits pusht, deren Autor nicht
+# das Vertrauen des Token-Owners hat.
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review]
+
+jobs:
+  enable:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: gh pr merge --auto --squash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr merge --auto --squash "$PR_URL"
