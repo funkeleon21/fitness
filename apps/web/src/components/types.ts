@@ -89,6 +89,19 @@ export interface TrainingData {
   recent: WorkoutPoint[];
 }
 
+// Vorlage für eine Trainingseinheit. Hält nur die Struktur (welche Übungen,
+// wie viele Sätze pro Übung). Gewichte/Wdh. werden beim Loggen jedes Mal neu
+// eingetragen — eingefrorene Default-Werte würden mit Progressive Overload
+// veralten.
+export interface WorkoutTemplateView {
+  id: string;
+  label: string;
+  exercises: WorkoutExerciseView[];
+  default_duration_min: number | null;
+  usage_count: number;
+  last_used_at: string | null;
+}
+
 export interface MealTemplateView {
   id: string;
   label: string;

@@ -6,6 +6,7 @@ import type {
   NutritionData,
   TrainingData,
   WorkoutPoint,
+  WorkoutTemplateView,
 } from '@/components/types';
 import { type NutritionTargets, mergeTargets } from '@/lib/nutrition';
 import { createClient } from '@/lib/supabase/server';
@@ -13,11 +14,13 @@ import {
   type MealDataPoint,
   type MealTemplate,
   type WorkoutDataPoint,
+  type WorkoutTemplate,
   getMealProjection,
   getNutritionTargets,
   getWeightProjection,
   getWorkoutProjection,
   listMealTemplates,
+  listWorkoutTemplates,
 } from '@fitness/db';
 import { redirect } from 'next/navigation';
 
@@ -46,6 +49,17 @@ function mealToPoint(m: MealDataPoint): MealPoint {
     source: m.source,
     confidence: m.confidence,
     corrected: m.corrected,
+  };
+}
+
+function workoutTemplateToView(t: WorkoutTemplate): WorkoutTemplateView {
+  return {
+    id: t.id,
+    label: t.label,
+    exercises: t.exercises,
+    default_duration_min: t.default_duration_min,
+    usage_count: t.usage_count,
+    last_used_at: t.last_used_at ? t.last_used_at.toISOString() : null,
   };
 }
 
@@ -88,11 +102,12 @@ export default async function HomePage() {
   } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  const [weight, meals, workouts, templates, persistedTargets] = await Promise.all([
+  const [weight, meals, workouts, templates, workoutTpls, persistedTargets] = await Promise.all([
     getWeightProjection(supabase, user.id),
     getMealProjection(supabase, user.id),
     getWorkoutProjection(supabase, user.id),
     listMealTemplates(supabase, user.id),
+    listWorkoutTemplates(supabase, user.id),
     getNutritionTargets(supabase, user.id),
   ]);
   const targets: NutritionTargets = mergeTargets(persistedTargets);
@@ -132,6 +147,8 @@ export default async function HomePage() {
     recent: workouts.recent.map(workoutToPoint),
   };
 
+  const workoutTemplates: WorkoutTemplateView[] = workoutTpls.map(workoutTemplateToView);
+
   const { name, initials } = deriveNameAndInitials(user.email);
 
   return (
@@ -141,6 +158,7 @@ export default async function HomePage() {
       nutritionTargets={targets}
       mealTemplates={mealTemplates}
       training={training}
+      workoutTemplates={workoutTemplates}
       userName={name}
       initials={initials}
     />

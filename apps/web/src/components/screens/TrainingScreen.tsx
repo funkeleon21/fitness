@@ -2,11 +2,14 @@
 
 import { retractWorkoutAction } from '@/app/actions';
 import { Icon } from '../Icon';
-import type { TrainingData, WorkoutPoint } from '../types';
+import type { TrainingData, WorkoutPoint, WorkoutTemplateView } from '../types';
 
 interface TrainingScreenProps {
   training: TrainingData;
+  workoutTemplates: WorkoutTemplateView[];
   onOpenLog: () => void;
+  onCreateTemplate: () => void;
+  onEditTemplate: (template: WorkoutTemplateView) => void;
 }
 
 function formatDate(iso: string): string {
@@ -32,30 +35,193 @@ function countSets(w: WorkoutPoint): number {
   return w.exercises.reduce((acc, ex) => acc + ex.sets.length, 0);
 }
 
-export function TrainingScreen({ training, onOpenLog }: TrainingScreenProps) {
+export function TrainingScreen({
+  training,
+  workoutTemplates,
+  onOpenLog,
+  onCreateTemplate,
+  onEditTemplate,
+}: TrainingScreenProps) {
   const hasAny = training.recent.length > 0;
+  const hasTemplates = workoutTemplates.length > 0;
 
   return (
     <div className="screen-content scroll">
       <Header onOpenLog={onOpenLog} />
 
-      {!hasAny ? (
-        <div className="pad-x" style={{ marginTop: 18 }}>
+      {!hasAny && !hasTemplates ? (
+        <div className="pad-x" style={{ marginTop: 18, marginBottom: 32 }}>
           <EmptyState onOpenLog={onOpenLog} />
         </div>
       ) : (
         <>
-          <div className="pad-x" style={{ marginTop: 18 }}>
-            <WeekSummaryCard totals={training.thisWeekTotals} />
+          {hasAny && (
+            <div className="pad-x" style={{ marginTop: 18 }}>
+              <WeekSummaryCard totals={training.thisWeekTotals} />
+            </div>
+          )}
+
+          <div className="pad-x" style={{ marginTop: 14 }}>
+            <WorkoutMemoryCard
+              templates={workoutTemplates}
+              onCreate={onCreateTemplate}
+              onEdit={onEditTemplate}
+            />
           </div>
 
-          <div className="pad-x" style={{ marginTop: 14, marginBottom: 32 }}>
-            <RecentList workouts={training.recent} />
-          </div>
+          {hasAny && (
+            <div className="pad-x" style={{ marginTop: 14, marginBottom: 32 }}>
+              <RecentList workouts={training.recent} />
+            </div>
+          )}
+
+          {!hasAny && (
+            <div className="pad-x" style={{ marginTop: 14, marginBottom: 32 }}>
+              <FirstWorkoutHint onOpenLog={onOpenLog} />
+            </div>
+          )}
         </>
       )}
     </div>
   );
+}
+
+function FirstWorkoutHint({ onOpenLog }: { onOpenLog: () => void }) {
+  return (
+    <div className="card rise" style={{ padding: '18px 18px' }}>
+      <div style={{ fontFamily: 'var(--serif)', fontSize: 18, color: 'var(--ink)' }}>
+        Bereit zum ersten Training?
+      </div>
+      <div style={{ marginTop: 6, color: 'var(--ink-3)', fontSize: 13, lineHeight: 1.5 }}>
+        Wähle eine Vorlage oben oder tippe auf das Plus rechts oben.
+      </div>
+      <button
+        type="button"
+        onClick={onOpenLog}
+        className="pressable"
+        style={{
+          marginTop: 12,
+          padding: '10px 14px',
+          borderRadius: 10,
+          background: 'var(--sage-deep)',
+          color: 'white',
+          border: 'none',
+          fontFamily: 'var(--sans)',
+          fontSize: 13,
+          fontWeight: 500,
+          cursor: 'pointer',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+        }}
+      >
+        <Icon name="plus" size={12} strokeWidth={2} /> Training loggen
+      </button>
+    </div>
+  );
+}
+
+function WorkoutMemoryCard({
+  templates,
+  onCreate,
+  onEdit,
+}: {
+  templates: WorkoutTemplateView[];
+  onCreate: () => void;
+  onEdit: (t: WorkoutTemplateView) => void;
+}) {
+  return (
+    <div className="card rise" style={{ animationDelay: '60ms', padding: '20px 18px' }}>
+      <div className="row-between" style={{ marginBottom: 12 }}>
+        <div className="h-card" style={{ fontSize: 19 }}>
+          Workout Memory
+        </div>
+        <button
+          type="button"
+          onClick={onCreate}
+          className="pressable"
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'var(--sage-deep)',
+            fontFamily: 'var(--sans)',
+            fontSize: 13,
+            fontWeight: 500,
+            cursor: 'pointer',
+            padding: 0,
+          }}
+        >
+          Neue Vorlage
+        </button>
+      </div>
+
+      {templates.length === 0 ? (
+        <div style={{ color: 'var(--ink-3)', fontSize: 13, padding: '8px 0 4px' }}>
+          Noch keine Vorlagen. Tippe „Neue Vorlage" für deinen ersten Push-Day.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {templates.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => onEdit(t)}
+              aria-label={`Vorlage ${t.label} bearbeiten`}
+              className="pressable"
+              style={{
+                padding: '12px 14px',
+                background: 'var(--surface-2)',
+                border: '0.5px solid var(--hairline)',
+                borderRadius: 12,
+                cursor: 'pointer',
+                textAlign: 'left',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                width: '100%',
+              }}
+            >
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 500,
+                    color: 'var(--ink)',
+                  }}
+                >
+                  {t.label}
+                </div>
+                <div
+                  style={{
+                    marginTop: 2,
+                    fontSize: 11,
+                    color: 'var(--ink-3)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {summarizeTemplate(t)}
+                </div>
+              </div>
+              <Icon name="chevron-right" size={14} strokeWidth={1.6} stroke="var(--ink-4)" />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function summarizeTemplate(tpl: WorkoutTemplateView): string {
+  const exCount = tpl.exercises.length;
+  const setCount = tpl.exercises.reduce((acc, ex) => acc + ex.sets.length, 0);
+  const usageHint = tpl.usage_count > 0 ? `${tpl.usage_count}×` : 'noch nicht genutzt';
+  const parts: string[] = [];
+  if (exCount > 0) parts.push(`${exCount} ${exCount === 1 ? 'Übung' : 'Übungen'}`);
+  if (setCount > 0) parts.push(`${setCount} ${setCount === 1 ? 'Satz' : 'Sätze'}`);
+  parts.push(usageHint);
+  return parts.join(' · ');
 }
 
 function Header({ onOpenLog }: { onOpenLog: () => void }) {
