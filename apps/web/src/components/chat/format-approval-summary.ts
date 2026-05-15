@@ -13,6 +13,7 @@ export function formatApprovalSummary(toolName: string, input: unknown): string 
     saturated_fat_g?: unknown;
     salt_g?: unknown;
     template_id?: unknown;
+    pantry_item_id?: unknown;
     duration_min?: unknown;
     exercises?: unknown;
   };
@@ -33,6 +34,7 @@ export function formatApprovalSummary(toolName: string, input: unknown): string 
     const parts: string[] = [obj.label];
     if (typeof obj.kcal === 'number') parts.push(`${Math.round(obj.kcal)} kcal`);
     if (typeof obj.protein_g === 'number') parts.push(`${Math.round(obj.protein_g)} g P`);
+    if (typeof obj.pantry_item_id === 'string') parts.push('aus Vorrat');
     const head = parts.join(' · ');
     return when ? `${head} — ${when}` : `${head} — jetzt`;
   }
@@ -106,6 +108,7 @@ export const INTERNAL_READ_TOOL_LABELS: Record<string, string> = {
   list_recent_weight_entries: 'Letzte Gewichts-Einträge lesen…',
   list_recent_meal_entries: 'Letzte Mahlzeiten lesen…',
   list_meal_templates: 'Mahlzeit-Vorlagen lesen…',
+  lookup_pantry: 'Vorrat durchsuchen…',
   list_recent_workouts: 'Letzte Trainings lesen…',
   list_workout_templates: 'Trainings-Vorlagen lesen…',
   get_nutrition_targets: 'Aktuelle Tagesziele lesen…',
