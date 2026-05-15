@@ -276,8 +276,10 @@ select {
 .sheet-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(20, 18, 12, 0.32);
-  backdrop-filter: blur(2px);
+  /* Kein backdrop-filter: blur — auf iOS/Safari der teuerste Frame-Killer beim
+     Animieren der Opacity während des Pull-to-Dismiss. Apples eigene Sheets nutzen
+     einen reinen dunklen Layer. Alpha leicht erhöht, damit die Tiefe erhalten bleibt. */
+  background: rgba(20, 18, 12, 0.42);
   z-index: 80;
   display: flex;
   align-items: flex-end;
