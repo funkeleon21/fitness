@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import { useState } from 'react';
 import { Icon, type IconName } from './Icon';
 import { HomeScreen } from './screens/HomeScreen';
-import type { DashboardData, MealTemplateView, NutritionData } from './types';
+import type { DashboardData, MealTemplateView, NutritionData, TrainingData } from './types';
 
 const BodyScreen = dynamic(() =>
   import('./screens/BodyScreen').then((m) => ({ default: m.BodyScreen })),
@@ -28,6 +28,9 @@ const MealTemplateSheet = dynamic(() =>
 const MealComposerSheet = dynamic(() =>
   import('./screens/MealComposerSheet').then((m) => ({ default: m.MealComposerSheet })),
 );
+const WorkoutLogSheet = dynamic(() =>
+  import('./screens/WorkoutLogSheet').then((m) => ({ default: m.WorkoutLogSheet })),
+);
 
 type ScreenId = 'home' | 'body' | 'nutrition' | 'training' | 'insights';
 type TemplateEdit = { kind: 'new' } | { kind: 'edit'; template: MealTemplateView };
@@ -37,6 +40,7 @@ interface DashboardProps {
   nutrition: NutritionData;
   nutritionTargets: NutritionTargets;
   mealTemplates: MealTemplateView[];
+  training: TrainingData;
   userName: string;
   initials: string;
 }
@@ -46,6 +50,7 @@ export function Dashboard({
   nutrition,
   nutritionTargets,
   mealTemplates,
+  training,
   userName,
   initials,
 }: DashboardProps) {
@@ -53,6 +58,7 @@ export function Dashboard({
   const [insightId, setInsightId] = useState<string | null>(null);
   const [templateEdit, setTemplateEdit] = useState<TemplateEdit | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
+  const [workoutLogOpen, setWorkoutLogOpen] = useState(false);
 
   const navigate = (next: ScreenId) => setScreen(next);
 
@@ -82,7 +88,7 @@ export function Dashboard({
         />
       </ScreenWrapper>
       <ScreenWrapper active={screen === 'training'}>
-        <TrainingScreen />
+        <TrainingScreen training={training} onOpenLog={() => setWorkoutLogOpen(true)} />
       </ScreenWrapper>
       <ScreenWrapper active={screen === 'insights'}>
         <InsightsScreen onOpenInsight={setInsightId} />
@@ -97,6 +103,7 @@ export function Dashboard({
       {composerOpen && (
         <MealComposerSheet templates={mealTemplates} onClose={() => setComposerOpen(false)} />
       )}
+      {workoutLogOpen && <WorkoutLogSheet onClose={() => setWorkoutLogOpen(false)} />}
     </div>
   );
 }
