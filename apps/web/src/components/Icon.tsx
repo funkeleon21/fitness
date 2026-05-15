@@ -38,7 +38,11 @@ export type IconName =
   | 'droplet'
   | 'search'
   | 'filter'
-  | 'chevrons-up-down';
+  | 'chevrons-up-down'
+  | 'clock'
+  | 'sets-stack'
+  | 'brain'
+  | 'more-vertical';
 
 interface IconProps {
   name: IconName;
@@ -365,6 +369,38 @@ export function Icon({
         <svg {...props}>
           <title>{label}</title>
           <path d="M7 9l5-5 5 5M7 15l5 5 5-5" />
+        </svg>
+      );
+    case 'clock':
+      return (
+        <svg {...props}>
+          <title>{label}</title>
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 7v5l3 2" />
+        </svg>
+      );
+    case 'sets-stack':
+      return (
+        <svg {...props}>
+          <title>{label}</title>
+          <path d="M5 7h14M5 12h14M5 17h14" />
+        </svg>
+      );
+    case 'brain':
+      return (
+        <svg {...props}>
+          <title>{label}</title>
+          <path d="M9 4.5C7.3 4.5 6 5.8 6 7.5c-1.4.5-2.5 1.9-2.5 3.5 0 1.2.6 2.2 1.5 2.8 0 .1-.1.2-.1.4 0 1.7 1.3 3 3 3 .5 0 1-.1 1.5-.4M9 4.5C9 6 10 7 11.5 7M9 4.5V18a2 2 0 0 0 2 2c1.1 0 2-.9 2-2v-2" />
+          <path d="M15 4.5C16.7 4.5 18 5.8 18 7.5c1.4.5 2.5 1.9 2.5 3.5 0 1.2-.6 2.2-1.5 2.8 0 .1.1.2.1.4 0 1.7-1.3 3-3 3-.5 0-1-.1-1.5-.4M15 4.5C15 6 14 7 12.5 7" />
+        </svg>
+      );
+    case 'more-vertical':
+      return (
+        <svg {...props} fill="currentColor" stroke="none">
+          <title>{label}</title>
+          <circle cx="12" cy="5" r="1.6" />
+          <circle cx="12" cy="12" r="1.6" />
+          <circle cx="12" cy="19" r="1.6" />
         </svg>
       );
     default:

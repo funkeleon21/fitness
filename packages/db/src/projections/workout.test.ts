@@ -127,6 +127,34 @@ describe('projectWorkoutEvents', () => {
       totalDurationMin: 65 + 55,
     });
     expect(projection.recent.map((w) => w.event_id)).toEqual([WORKOUT_1, WORKOUT_2]);
+    expect(projection.allWorkouts.map((w) => w.event_id)).toEqual([WORKOUT_1, WORKOUT_2]);
+  });
+
+  it('exposes allWorkouts newest-first without retracted entries', () => {
+    const projection = projectWorkoutEvents(
+      [
+        workoutRow({
+          id: WORKOUT_1,
+          label: 'Alt',
+          occurred_at: '2026-04-01T18:00:00.000Z',
+          recorded_at: '2026-04-01T19:00:00.000Z',
+        }),
+        workoutRow({
+          id: WORKOUT_2,
+          label: 'Neu',
+          occurred_at: '2026-05-10T18:00:00.000Z',
+          recorded_at: '2026-05-10T19:00:00.000Z',
+        }),
+        retractionRow({
+          id: RETRACTION_1,
+          target: WORKOUT_1,
+          recorded_at: '2026-05-10T19:30:00.000Z',
+        }),
+      ],
+      new Date('2026-05-14T20:00:00.000Z'),
+    );
+
+    expect(projection.allWorkouts.map((w) => w.event_id)).toEqual([WORKOUT_2]);
   });
 
   it('excludes workouts older than 7 days from thisWeek', () => {
