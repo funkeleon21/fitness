@@ -43,6 +43,16 @@ const createSchema = z.object({
   saturated_fat_g_per_100g: z.number().nullable().optional(),
   salt_g_per_100g: z.number().nullable().optional(),
   serving_size_g: z.number().nullable().optional(),
+  // Optionaler Barcode-Alias: wenn der Lookup für einen Code keinen
+  // OFF-Treffer hatte, kann der Nutzer das Item manuell anlegen und der
+  // gescannte Code wird trotzdem an pantry_barcodes gehängt — der nächste
+  // Scan trifft dann den Pantry-Cache.
+  barcode: z
+    .string()
+    .min(6)
+    .max(20)
+    .regex(/^\d+$/, 'Barcode muss eine reine Ziffernfolge sein')
+    .optional(),
 });
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -161,5 +171,22 @@ export async function POST(req: Request) {
     return jsonResponse({ error: insert.error?.message ?? 'Insert fehlgeschlagen' }, 500);
   }
 
-  return jsonResponse({ item: { ...insert.data, barcode_count: 0 } });
+  let barcodeCount = 0;
+  if (parsed.data.barcode) {
+    const aliasInsert = await supabase
+      .from('pantry_barcodes')
+      .insert({ user_id: user.id, pantry_item_id: insert.data.id, barcode: parsed.data.barcode });
+    if (aliasInsert.error) {
+      // Item ist bereits angelegt — Barcode-Konflikt (z.B. doppelter Scan) ist
+      // kein Grund, das Item zu verwerfen. Wir geben den Item-Datensatz trotzdem
+      // zurück und der Nutzer kann den Code im Edit-Sheet später nachpflegen.
+      return jsonResponse({
+        item: { ...insert.data, barcode_count: 0 },
+        barcode_error: aliasInsert.error.message,
+      });
+    }
+    barcodeCount = 1;
+  }
+
+  return jsonResponse({ item: { ...insert.data, barcode_count: barcodeCount } });
 }
