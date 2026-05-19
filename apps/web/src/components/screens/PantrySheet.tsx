@@ -1,14 +1,30 @@
 'use client';
 
+import type { BarcodeLookupResult, PantrySimilarItem } from '@/app/api/lookup-barcode/route';
 import type { PantryItemDto } from '@/app/api/pantry/route';
+import dynamic from 'next/dynamic';
 import { useEffect, useState } from 'react';
+import { Icon } from '../Icon';
 import { Sheet, SheetCloseButton } from '../Sheet';
+import { ScanMergeDialog } from './ScanMergeDialog';
+
+const BarcodeScannerOverlay = dynamic(
+  () => import('./BarcodeScannerOverlay').then((m) => ({ default: m.BarcodeScannerOverlay })),
+  { ssr: false },
+);
 
 interface PantrySheetProps {
   onClose: () => void;
 }
 
 type Tab = 'active' | 'archive';
+
+// Hinweis-Banner nach einem Scan. Zeigt knapp, was passiert ist, ohne den
+// Edit-Sheet zu blockieren — der öffnet sich parallel.
+type ScanBanner =
+  | { kind: 'exists'; label: string; brand: string | null }
+  | { kind: 'created'; label: string; brand: string | null }
+  | { kind: 'merged'; targetLabel: string };
 
 type FormState = {
   label: string;
@@ -84,19 +100,30 @@ export function PantrySheet({ onClose }: PantrySheetProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<PantryItemDto | null>(null);
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState<{ prefillBarcode?: string } | null>(null);
   const [mergingFrom, setMergingFrom] = useState<PantryItemDto | null>(null);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [scanBanner, setScanBanner] = useState<ScanBanner | null>(null);
+  const [scanMergeContext, setScanMergeContext] = useState<{
+    lookup: BarcodeLookupResult;
+    candidates: PantrySimilarItem[];
+  } | null>(null);
+  const [notFoundPrompt, setNotFoundPrompt] = useState<string | null>(null);
 
-  async function reload(t: Tab = tab) {
+  async function reload(t: Tab = tab): Promise<PantryItemDto[]> {
     setLoading(true);
     setError(null);
     try {
       const res = await fetch(`/api/pantry?archived=${t === 'archive'}`);
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? 'Konnte Vorrat nicht laden');
-      setItems(body.items as PantryItemDto[]);
+      const next = body.items as PantryItemDto[];
+      setItems(next);
+      return next;
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Konnte Vorrat nicht laden');
+      return [];
     } finally {
       setLoading(false);
     }
@@ -106,6 +133,99 @@ export function PantrySheet({ onClose }: PantrySheetProps) {
   useEffect(() => {
     reload(tab);
   }, [tab]);
+
+  async function openEditByLookup(lookup: BarcodeLookupResult) {
+    // Aktiven Tab erzwingen — Lookup reaktiviert ein archiviertes Item, also
+    // muss es jetzt in der Aktiv-Liste sichtbar sein.
+    setTab('active');
+    const next = await reload('active');
+    const found = lookup.pantry_item_id
+      ? next.find((it) => it.id === lookup.pantry_item_id)
+      : undefined;
+    if (found) setEditing(found);
+  }
+
+  async function handleBarcodeScanned(barcode: string) {
+    setScannerOpen(false);
+    setScanError(null);
+    setScanBanner(null);
+    try {
+      const res = await fetch(`/api/lookup-barcode?code=${encodeURIComponent(barcode)}`);
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? 'Lookup fehlgeschlagen');
+      const lookup = body.result as BarcodeLookupResult;
+
+      if (!lookup.found) {
+        setNotFoundPrompt(barcode);
+        return;
+      }
+
+      // Schon bekannt? (Cache-Hit im Pantry oder OFF-Treffer auf bestehendes Item).
+      if (lookup.source === 'pantry' || lookup.source === 'off-alias') {
+        setScanBanner({
+          kind: 'exists',
+          label: lookup.label ?? barcode,
+          brand: lookup.brand,
+        });
+        await openEditByLookup(lookup);
+        return;
+      }
+
+      // Neu angelegt, aber ähnliche Items vorhanden → Merge-Rückfrage.
+      if (lookup.source === 'off' && lookup.similar_pantry_items.length > 0) {
+        setScanMergeContext({ lookup, candidates: lookup.similar_pantry_items });
+        return;
+      }
+
+      // Neu angelegt, ohne Duplikat-Verdacht.
+      setScanBanner({
+        kind: 'created',
+        label: lookup.label ?? barcode,
+        brand: lookup.brand,
+      });
+      await openEditByLookup(lookup);
+    } catch (e) {
+      setScanError(e instanceof Error ? e.message : 'Lookup fehlgeschlagen.');
+    }
+  }
+
+  async function confirmMergeWithCandidate(target: PantrySimilarItem) {
+    const ctx = scanMergeContext;
+    if (!ctx || !ctx.lookup.pantry_item_id) {
+      setScanMergeContext(null);
+      return;
+    }
+    try {
+      const res = await fetch('/api/pantry/merge', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ source_id: ctx.lookup.pantry_item_id, target_id: target.id }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? 'Merge fehlgeschlagen');
+      setScanBanner({ kind: 'merged', targetLabel: target.label });
+      setTab('active');
+      const next = await reload('active');
+      const found = next.find((it) => it.id === target.id);
+      if (found) setEditing(found);
+    } catch (e) {
+      setScanError(e instanceof Error ? e.message : 'Merge fehlgeschlagen.');
+    } finally {
+      setScanMergeContext(null);
+    }
+  }
+
+  async function declineMerge() {
+    const ctx = scanMergeContext;
+    setScanMergeContext(null);
+    if (!ctx) return;
+    setScanBanner({
+      kind: 'created',
+      label: ctx.lookup.label ?? ctx.lookup.barcode,
+      brand: ctx.lookup.brand,
+    });
+    await openEditByLookup(ctx.lookup);
+  }
 
   return (
     <Sheet
@@ -121,7 +241,7 @@ export function PantrySheet({ onClose }: PantrySheetProps) {
       }
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 16 }}>
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           <button
             type="button"
             onClick={() => setTab('active')}
@@ -139,13 +259,48 @@ export function PantrySheet({ onClose }: PantrySheetProps) {
           <div style={{ flex: 1 }} />
           <button
             type="button"
-            onClick={() => setCreating(true)}
+            onClick={() => {
+              setScanError(null);
+              setScannerOpen(true);
+            }}
+            className="filter-pill"
+            style={{
+              fontFamily: 'var(--mono)',
+              fontSize: 11,
+              letterSpacing: '0.06em',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+            aria-label="Barcode scannen"
+          >
+            <Icon name="pattern" size={12} />
+            SCANNEN
+          </button>
+          <button
+            type="button"
+            onClick={() => setCreating({})}
             className="filter-pill"
             style={{ fontFamily: 'var(--mono)', fontSize: 11, letterSpacing: '0.06em' }}
           >
             + NEU
           </button>
         </div>
+
+        {scanBanner && <ScanBannerView banner={scanBanner} onDismiss={() => setScanBanner(null)} />}
+
+        {scanError && (
+          <div
+            style={{
+              color: 'var(--amber)',
+              fontSize: 12,
+              fontFamily: 'var(--mono)',
+              letterSpacing: '0.04em',
+            }}
+          >
+            {scanError}
+          </div>
+        )}
 
         {error && (
           <div
@@ -208,9 +363,10 @@ export function PantrySheet({ onClose }: PantrySheetProps) {
 
       {creating && (
         <CreateSheet
-          onClose={() => setCreating(false)}
+          prefillBarcode={creating.prefillBarcode}
+          onClose={() => setCreating(null)}
           onCreated={() => {
-            setCreating(false);
+            setCreating(null);
             reload('active');
             setTab('active');
           }}
@@ -228,6 +384,131 @@ export function PantrySheet({ onClose }: PantrySheetProps) {
           }}
         />
       )}
+
+      {scannerOpen && (
+        <BarcodeScannerOverlay
+          onScan={handleBarcodeScanned}
+          onClose={() => setScannerOpen(false)}
+        />
+      )}
+
+      {scanMergeContext && (
+        <ScanMergeDialog
+          newLabel={scanMergeContext.lookup.label ?? scanMergeContext.lookup.barcode}
+          newBrand={scanMergeContext.lookup.brand}
+          candidates={scanMergeContext.candidates}
+          onConfirm={confirmMergeWithCandidate}
+          onDecline={declineMerge}
+        />
+      )}
+
+      {notFoundPrompt && (
+        <NotFoundPrompt
+          barcode={notFoundPrompt}
+          onCancel={() => setNotFoundPrompt(null)}
+          onCreateManually={() => {
+            const code = notFoundPrompt;
+            setNotFoundPrompt(null);
+            setCreating({ prefillBarcode: code });
+          }}
+        />
+      )}
+    </Sheet>
+  );
+}
+
+function ScanBannerView({ banner, onDismiss }: { banner: ScanBanner; onDismiss: () => void }) {
+  const message =
+    banner.kind === 'exists'
+      ? `Schon im Vorrat: „${banner.label}"${banner.brand ? ` (${banner.brand})` : ''}`
+      : banner.kind === 'created'
+        ? `Hinzugefügt: „${banner.label}"${banner.brand ? ` (${banner.brand})` : ''}`
+        : `Zugeordnet zu „${banner.targetLabel}"`;
+  return (
+    <output
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 10,
+        padding: '10px 12px',
+        background: 'var(--sage-wash)',
+        border: '0.5px solid rgba(110,122,78,0.22)',
+        color: 'var(--sage-deep)',
+        fontSize: 12,
+        fontFamily: 'var(--mono)',
+        letterSpacing: '0.04em',
+      }}
+    >
+      <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{message}</span>
+      <button
+        type="button"
+        onClick={onDismiss}
+        aria-label="Hinweis schließen"
+        className="pressable"
+        style={{
+          background: 'transparent',
+          border: 'none',
+          color: 'var(--sage-deep)',
+          cursor: 'pointer',
+          padding: 2,
+          display: 'inline-flex',
+        }}
+      >
+        <Icon name="x" size={12} />
+      </button>
+    </output>
+  );
+}
+
+function NotFoundPrompt({
+  barcode,
+  onCancel,
+  onCreateManually,
+}: {
+  barcode: string;
+  onCancel: () => void;
+  onCreateManually: () => void;
+}) {
+  return (
+    <Sheet
+      onClose={onCancel}
+      backdropStyle={{ zIndex: 100 }}
+      header={
+        <div className="row-between" style={{ marginBottom: 8 }}>
+          <div className="h-card" style={{ fontSize: 18 }}>
+            Barcode unbekannt
+          </div>
+          <SheetCloseButton onClose={onCancel} />
+        </div>
+      }
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ fontSize: 13, color: 'var(--ink-3)' }}>
+          Für <span style={{ fontFamily: 'var(--mono)', color: 'var(--ink)' }}>{barcode}</span> gibt
+          es weder in deinem Vorrat noch bei Open Food Facts einen Treffer. Du kannst das Produkt
+          manuell anlegen — der Code wird als Alias gespeichert, sodass der nächste Scan direkt aus
+          dem Vorrat trifft.
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            type="button"
+            onClick={onCreateManually}
+            className="pressable btn-primary"
+            style={{ flex: 1, padding: '12px' }}
+          >
+            Manuell anlegen
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="filter-pill"
+            style={{ flex: 1, padding: '12px' }}
+          >
+            Abbrechen
+          </button>
+        </div>
+      </div>
     </Sheet>
   );
 }
@@ -448,7 +729,15 @@ function EditSheet({
   );
 }
 
-function CreateSheet({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+function CreateSheet({
+  prefillBarcode,
+  onClose,
+  onCreated,
+}: {
+  prefillBarcode?: string;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -457,10 +746,12 @@ function CreateSheet({ onClose, onCreated }: { onClose: () => void; onCreated: (
     setBusy(true);
     setError(null);
     try {
+      const payload: Record<string, unknown> = formStateToPayload(form);
+      if (prefillBarcode) payload.barcode = prefillBarcode;
       const res = await fetch('/api/pantry', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(formStateToPayload(form)),
+        body: JSON.stringify(payload),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? 'Konnte nicht anlegen');
@@ -485,6 +776,27 @@ function CreateSheet({ onClose, onCreated }: { onClose: () => void; onCreated: (
         </div>
       }
     >
+      {prefillBarcode && (
+        <div
+          style={{
+            marginBottom: 12,
+            padding: '8px 10px',
+            background: 'var(--surface)',
+            border: '0.5px solid var(--hairline)',
+            fontFamily: 'var(--mono)',
+            fontSize: 11,
+            color: 'var(--ink-3)',
+            letterSpacing: '0.04em',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
+          <Icon name="pattern" size={12} />
+          <span>BARCODE: {prefillBarcode}</span>
+        </div>
+      )}
+
       <PantryForm form={form} setForm={setForm} />
 
       {error && (
