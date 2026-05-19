@@ -17,6 +17,16 @@ Doc-Drift-Check vor jeder PR-Erstellung. Ziel: Doc-Updates landen im **gleichen*
 
 Wenn nichts matched: **keinen leeren Commit**, einfach „keine Drift" melden.
 
+## Scope: nur strukturelle Drift
+
+Nur strukturelle Drift fixen — neue Domäne, neuer Endpoint, neues ADR, neuer Skill, Auth-Behauptung wird falsch. **Capability-Verfeinerungen einer bereits erwähnten Zeile sind kein Doc-Trigger.** Beispiele für Drift, die du *nicht* fixt:
+
+- `/api/recognize-meal` ist im Stand erwähnt und kann jetzt zusätzlich Pantry-Items matchen → nicht ergänzen.
+- `PantrySheet` ist erwähnt und hat jetzt einen neuen Filter/Tab → nicht ergänzen.
+- Eine Domäne ist erwähnt und bekommt einen zusätzlichen Sub-Feature-Bullet im UI → nicht ergänzen.
+
+Warum: solche Updates machen jede PR zu einem CLAUDE.md-Edit und produzieren parallel-PR-Konflikte. Drift, die wirklich erwähnenswert ist, fängt der Code-Review ein.
+
 ## Trigger-Regeln
 
 | Code-Pfad geändert | Doc-Stelle prüfen |
@@ -38,6 +48,8 @@ Die Liste ist nicht vollständig, sondern die Punkte, an denen wir bisher Drift 
 - **Wiederholungen von ADR-Inhalt.** [CLAUDE.md](../../../CLAUDE.md) ist Navigations-Index, nicht zweite Quelle.
 - **Detail-Listen, die per `grep` auffindbar sind** (Funktions-Namen, File-Pfade, exakte Zeilennummern).
 - **Zeit-Stempel oder „Stand: …"-Datum** in Prosa — Git-Log ist die Autorität.
+- **Capability-Verfeinerungen** einer bereits erwähnten Zeile (siehe oben „Scope: nur strukturelle Drift").
+- **Bullet-Block-Strukturen zu Prosa zusammenfassen.** Wenn der „Aktueller Stand" als Bullet-Liste pro Bereich strukturiert ist, eine Bereichs-Zeile editieren, niemals den Block zu Prosa kollabieren.
 
 ## Was wenn der PR rein Doku ist?
 
