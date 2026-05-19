@@ -9,6 +9,15 @@ import { useState, useTransition } from 'react';
 import { Icon, type IconName } from '../Icon';
 import { Sheet, SheetCloseButton } from '../Sheet';
 import type { WorkoutIconValue, WorkoutTemplateView } from '../types';
+import {
+  type DraftExercise,
+  type DraftSet,
+  emptyExercise,
+  emptySet,
+  newId,
+  setToPayload,
+} from './workout-draft';
+import { addButtonStyle, iconButtonStyle, inputStyle } from './workout-styles';
 
 // Kuratierte Auswahl, parallel zu workoutIconSchema in packages/core. Wer hier
 // einen Wert hinzufügt, muss auch das Core-Enum erweitern — sonst greift die
@@ -24,18 +33,6 @@ const ICON_OPTIONS: ReadonlyArray<{ value: WorkoutIconValue; label: string }> = 
   { value: 'flame', label: 'Intensiv' },
 ];
 
-interface DraftSet {
-  id: string;
-  reps: string;
-  weight_kg: string;
-}
-
-interface DraftExercise {
-  id: string;
-  name: string;
-  sets: DraftSet[];
-}
-
 export type WorkoutTemplateSheetMode =
   | { kind: 'new' }
   | { kind: 'edit'; template: WorkoutTemplateView };
@@ -43,18 +40,6 @@ export type WorkoutTemplateSheetMode =
 interface WorkoutTemplateSheetProps {
   mode: WorkoutTemplateSheetMode;
   onClose: () => void;
-}
-
-function newId(): string {
-  return Math.random().toString(36).slice(2, 10);
-}
-
-function emptySet(): DraftSet {
-  return { id: newId(), reps: '', weight_kg: '' };
-}
-
-function emptyExercise(): DraftExercise {
-  return { id: newId(), name: '', sets: [emptySet()] };
 }
 
 // Vorlage → Draft. Bestehende Werte (Default-Reps, Default-Gewicht) werden
@@ -73,21 +58,6 @@ function templateToDrafts(tpl: WorkoutTemplateView): DraftExercise[] {
           }))
         : [emptySet()],
   }));
-}
-
-function setToPayload(s: DraftSet): { reps?: number; weight_kg?: number } {
-  const out: { reps?: number; weight_kg?: number } = {};
-  const reps = s.reps.trim();
-  if (reps !== '') {
-    const n = Number.parseInt(reps, 10);
-    if (Number.isFinite(n) && n >= 0) out.reps = n;
-  }
-  const weight = s.weight_kg.replace(',', '.').trim();
-  if (weight !== '') {
-    const n = Number.parseFloat(weight);
-    if (Number.isFinite(n) && n >= 0) out.weight_kg = Math.round(n * 10) / 10;
-  }
-  return out;
 }
 
 export function WorkoutTemplateSheet({ mode, onClose }: WorkoutTemplateSheetProps) {
@@ -445,46 +415,6 @@ function ExerciseBlock({
     </div>
   );
 }
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '10px 12px',
-  borderRadius: 10,
-  border: '0.5px solid var(--hairline-strong)',
-  background: 'var(--surface)',
-  fontFamily: 'var(--sans)',
-  fontSize: 14,
-  color: 'var(--ink)',
-  outline: 'none',
-};
-
-const iconButtonStyle: React.CSSProperties = {
-  width: 28,
-  height: 28,
-  borderRadius: 8,
-  background: 'transparent',
-  border: '0.5px solid var(--hairline)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  cursor: 'pointer',
-  flexShrink: 0,
-};
-
-const addButtonStyle: React.CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 4,
-  padding: '6px 10px',
-  borderRadius: 999,
-  background: 'var(--sage-wash)',
-  color: 'var(--sage-deep)',
-  border: 'none',
-  fontFamily: 'var(--sans)',
-  fontSize: 12,
-  fontWeight: 500,
-  cursor: 'pointer',
-};
 
 function IconPicker({
   value,
