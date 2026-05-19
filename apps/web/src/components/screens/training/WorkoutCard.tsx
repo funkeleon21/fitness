@@ -10,6 +10,8 @@ interface WorkoutCardProps {
   isToday: boolean;
 }
 
+const COLLAPSED_LIMIT = 3;
+
 function formatTime(iso: string): string {
   const d = new Date(iso);
   return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
@@ -35,23 +37,43 @@ function summarizeSets(sets: Array<{ reps?: number; weight_kg?: number }>): stri
 export function WorkoutCard({ workout, isToday }: WorkoutCardProps) {
   const sets = countSets(workout);
   const exerciseCount = workout.exercises?.length ?? 0;
-  const visibleExercises = workout.exercises?.slice(0, 3) ?? [];
-  const overflow = Math.max(0, exerciseCount - visibleExercises.length);
+  const canExpand = exerciseCount > COLLAPSED_LIMIT;
+  const [expanded, setExpanded] = useState(false);
+  const visibleExercises =
+    canExpand && !expanded
+      ? (workout.exercises?.slice(0, COLLAPSED_LIMIT) ?? [])
+      : (workout.exercises ?? []);
+  const hidden = canExpand && !expanded ? exerciseCount - COLLAPSED_LIMIT : 0;
 
   return (
     <div
-      className="card"
+      className={canExpand ? 'card pressable' : 'card'}
+      onClick={canExpand ? () => setExpanded((v) => !v) : undefined}
+      onKeyDown={
+        canExpand
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setExpanded((v) => !v);
+              }
+            }
+          : undefined
+      }
+      role={canExpand ? 'button' : undefined}
+      tabIndex={canExpand ? 0 : undefined}
+      aria-expanded={canExpand ? expanded : undefined}
       style={{
         padding: '16px 18px',
         position: 'relative',
-        borderLeft: isToday ? '3px solid var(--sage-deep)' : undefined,
+        borderLeft: isToday ? '4px solid var(--sage-deep)' : undefined,
+        cursor: canExpand ? 'pointer' : undefined,
       }}
     >
-      <div style={{ display: 'flex', gap: 14 }}>
+      <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
         <div
           style={{
-            width: 56,
-            height: 56,
+            width: 52,
+            height: 52,
             borderRadius: 14,
             background: 'var(--sage-wash)',
             color: 'var(--sage-deep)',
@@ -59,12 +81,16 @@ export function WorkoutCard({ workout, isToday }: WorkoutCardProps) {
             alignItems: 'center',
             justifyContent: 'center',
             flexShrink: 0,
+            // Avatar zur Title-Höhe alignen (Title fontSize 20, lineHeight 1.15 → ~23
+            // sichtbare Höhe). Mit marginTop -2 sitzt das Icon mittig zum Title statt
+            // oben bündig — wirkt eher wie Bullet zum Title als wie eigener Block.
+            marginTop: -2,
           }}
         >
-          <Icon name="dumbbell" size={26} strokeWidth={1.7} />
+          <Icon name="dumbbell" size={24} strokeWidth={1.7} />
         </div>
 
-        <div style={{ flex: 1, minWidth: 0, paddingRight: 28 }}>
+        <div style={{ flex: 1, minWidth: 0, paddingRight: canExpand ? 32 : 28 }}>
           <div
             style={{
               fontFamily: 'var(--serif)',
@@ -95,7 +121,7 @@ export function WorkoutCard({ workout, isToday }: WorkoutCardProps) {
               {visibleExercises.map((ex, idx) => (
                 <ExerciseRow key={`${workout.event_id}-${idx}`} exercise={ex} />
               ))}
-              {overflow > 0 && (
+              {hidden > 0 && (
                 <div
                   style={{
                     gridColumn: '1 / -1',
@@ -104,27 +130,45 @@ export function WorkoutCard({ workout, isToday }: WorkoutCardProps) {
                     marginTop: 2,
                   }}
                 >
-                  + {overflow} weitere Übungen
+                  + {hidden} weitere Übungen
                 </div>
               )}
             </div>
           )}
         </div>
 
-        <div style={{ position: 'absolute', top: 12, right: 10 }}>
+        <div
+          style={{ position: 'absolute', top: 12, right: 10 }}
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+          role="presentation"
+        >
           <RowMenu eventId={workout.event_id} />
         </div>
+
+        {canExpand && (
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              right: 14,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: 'var(--ink-4)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'transform 160ms ease',
+              transformOrigin: 'center',
+            }}
+          >
+            <Icon name={expanded ? 'chevron-down' : 'chevron-right'} size={16} strokeWidth={1.7} />
+          </div>
+        )}
       </div>
 
-      <div
-        style={{
-          marginTop: 12,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        {sets > 0 ? (
+      {sets > 0 && (
+        <div style={{ marginTop: 12 }}>
           <span
             style={{
               display: 'inline-block',
@@ -137,11 +181,8 @@ export function WorkoutCard({ workout, isToday }: WorkoutCardProps) {
           >
             {sets} {sets === 1 ? 'Satz' : 'Sätze'}
           </span>
-        ) : (
-          <span />
-        )}
-        <Icon name="chevron-right" size={16} strokeWidth={1.6} stroke="var(--ink-4)" />
-      </div>
+        </div>
+      )}
     </div>
   );
 }

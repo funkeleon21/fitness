@@ -39,13 +39,12 @@ export function TrainingScreen({
 
       {hasAny && (
         <>
-          <div className="pad-x" style={{ marginTop: 28, marginBottom: 14 }}>
+          <div className="pad-x" style={{ marginTop: 32, marginBottom: 16 }}>
             <div
+              className="h-display"
               style={{
-                fontFamily: 'var(--serif)',
-                fontSize: 22,
-                color: 'var(--ink)',
-                letterSpacing: '-0.01em',
+                fontSize: 26,
+                letterSpacing: '-0.015em',
               }}
             >
               Dein Verlauf
