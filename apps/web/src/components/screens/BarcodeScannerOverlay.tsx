@@ -1,7 +1,9 @@
 'use client';
 
+import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
 import type { BrowserMultiFormatReader, IScannerControls } from '@zxing/browser';
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from '../Icon';
 
 interface BarcodeScannerOverlayProps {
@@ -17,6 +19,7 @@ export function BarcodeScannerOverlay({ onScan, onClose }: BarcodeScannerOverlay
   const controlsRef = useRef<IScannerControls | null>(null);
   const handedOffRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
+  useBodyScrollLock();
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: scanner setup runs once at mount; onScan/onClose are stable callbacks
   useEffect(() => {
@@ -66,7 +69,11 @@ export function BarcodeScannerOverlay({ onScan, onClose }: BarcodeScannerOverlay
     };
   }, []);
 
-  return (
+  // Portal an document.body: das Overlay wird aus dem PantrySheet heraus
+  // geöffnet, dessen `.sheet`-Container ein transform trägt — sonst würde
+  // `position: fixed` am Parent-Sheet ankern statt am Viewport und das
+  // Overlay auf dessen Größe schrumpfen.
+  return createPortal(
     <button
       type="button"
       onClick={onClose}
@@ -175,7 +182,8 @@ export function BarcodeScannerOverlay({ onScan, onClose }: BarcodeScannerOverlay
           Halte den Barcode der Verpackung in den Rahmen.
         </div>
       </div>
-    </button>
+    </button>,
+    document.body,
   );
 }
 
