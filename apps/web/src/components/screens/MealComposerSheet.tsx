@@ -4,6 +4,7 @@ import { logMealFromTemplateAction, saveComposedMealAction } from '@/app/actions
 import type { BarcodeLookupResult, PantrySimilarItem } from '@/app/api/lookup-barcode/route';
 import type { RecognizedMeal } from '@/app/api/recognize-meal/route';
 import { MEAL_SLOTS, type MealSlotId, mealSlotFromIso } from '@/lib/nutrition';
+import { resizeImageFile } from '@/lib/resize-image';
 import dynamic from 'next/dynamic';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { Icon } from '../Icon';
@@ -35,7 +36,6 @@ interface MealComposerSheetProps {
 }
 
 const MAX_IMAGES = 3;
-const MAX_IMAGE_DIMENSION = 1024;
 
 export function MealComposerSheet({ templates, onClose }: MealComposerSheetProps) {
   const [stage, setStage] = useState<Stage>('capture');
@@ -1693,21 +1693,3 @@ function PortionDialog({
 
 // Resize/komprimiert ein Bild im Browser bevor wir es zur Vision-API senden.
 // Verhindert sowohl Mobile-Upload-Stalls als auch zu fette Anthropic-Payloads.
-async function resizeImageFile(file: File): Promise<string> {
-  const bitmap = await createImageBitmap(file);
-  try {
-    const { width, height } = bitmap;
-    const scale = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(width, height));
-    const targetW = Math.round(width * scale);
-    const targetH = Math.round(height * scale);
-    const canvas = document.createElement('canvas');
-    canvas.width = targetW;
-    canvas.height = targetH;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('Canvas-Kontext nicht verfuegbar');
-    ctx.drawImage(bitmap, 0, 0, targetW, targetH);
-    return canvas.toDataURL('image/jpeg', 0.85);
-  } finally {
-    bitmap.close();
-  }
-}

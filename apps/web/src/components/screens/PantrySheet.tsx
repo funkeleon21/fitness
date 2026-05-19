@@ -1,9 +1,11 @@
 'use client';
 
+import type { NutritionLabelResult } from '@/app/api/extract-nutrition-label/route';
 import type { BarcodeLookupResult, PantrySimilarItem } from '@/app/api/lookup-barcode/route';
 import type { PantryItemDto } from '@/app/api/pantry/route';
+import { resizeImageFile } from '@/lib/resize-image';
 import dynamic from 'next/dynamic';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Icon } from '../Icon';
 import { Sheet, SheetCloseButton } from '../Sheet';
 import { ScanMergeDialog } from './ScanMergeDialog';
@@ -71,6 +73,23 @@ function toFormState(item: PantryItemDto): FormState {
   };
 }
 
+function nutritionToFormState(n: NutritionLabelResult): FormState {
+  const num = (v: number | null) => (v === null ? '' : String(v));
+  return {
+    label: n.label ?? '',
+    brand: n.brand ?? '',
+    kcal_per_100g: num(n.kcal_per_100g),
+    protein_g_per_100g: num(n.protein_g_per_100g),
+    carbs_g_per_100g: num(n.carbs_g_per_100g),
+    fat_g_per_100g: num(n.fat_g_per_100g),
+    sugar_g_per_100g: num(n.sugar_g_per_100g),
+    fiber_g_per_100g: num(n.fiber_g_per_100g),
+    saturated_fat_g_per_100g: num(n.saturated_fat_g_per_100g),
+    salt_g_per_100g: num(n.salt_g_per_100g),
+    serving_size_g: num(n.serving_size_g),
+  };
+}
+
 function parseNumber(s: string): number | null {
   const trimmed = s.trim();
   if (trimmed === '') return null;
@@ -100,7 +119,10 @@ export function PantrySheet({ onClose }: PantrySheetProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<PantryItemDto | null>(null);
-  const [creating, setCreating] = useState<{ prefillBarcode?: string } | null>(null);
+  const [creating, setCreating] = useState<{
+    prefillBarcode?: string;
+    prefillNutrition?: NutritionLabelResult;
+  } | null>(null);
   const [mergingFrom, setMergingFrom] = useState<PantryItemDto | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
@@ -110,6 +132,30 @@ export function PantrySheet({ onClose }: PantrySheetProps) {
     candidates: PantrySimilarItem[];
   } | null>(null);
   const [notFoundPrompt, setNotFoundPrompt] = useState<string | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleNutritionPhoto(file: File) {
+    setPhotoError(null);
+    setPhotoBusy(true);
+    try {
+      const dataUrl = await resizeImageFile(file);
+      const res = await fetch('/api/extract-nutrition-label', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ image: dataUrl }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? 'Extraktion fehlgeschlagen');
+      const result = body.result as NutritionLabelResult;
+      setCreating({ prefillNutrition: result });
+    } catch (e) {
+      setPhotoError(e instanceof Error ? e.message : 'Extraktion fehlgeschlagen');
+    } finally {
+      setPhotoBusy(false);
+    }
+  }
 
   async function reload(t: Tab = tab): Promise<PantryItemDto[]> {
     setLoading(true);
@@ -279,6 +325,28 @@ export function PantrySheet({ onClose }: PantrySheetProps) {
           </button>
           <button
             type="button"
+            onClick={() => {
+              setPhotoError(null);
+              photoInputRef.current?.click();
+            }}
+            disabled={photoBusy}
+            className="filter-pill"
+            style={{
+              fontFamily: 'var(--mono)',
+              fontSize: 11,
+              letterSpacing: '0.06em',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              opacity: photoBusy ? 0.5 : 1,
+            }}
+            aria-label="Nährwert-Tabelle abfotografieren"
+          >
+            <Icon name="camera" size={12} />
+            {photoBusy ? 'LIES…' : 'FOTO'}
+          </button>
+          <button
+            type="button"
             onClick={() => setCreating({})}
             className="filter-pill"
             style={{ fontFamily: 'var(--mono)', fontSize: 11, letterSpacing: '0.06em' }}
@@ -287,7 +355,35 @@ export function PantrySheet({ onClose }: PantrySheetProps) {
           </button>
         </div>
 
+        <input
+          ref={photoInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            // Input zuruecksetzen, damit dasselbe Foto auch direkt nochmal genommen werden kann
+            // (z.B. bei einem Extraktionsfehler).
+            e.target.value = '';
+            if (file) handleNutritionPhoto(file);
+          }}
+          style={{ display: 'none' }}
+        />
+
         {scanBanner && <ScanBannerView banner={scanBanner} onDismiss={() => setScanBanner(null)} />}
+
+        {photoError && (
+          <div
+            style={{
+              color: 'var(--amber)',
+              fontSize: 12,
+              fontFamily: 'var(--mono)',
+              letterSpacing: '0.04em',
+            }}
+          >
+            {photoError}
+          </div>
+        )}
 
         {scanError && (
           <div
@@ -364,6 +460,7 @@ export function PantrySheet({ onClose }: PantrySheetProps) {
       {creating && (
         <CreateSheet
           prefillBarcode={creating.prefillBarcode}
+          prefillNutrition={creating.prefillNutrition}
           onClose={() => setCreating(null)}
           onCreated={() => {
             setCreating(null);
@@ -731,14 +828,18 @@ function EditSheet({
 
 function CreateSheet({
   prefillBarcode,
+  prefillNutrition,
   onClose,
   onCreated,
 }: {
   prefillBarcode?: string;
+  prefillNutrition?: NutritionLabelResult;
   onClose: () => void;
   onCreated: () => void;
 }) {
-  const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [form, setForm] = useState<FormState>(() =>
+    prefillNutrition ? nutritionToFormState(prefillNutrition) : EMPTY_FORM,
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -794,6 +895,40 @@ function CreateSheet({
         >
           <Icon name="pattern" size={12} />
           <span>BARCODE: {prefillBarcode}</span>
+        </div>
+      )}
+
+      {prefillNutrition && (
+        <div
+          style={{
+            marginBottom: 12,
+            padding: '10px 12px',
+            background: 'var(--sage-wash)',
+            border: '0.5px solid rgba(110,122,78,0.22)',
+            color: 'var(--sage-deep)',
+            fontSize: 12,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 4,
+          }}
+        >
+          <div
+            style={{
+              fontFamily: 'var(--mono)',
+              fontSize: 10,
+              letterSpacing: '0.06em',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              opacity: 0.9,
+            }}
+          >
+            <Icon name="camera" size={11} />
+            AUS FOTO ERKANNT · KONFIDENZ {Math.round(prefillNutrition.confidence * 100)}%
+          </div>
+          <div style={{ fontSize: 12, opacity: 0.95 }}>
+            {prefillNutrition.hint ?? 'Bitte Werte prüfen, ggf. Label/Marke ergänzen.'}
+          </div>
         </div>
       )}
 
