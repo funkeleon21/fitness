@@ -14,6 +14,8 @@ function w(input: {
     label: 'X',
     duration_min: input.duration_min ?? null,
     exercises: input.exercises ?? null,
+    mood: null,
+    note: null,
     template_id: null,
     source: 'manual',
     confidence: null,

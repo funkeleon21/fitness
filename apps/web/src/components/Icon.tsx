@@ -42,7 +42,10 @@ export type IconName =
   | 'clock'
   | 'sets-stack'
   | 'brain'
-  | 'more-vertical';
+  | 'more-vertical'
+  | 'mood-happy'
+  | 'mood-neutral'
+  | 'mood-sad';
 
 interface IconProps {
   name: IconName;
@@ -401,6 +404,36 @@ export function Icon({
           <circle cx="12" cy="5" r="1.6" />
           <circle cx="12" cy="12" r="1.6" />
           <circle cx="12" cy="19" r="1.6" />
+        </svg>
+      );
+    case 'mood-happy':
+      return (
+        <svg {...props}>
+          <title>{label}</title>
+          <circle cx="12" cy="12" r="9" />
+          <path d="M8 14c1 1.5 2.4 2.3 4 2.3s3-.8 4-2.3" />
+          <circle cx="9" cy="10" r="0.6" fill="currentColor" />
+          <circle cx="15" cy="10" r="0.6" fill="currentColor" />
+        </svg>
+      );
+    case 'mood-neutral':
+      return (
+        <svg {...props}>
+          <title>{label}</title>
+          <circle cx="12" cy="12" r="9" />
+          <path d="M8.5 15h7" />
+          <circle cx="9" cy="10" r="0.6" fill="currentColor" />
+          <circle cx="15" cy="10" r="0.6" fill="currentColor" />
+        </svg>
+      );
+    case 'mood-sad':
+      return (
+        <svg {...props}>
+          <title>{label}</title>
+          <circle cx="12" cy="12" r="9" />
+          <path d="M8 16.3c1-1.5 2.4-2.3 4-2.3s3 .8 4 2.3" />
+          <circle cx="9" cy="10" r="0.6" fill="currentColor" />
+          <circle cx="15" cy="10" r="0.6" fill="currentColor" />
         </svg>
       );
     default:

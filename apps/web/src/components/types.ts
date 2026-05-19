@@ -64,12 +64,16 @@ export interface WorkoutExerciseView {
   note?: string;
 }
 
+export type WorkoutMoodValue = 'happy' | 'neutral' | 'sad';
+
 export interface WorkoutPoint {
   event_id: string;
   occurred_at: string; // ISO
   label: string;
   duration_min: number | null;
   exercises: WorkoutExerciseView[] | null;
+  mood: WorkoutMoodValue | null;
+  note: string | null;
   template_id: string | null;
   source: string;
   confidence: number | null;
