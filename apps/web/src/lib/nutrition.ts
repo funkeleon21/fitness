@@ -10,31 +10,32 @@ export interface MealSlotMeta {
   iconColor: string;
 }
 
-// Pro Slot eine eigene weiche Akzentfarbe + ein eindeutiges Icon. Die Tint-Werte
-// sind warme/kühle Pastelltöne, die mit den restlichen Surface-Farben harmonieren
-// (sage-wash, amber). iconColor ist die tiefere Variante für Icon-Stroke und
-// Akzent-Bars in der Mahlzeiten-Liste.
+// Slot-Akzent als Tagesverlauf: Frühstück (Morgenröte/Aprikose) → Mittag
+// (Mittagsgold) → Abend (Dämmerblau). Snack steht abseits dieser Achse als
+// eigene lila Akzentfarbe. Icon-Wahl folgt der Tageszeit-Metapher:
+// sunrise → sun → moon. tint ist die weiche Hintergrundfarbe (Bubble),
+// iconColor die tiefere Variante für Icon-Stroke und kcal-Pill-Text.
 export const MEAL_SLOTS: MealSlotMeta[] = [
   {
     id: 'breakfast',
     label: 'Frühstück',
-    icon: 'sun',
-    tint: 'rgba(240,199,117,0.32)',
-    iconColor: '#c89a4a',
+    icon: 'sunrise',
+    tint: 'rgba(247,198,168,0.34)',
+    iconColor: '#c9764f',
   },
   {
     id: 'lunch',
     label: 'Mittagessen',
-    icon: 'flame',
-    tint: 'rgba(217,130,100,0.28)',
-    iconColor: '#b85a3e',
+    icon: 'sun',
+    tint: 'rgba(238,190,105,0.34)',
+    iconColor: '#b8801a',
   },
   {
     id: 'dinner',
     label: 'Abendessen',
     icon: 'moon',
-    tint: 'rgba(120,130,200,0.30)',
-    iconColor: '#5d6ba8',
+    tint: 'rgba(110,125,185,0.30)',
+    iconColor: '#4a5a8c',
   },
   {
     id: 'snack',

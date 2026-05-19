@@ -16,6 +16,7 @@ export type IconName =
   | 'star'
   | 'moon'
   | 'sun'
+  | 'sunrise'
   | 'footprints'
   | 'water'
   | 'muscle'
@@ -195,6 +196,18 @@ export function Icon({
           <title>{label}</title>
           <circle cx="12" cy="12" r="4" />
           <path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4" />
+        </svg>
+      );
+    case 'sunrise':
+      // Aufgehende Sonne über Horizont — Halbkreis + Strahlen + Bodenlinie + Pfeil nach oben.
+      return (
+        <svg {...props}>
+          <title>{label}</title>
+          <path d="M12 2v6" />
+          <path d="m9 5 3-3 3 3" />
+          <path d="M4 16a8 8 0 0 1 16 0" />
+          <path d="M3 20h18" />
+          <path d="m5.6 12.6 1.4 1.4M17 14l1.4-1.4" />
         </svg>
       );
     case 'footprints':
