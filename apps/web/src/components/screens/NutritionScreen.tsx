@@ -259,44 +259,6 @@ function MacroSummaryCard({
           targetUnit="g"
         />
       </div>
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
-          gap: 10,
-          marginTop: 14,
-          paddingTop: 14,
-          borderTop: '0.5px solid var(--hairline)',
-        }}
-      >
-        <MacroStat
-          icon="droplet"
-          value={Math.round(totals.fat_g)}
-          unit="g"
-          label="Fett"
-          target={targets.fat_g.value}
-          targetUnit="g"
-          targetKind={targets.fat_g.kind}
-        />
-        <MacroStat
-          icon="droplet"
-          value={Math.round(totals.sugar_g)}
-          unit="g"
-          label="Zucker"
-          target={targets.sugar_g.value}
-          targetUnit="g"
-          targetKind={targets.sugar_g.kind}
-        />
-        <MacroStat
-          icon="leaf"
-          value={Math.round(totals.fiber_g)}
-          unit="g"
-          label="Ballaststoffe"
-          target={targets.fiber_g.value}
-          targetUnit="g"
-          targetKind={targets.fiber_g.kind}
-        />
-      </div>
     </button>
   );
 }

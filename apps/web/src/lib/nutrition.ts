@@ -19,7 +19,7 @@ export const MEAL_SLOTS: MealSlotMeta[] = [
   {
     id: 'breakfast',
     label: 'Frühstück',
-    icon: 'sunrise',
+    icon: 'coffee',
     tint: 'rgba(247,198,168,0.34)',
     iconColor: '#c9764f',
   },

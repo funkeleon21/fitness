@@ -347,10 +347,8 @@ export const retractMealAction = withAuth(async ({ supabase, userId }, formData)
 
 // Editiert eine geloggte Mahlzeit per Korrektur-Event (ADR-0004). Schreibt
 // die im Form übergebenen Felder ins new_payload — die Projection in
-// packages/db/src/projections/meal.ts wendet sie als Override an. Detail-
-// Nährwerte (sugar/fiber/...) und occurred_at sind hier nicht editierbar:
-// die ersten wären UI-Bloat im Edit-Sheet, die zweite ist bewusst nicht über
-// Korrektur änderbar (Order der Projection hängt am Original-Event).
+// packages/db/src/projections/meal.ts wendet sie als Override an. occurred_at
+// ist hier bewusst nicht änderbar (Order der Projection hängt am Original-Event).
 export const correctMealAction = withAuth(async ({ supabase, userId }, formData) => {
   const corrects = formData.get('event_id');
   if (typeof corrects !== 'string') throw new Error('event_id fehlt');
@@ -360,12 +358,24 @@ export const correctMealAction = withAuth(async ({ supabase, userId }, formData)
   const protein_g = parseOptionalNonNegativeNumber(formData.get('protein_g'), 'protein_g', 2000);
   const carbs_g = parseOptionalNonNegativeNumber(formData.get('carbs_g'), 'carbs_g', 2000);
   const fat_g = parseOptionalNonNegativeNumber(formData.get('fat_g'), 'fat_g', 2000);
+  const sugar_g = parseOptionalNonNegativeNumber(formData.get('sugar_g'), 'sugar_g', 2000);
+  const fiber_g = parseOptionalNonNegativeNumber(formData.get('fiber_g'), 'fiber_g', 2000);
+  const saturated_fat_g = parseOptionalNonNegativeNumber(
+    formData.get('saturated_fat_g'),
+    'saturated_fat_g',
+    2000,
+  );
+  const salt_g = parseOptionalNonNegativeNumber(formData.get('salt_g'), 'salt_g', 200);
   const meal_type = parseOptionalMealType(formData.get('meal_type'));
 
   const new_payload: Record<string, unknown> = { label, kcal };
   if (protein_g !== undefined) new_payload.protein_g = protein_g;
   if (carbs_g !== undefined) new_payload.carbs_g = carbs_g;
   if (fat_g !== undefined) new_payload.fat_g = fat_g;
+  if (sugar_g !== undefined) new_payload.sugar_g = sugar_g;
+  if (fiber_g !== undefined) new_payload.fiber_g = fiber_g;
+  if (saturated_fat_g !== undefined) new_payload.saturated_fat_g = saturated_fat_g;
+  if (salt_g !== undefined) new_payload.salt_g = salt_g;
   if (meal_type !== undefined) new_payload.meal_type = meal_type;
 
   await correctEvent(supabase, {

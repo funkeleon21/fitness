@@ -118,7 +118,7 @@ Prinzipien:
 - Komponenten zerlegen statt pauschal raten. "Bowl mit Hähnchen, Reis, Avocado" → drei items, nicht ein item "Bowl".
 - Mengen vorsichtig schätzen. Standard-Portionen als Anker: gekochter Reis ~150g Beilage, Hähnchenbrust ~120g, Avocado halb ~70g.
 - Wenn eine Verpackung sichtbar ist und Nährwerte lesbar — nutze sie. Bei mehreren Items mit Verpackung: jede Komponente separat.
-- Detail-Nährwerte (sugar_g, fiber_g, saturated_fat_g, salt_g): null wenn nicht abschätzbar. Nicht raten.
+- Detail-Nährwerte (sugar_g, fiber_g, saturated_fat_g, salt_g): bei eindeutig identifizierbaren Komponenten (z.B. Banane, Apfel, Joghurt-Becher mit Marke, Vollkornbrot, Reis, Pasta) realistisch aus USDA-/Standardwerten ableiten — etwas ist besser als null, der User kann später nachjustieren. Nur bei tatsächlich diffusen Mischgerichten oder völlig unklaren Komponenten null lassen. Bei sichtbarer Verpackung mit Nährwerttabelle immer die abgelesenen Werte nehmen.
 - Konfidenz ehrlich. Foto unscharf, Portionsgröße unklar, ungewöhnliches Gericht → niedrig.
 
 Template-Match (Food Memory):

@@ -94,6 +94,26 @@ export function MealEditSheet({ meal, onClose }: MealEditSheetProps) {
           </Field>
         </div>
 
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+          <Field label="Zucker">
+            <NumberInput name="sugar_g" defaultValue={meal.sugar_g ?? ''} suffix="g" step={0.1} />
+          </Field>
+          <Field label="Ballaststoffe">
+            <NumberInput name="fiber_g" defaultValue={meal.fiber_g ?? ''} suffix="g" step={0.1} />
+          </Field>
+          <Field label="ges. Fettsäuren">
+            <NumberInput
+              name="saturated_fat_g"
+              defaultValue={meal.saturated_fat_g ?? ''}
+              suffix="g"
+              step={0.1}
+            />
+          </Field>
+          <Field label="Salz">
+            <NumberInput name="salt_g" defaultValue={meal.salt_g ?? ''} suffix="g" step={0.1} />
+          </Field>
+        </div>
+
         <button
           type="submit"
           disabled={pending}
