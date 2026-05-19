@@ -1,6 +1,9 @@
 import {
+  EVENT_CORRECTED,
+  EVENT_RETRACTED,
   type EventProvenance,
   type EventSource,
+  WEIGHT_LOGGED,
   createEventCorrected,
   createEventRetracted,
   eventCorrectedEventSchema,
@@ -43,7 +46,9 @@ export async function correctEvent(
   }
 
   const result = await appendEvent(client, parsed.data);
-  await refreshWeightProjection(client, input.user_id);
+  if (await targetsWeightEvent(client, input.corrects_event_id)) {
+    await refreshWeightProjection(client, input.user_id);
+  }
   return result;
 }
 
@@ -79,6 +84,48 @@ export async function retractEvent(
   }
 
   const result = await appendEvent(client, parsed.data);
-  await refreshWeightProjection(client, input.user_id);
+  if (await targetsWeightEvent(client, input.retracts_event_id)) {
+    await refreshWeightProjection(client, input.user_id);
+  }
   return result;
+}
+
+// Korrekturen/Retractions koennen auf weitere Korrekturen zeigen (Korrektur-Kette).
+// Wir folgen der Kette bis zum urspruenglichen Domain-Event und pruefen dessen Typ.
+// Nur wenn die Wurzel ein weight_logged ist, lohnt sich der Refresh der Weight-Projection.
+// Stilles Skip wenn ein Glied der Kette fehlt (z.B. bereits retracted) — kein Throw.
+const MAX_CORRECTION_CHAIN_DEPTH = 10;
+
+interface EventLookupRow {
+  type: string;
+  payload: Record<string, unknown> | null;
+}
+
+async function targetsWeightEvent(client: SupabaseClient, eventId: string): Promise<boolean> {
+  let currentId: string | null = eventId;
+  const visited = new Set<string>();
+
+  for (let depth = 0; depth < MAX_CORRECTION_CHAIN_DEPTH; depth++) {
+    if (currentId === null || visited.has(currentId)) return false;
+    visited.add(currentId);
+
+    const { data, error } = await client
+      .from('events')
+      .select('type, payload')
+      .eq('id', currentId)
+      .maybeSingle<EventLookupRow>();
+
+    if (error || !data) return false;
+
+    if (data.type === WEIGHT_LOGGED) return true;
+    if (data.type !== EVENT_CORRECTED && data.type !== EVENT_RETRACTED) return false;
+
+    const payload = data.payload;
+    if (!payload) return false;
+    const nextId: unknown =
+      data.type === EVENT_CORRECTED ? payload.corrects_event_id : payload.retracts_event_id;
+    currentId = typeof nextId === 'string' ? nextId : null;
+  }
+
+  return false;
 }

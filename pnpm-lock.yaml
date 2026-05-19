@@ -118,9 +118,6 @@ importers:
       drizzle-orm:
         specifier: ^0.36.0
         version: 0.36.4(@opentelemetry/api@1.9.0)(@types/react@19.2.14)(postgres@3.4.9)(react@19.2.6)
-      postgres:
-        specifier: ^3.4.0
-        version: 3.4.9
     devDependencies:
       dotenv:
         specifier: ^16.4.5
@@ -3435,7 +3432,8 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
-  postgres@3.4.9: {}
+  postgres@3.4.9:
+    optional: true
 
   pretty-bytes@6.1.1: {}
 
