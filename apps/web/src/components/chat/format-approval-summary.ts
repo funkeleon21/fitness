@@ -15,6 +15,7 @@ export function formatApprovalSummary(toolName: string, input: unknown): string 
     template_id?: unknown;
     duration_min?: unknown;
     exercises?: unknown;
+    mood?: unknown;
   };
   const kg = typeof obj.kg === 'number' ? `${obj.kg.toFixed(1).replace('.', ',')} kg` : null;
   const when = formatApprovalTime(obj.occurred_at);
@@ -49,14 +50,18 @@ export function formatApprovalSummary(toolName: string, input: unknown): string 
       parts.push(`${obj.exercises.length} ${obj.exercises.length === 1 ? 'Übung' : 'Übungen'}`);
     }
     if (typeof obj.duration_min === 'number') parts.push(`${obj.duration_min} min`);
+    const moodText = workoutMoodText(obj.mood);
+    if (moodText) parts.push(`Stimmung: ${moodText}`);
     const head = parts.join(' · ');
     return when ? `${head} — ${when}` : `${head} — jetzt`;
   }
   if (toolName === 'log_workout_from_template') {
     const fallback = typeof obj.label === 'string' ? obj.label : 'Vorlage';
+    const moodText = workoutMoodText(obj.mood);
+    const moodSuffix = moodText ? ` · Stimmung: ${moodText}` : '';
     return when
-      ? `Training „${fallback}" eintragen — ${when}`
-      : `Training „${fallback}" eintragen — jetzt`;
+      ? `Training „${fallback}" eintragen${moodSuffix} — ${when}`
+      : `Training „${fallback}" eintragen${moodSuffix} — jetzt`;
   }
   if (toolName === 'retract_workout') {
     return 'Trainings-Eintrag zurückziehen';
@@ -78,6 +83,13 @@ export function formatApprovalSummary(toolName: string, input: unknown): string 
   }
 
   return `${toolName} ausführen?`;
+}
+
+function workoutMoodText(value: unknown): string | null {
+  if (value === 'happy') return 'gut';
+  if (value === 'neutral') return 'okay';
+  if (value === 'sad') return 'schlecht';
+  return null;
 }
 
 function formatApprovalTime(value: unknown): string | null {
@@ -119,6 +131,7 @@ export function formatToolDetail(toolName: string, input: unknown): string {
     label?: unknown;
     exercises?: unknown;
     duration_min?: unknown;
+    mood?: unknown;
   };
 
   if ((toolName === 'log_weight' || toolName === 'correct_weight') && typeof obj.kg === 'number') {
@@ -131,7 +144,9 @@ export function formatToolDetail(toolName: string, input: unknown): string {
   if (toolName === 'log_workout' && typeof obj.label === 'string') {
     const exCount = Array.isArray(obj.exercises) ? obj.exercises.length : 0;
     const tail = exCount > 0 ? ` · ${exCount} ${exCount === 1 ? 'Übung' : 'Übungen'}` : '';
-    return `${obj.label}${tail}`;
+    const moodText = workoutMoodText(obj.mood);
+    const moodSuffix = moodText ? ` · ${moodText}` : '';
+    return `${obj.label}${tail}${moodSuffix}`;
   }
   if (toolName === 'set_nutrition_targets' && typeof obj.kcal === 'number') {
     return `${obj.kcal.toLocaleString('de-DE')} kcal`;

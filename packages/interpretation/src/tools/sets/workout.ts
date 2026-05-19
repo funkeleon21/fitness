@@ -93,6 +93,19 @@ export const workoutTools: ChatToolset = ({ client, userId }) => ({
         .describe(
           'Übungen mit Sätzen. null oder leeres Array bei reinen Cardio-Einheiten (z.B. „5 km Lauf"), wo Label + Dauer reichen.',
         ),
+      mood: z
+        .enum(['happy', 'neutral', 'sad'])
+        .nullable()
+        .describe(
+          'Wie sich das Training angefühlt hat. happy=„lief gut", neutral=„okay", sad=„schwer/schlecht". null wenn der Nutzer nichts dazu sagt — nicht raten.',
+        ),
+      note: z
+        .string()
+        .max(500)
+        .nullable()
+        .describe(
+          'Frei-Text-Bemerkung zum Training (Schmerzen, Tagesform, Kontext). null wenn keine.',
+        ),
       occurred_at: z
         .string()
         .datetime()
@@ -115,7 +128,16 @@ export const workoutTools: ChatToolset = ({ client, userId }) => ({
         ),
     }),
     needsApproval: true,
-    execute: async ({ label, duration_min, exercises, occurred_at, confidence, raw_input }) => {
+    execute: async ({
+      label,
+      duration_min,
+      exercises,
+      mood,
+      note,
+      occurred_at,
+      confidence,
+      raw_input,
+    }) => {
       const occurredAt = occurred_at ? new Date(occurred_at) : new Date();
       const exercisePayload =
         exercises && exercises.length > 0 ? exercisesToEventPayload(exercises) : undefined;
@@ -124,6 +146,8 @@ export const workoutTools: ChatToolset = ({ client, userId }) => ({
         label,
         duration_min,
         exercises,
+        mood,
+        note,
         occurred_at,
       });
       const result = await logWorkout(client, {
@@ -131,12 +155,16 @@ export const workoutTools: ChatToolset = ({ client, userId }) => ({
         label,
         duration_min: duration_min ?? undefined,
         exercises: exercisePayload,
+        mood: mood ?? undefined,
+        note: note ?? undefined,
         occurred_at: occurredAt,
         source: 'ai-extracted',
         external_id: toolExternalId('log_workout', {
           label,
           duration_min,
           exercises,
+          mood,
+          note,
           occurred_at,
           raw_input: sourceInput,
         }),
@@ -149,6 +177,7 @@ export const workoutTools: ChatToolset = ({ client, userId }) => ({
         event_id: result.event_id,
         label,
         exercise_count: exercisePayload?.length ?? 0,
+        mood,
         occurred_at: occurredAt.toISOString(),
       };
     },
@@ -176,6 +205,8 @@ export const workoutTools: ChatToolset = ({ client, userId }) => ({
           duration_min: w.duration_min,
           exercise_count: w.exercises?.length ?? 0,
           set_count: setCount,
+          mood: w.mood,
+          note: w.note,
           corrected: w.corrected,
         };
       });
@@ -272,6 +303,19 @@ export const workoutTools: ChatToolset = ({ client, userId }) => ({
         .describe(
           'Mit aktuellen Gewichten/Wdh. überschriebene Übungen. null = nur Vorlagen-Struktur ohne Werte loggen.',
         ),
+      mood: z
+        .enum(['happy', 'neutral', 'sad'])
+        .nullable()
+        .describe(
+          'Wie sich das Training angefühlt hat. happy=„lief gut", neutral=„okay", sad=„schwer/schlecht". null wenn nicht angegeben.',
+        ),
+      note: z
+        .string()
+        .max(500)
+        .nullable()
+        .describe(
+          'Frei-Text-Bemerkung zum Training (Schmerzen, Tagesform, Kontext). null wenn keine.',
+        ),
       occurred_at: z
         .string()
         .datetime()
@@ -293,6 +337,8 @@ export const workoutTools: ChatToolset = ({ client, userId }) => ({
       label,
       duration_min,
       exercises,
+      mood,
+      note,
       occurred_at,
       confidence,
       raw_input,
@@ -308,6 +354,8 @@ export const workoutTools: ChatToolset = ({ client, userId }) => ({
         tool: 'log_workout_from_template',
         template_id,
         exercises,
+        mood,
+        note,
         occurred_at,
       });
       const result = await logWorkout(client, {
@@ -315,12 +363,16 @@ export const workoutTools: ChatToolset = ({ client, userId }) => ({
         label: label ?? tpl.label,
         duration_min: duration_min ?? tpl.default_duration_min ?? undefined,
         exercises: exercisePayload,
+        mood: mood ?? undefined,
+        note: note ?? undefined,
         template_id: tpl.id,
         occurred_at: occurredAt,
         source: 'ai-extracted',
         external_id: toolExternalId('log_workout_from_template', {
           template_id,
           exercises,
+          mood,
+          note,
           occurred_at,
           raw_input: sourceInput,
         }),
