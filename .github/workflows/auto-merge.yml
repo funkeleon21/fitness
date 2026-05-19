@@ -1,27 +1,38 @@
 name: Auto-Merge
 
 # Aktiviert GitHub-Auto-Merge (squash) für jeden neu eröffneten,
-# wiedereröffneten oder aus dem Draft-Status genommenen PR. Mergt
-# tatsächlich erst, wenn alle Branch-Protection-Bedingungen erfüllt
+# wiedereröffneten, aktualisierten oder aus dem Draft-Status genommenen PR.
+# Mergt tatsächlich erst, wenn alle Branch-Protection-Bedingungen erfüllt
 # sind (required check „lint · typecheck · test · build" aus ci.yml,
-# Branch up-to-date). Bleibt sicher, weil Auto-Merge sich von selbst
-# deaktiviert, sobald jemand neue Commits pusht, deren Autor nicht
-# das Vertrauen des Token-Owners hat.
+# Branch up-to-date).
+#
+# Wichtig für parallele Agents: NICHT secrets.GITHUB_TOKEN verwenden.
+# Merges, die durch GITHUB_TOKEN ausgelöst werden, starten keine neuen
+# push-Workflows auf main; dadurch läuft Auto-Update-PRs nach einem Merge
+# nicht zuverlässig. AUTO_MERGE_TOKEN muss ein fine-grained PAT oder
+# GitHub-App-Token eines echten Owners sein.
 
 on:
   pull_request:
-    types: [opened, reopened, ready_for_review]
+    types: [opened, reopened, ready_for_review, synchronize]
 
 jobs:
   enable:
-    if: github.event.pull_request.draft == false
+    if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
+    permissions: {}
     steps:
+      - name: AUTO_MERGE_TOKEN prüfen
+        env:
+          AUTO_MERGE_TOKEN: ${{ secrets.AUTO_MERGE_TOKEN }}
+        run: |
+          if [ -z "$AUTO_MERGE_TOKEN" ]; then
+            echo "::error::AUTO_MERGE_TOKEN fehlt. Lege ein fine-grained PAT oder GitHub-App-Token als Repo-Secret an (Contents: write, Pull requests: write). Nicht auf GITHUB_TOKEN zurückfallen, sonst triggern Merge-Pushes keine main-Workflows."
+            exit 1
+          fi
+
       - name: gh pr merge --auto --squash
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.AUTO_MERGE_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}
         run: gh pr merge --auto --squash "$PR_URL"
