@@ -15,6 +15,7 @@ import {
 import {
   WORKOUT_LOGGED,
   type WorkoutExercise,
+  type WorkoutIcon,
   type WorkoutLoggedEvent,
   type WorkoutMood,
 } from './training/workout';
@@ -107,6 +108,7 @@ export interface NewWorkoutLoggedInput {
   exercises?: WorkoutExercise[];
   mood?: WorkoutMood;
   note?: string;
+  icon?: WorkoutIcon;
   template_id?: string;
   source: EventSource;
   external_id?: string | null;
@@ -134,6 +136,7 @@ export function createWorkoutLogged(input: NewWorkoutLoggedInput): WorkoutLogged
       ...(input.exercises !== undefined ? { exercises: input.exercises } : {}),
       ...(input.mood !== undefined ? { mood: input.mood } : {}),
       ...(input.note !== undefined ? { note: input.note } : {}),
+      ...(input.icon !== undefined ? { icon: input.icon } : {}),
       ...(input.template_id !== undefined ? { template_id: input.template_id } : {}),
     },
   };

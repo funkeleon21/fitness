@@ -26,6 +26,12 @@ export const workoutTemplates = pgTable(
     user_id: uuid('user_id').notNull(),
     label: text('label').notNull(),
     exercises: jsonb('exercises').notNull().default(sql`'[]'::jsonb`),
+    // Visueller Icon-Key (z.B. „dumbbell", „biceps", „leg") — wird im Training-Tab
+    // und in der WorkoutMemoryRow für die Vorlagen genutzt. Default „dumbbell"
+    // damit bestehende Vorlagen automatisch ein sinnvolles Icon haben.
+    // Validierung welcher Wert erlaubt ist passiert im Repository über die
+    // workoutIconSchema-Enum aus @fitness/core.
+    icon: text('icon').notNull().default('dumbbell'),
     // Optionale Default-Dauer in Minuten. Im UI vorausgefüllt, vom Nutzer
     // jederzeit überschreibbar.
     default_duration_min: integer('default_duration_min'),

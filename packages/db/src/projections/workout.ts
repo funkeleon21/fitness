@@ -3,10 +3,12 @@ import {
   EVENT_RETRACTED,
   WORKOUT_LOGGED,
   type WorkoutExercise,
+  type WorkoutIcon,
   type WorkoutMood,
   eventCorrectedPayloadSchema,
   eventRetractedPayloadSchema,
   workoutExerciseSchema,
+  workoutIconSchema,
   workoutLoggedPayloadSchema,
   workoutMoodSchema,
 } from '@fitness/core';
@@ -23,6 +25,7 @@ export interface WorkoutDataPoint {
   exercises: WorkoutExercise[] | null;
   mood: WorkoutMood | null;
   note: string | null;
+  icon: WorkoutIcon | null;
   template_id: string | null;
   source: string;
   confidence: number | null;
@@ -111,6 +114,7 @@ export function projectWorkoutEvents(
     // Nutzer kann eine versehentlich gewählte Stimmung oder Notiz wieder entfernen.
     mood?: WorkoutMood | null;
     note?: string | null;
+    icon?: WorkoutIcon | null;
   };
   type Correction = {
     id: string;
@@ -155,6 +159,7 @@ export function projectWorkoutEvents(
         exercises: parsed.data.exercises ?? null,
         mood: parsed.data.mood ?? null,
         note: parsed.data.note ?? null,
+        icon: parsed.data.icon ?? null,
         template_id: parsed.data.template_id ?? null,
         source: row.source,
         confidence: row.confidence,
@@ -197,6 +202,14 @@ export function projectWorkoutEvents(
           fields.note = np.note;
         }
       }
+      if (np.icon !== undefined) {
+        if (np.icon === null) {
+          fields.icon = null;
+        } else {
+          const iconParsed = workoutIconSchema.safeParse(np.icon);
+          if (iconParsed.success) fields.icon = iconParsed.data;
+        }
+      }
 
       if (Object.keys(fields).length === 0) continue;
 
@@ -237,6 +250,7 @@ export function projectWorkoutEvents(
       if (correction.fields.exercises !== undefined) point.exercises = correction.fields.exercises;
       if (correction.fields.mood !== undefined) point.mood = correction.fields.mood;
       if (correction.fields.note !== undefined) point.note = correction.fields.note;
+      if (correction.fields.icon !== undefined) point.icon = correction.fields.icon;
       anyApplied = true;
     }
     if (anyApplied) point.corrected = true;
@@ -253,6 +267,7 @@ export function projectWorkoutEvents(
       exercises: point.exercises,
       mood: point.mood,
       note: point.note,
+      icon: point.icon,
       template_id: point.template_id,
       source: point.source,
       confidence: point.confidence,

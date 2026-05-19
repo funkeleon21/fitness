@@ -1,4 +1,10 @@
-import { type WorkoutExercise, workoutExerciseSchema } from '@fitness/core';
+import {
+  DEFAULT_WORKOUT_ICON,
+  type WorkoutExercise,
+  type WorkoutIcon,
+  workoutExerciseSchema,
+  workoutIconSchema,
+} from '@fitness/core';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export interface WorkoutTemplate {
@@ -6,6 +12,7 @@ export interface WorkoutTemplate {
   user_id: string;
   label: string;
   exercises: WorkoutExercise[];
+  icon: WorkoutIcon;
   default_duration_min: number | null;
   usage_count: number;
   last_used_at: Date | null;
@@ -17,12 +24,14 @@ export interface CreateWorkoutTemplateInput {
   user_id: string;
   label: string;
   exercises?: WorkoutExercise[];
+  icon?: WorkoutIcon;
   default_duration_min?: number | null;
 }
 
 export interface UpdateWorkoutTemplateInput {
   label?: string;
   exercises?: WorkoutExercise[];
+  icon?: WorkoutIcon;
   default_duration_min?: number | null;
 }
 
@@ -31,11 +40,21 @@ interface WorkoutTemplateRow {
   user_id: string;
   label: string;
   exercises: unknown;
+  icon: string | null;
   default_duration_min: number | null;
   usage_count: number;
   last_used_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+// Fallback auf den Default, falls die DB einen unbekannten Wert hat (z.B. nach
+// einer geplanten Icon-Entfernung) — Vorlagen sollen nie wegen Icon-Validierung
+// failen, weil Icon ein dekoratives Detail ist, nicht funktional.
+function parseIcon(raw: unknown): WorkoutIcon {
+  if (typeof raw !== 'string') return DEFAULT_WORKOUT_ICON;
+  const result = workoutIconSchema.safeParse(raw);
+  return result.success ? result.data : DEFAULT_WORKOUT_ICON;
 }
 
 // JSONB-Spalte → typsicheres Array. Invalides Item → übersprungen, das Template
@@ -56,6 +75,7 @@ function rowToTemplate(row: WorkoutTemplateRow): WorkoutTemplate {
     user_id: row.user_id,
     label: row.label,
     exercises: parseExercises(row.exercises),
+    icon: parseIcon(row.icon),
     default_duration_min: row.default_duration_min,
     usage_count: row.usage_count,
     last_used_at: row.last_used_at ? new Date(row.last_used_at) : null,
@@ -105,6 +125,7 @@ export async function createWorkoutTemplate(
       user_id: input.user_id,
       label: input.label,
       exercises: input.exercises ?? [],
+      icon: input.icon ?? DEFAULT_WORKOUT_ICON,
       default_duration_min: input.default_duration_min ?? null,
     })
     .select('*')
@@ -123,6 +144,7 @@ export async function updateWorkoutTemplate(
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (input.label !== undefined) patch.label = input.label;
   if (input.exercises !== undefined) patch.exercises = input.exercises;
+  if (input.icon !== undefined) patch.icon = input.icon;
   if (input.default_duration_min !== undefined)
     patch.default_duration_min = input.default_duration_min;
 

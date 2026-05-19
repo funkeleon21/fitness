@@ -6,9 +6,23 @@ import {
   updateWorkoutTemplateAction,
 } from '@/app/actions';
 import { useState, useTransition } from 'react';
-import { Icon } from '../Icon';
+import { Icon, type IconName } from '../Icon';
 import { Sheet, SheetCloseButton } from '../Sheet';
-import type { WorkoutTemplateView } from '../types';
+import type { WorkoutIconValue, WorkoutTemplateView } from '../types';
+
+// Kuratierte Auswahl, parallel zu workoutIconSchema in packages/core. Wer hier
+// einen Wert hinzufügt, muss auch das Core-Enum erweitern — sonst greift die
+// Server-side-Validierung.
+const ICON_OPTIONS: ReadonlyArray<{ value: WorkoutIconValue; label: string }> = [
+  { value: 'dumbbell', label: 'Krafttraining' },
+  { value: 'biceps', label: 'Arme' },
+  { value: 'back', label: 'Rücken' },
+  { value: 'leg', label: 'Beine' },
+  { value: 'body', label: 'Ganzkörper' },
+  { value: 'pulse', label: 'HIIT' },
+  { value: 'footprints', label: 'Lauf' },
+  { value: 'flame', label: 'Intensiv' },
+];
 
 interface DraftSet {
   id: string;
@@ -83,6 +97,7 @@ export function WorkoutTemplateSheet({ mode, onClose }: WorkoutTemplateSheetProp
   const [pending, startTransition] = useTransition();
   const [deleting, startDelete] = useTransition();
   const [label, setLabel] = useState(initial?.label ?? '');
+  const [icon, setIcon] = useState<WorkoutIconValue>(initial?.icon ?? 'dumbbell');
   const [duration, setDuration] = useState(
     initial?.default_duration_min !== null && initial?.default_duration_min !== undefined
       ? String(initial.default_duration_min)
@@ -144,6 +159,7 @@ export function WorkoutTemplateSheet({ mode, onClose }: WorkoutTemplateSheetProp
 
     const fd = new FormData();
     fd.set('label', trimmedLabel);
+    fd.set('icon', icon);
     fd.set('exercises', JSON.stringify(serialized));
     if (duration.trim() !== '') fd.set('default_duration_min', duration);
     if (isEdit && initial) fd.set('id', initial.id);
@@ -213,6 +229,8 @@ export function WorkoutTemplateSheet({ mode, onClose }: WorkoutTemplateSheetProp
             style={inputStyle}
           />
         </Field>
+
+        <IconPicker value={icon} onChange={setIcon} />
 
         <Field label="Default-Dauer (optional)">
           <NumberInput
@@ -467,6 +485,57 @@ const addButtonStyle: React.CSSProperties = {
   fontWeight: 500,
   cursor: 'pointer',
 };
+
+function IconPicker({
+  value,
+  onChange,
+}: {
+  value: WorkoutIconValue;
+  onChange: (next: WorkoutIconValue) => void;
+}) {
+  return (
+    <div>
+      <div style={{ marginBottom: 8, fontSize: 12, color: 'var(--ink-3)', fontWeight: 500 }}>
+        Icon
+      </div>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, 1fr)',
+          gap: 8,
+        }}
+      >
+        {ICON_OPTIONS.map((opt) => {
+          const active = value === opt.value;
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => onChange(opt.value)}
+              aria-pressed={active}
+              aria-label={opt.label}
+              className="pressable"
+              title={opt.label}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '10px 0',
+                borderRadius: 12,
+                background: active ? 'var(--sage-wash)' : 'var(--surface)',
+                border: `0.5px solid ${active ? 'var(--sage-deep)' : 'var(--hairline-strong)'}`,
+                color: active ? 'var(--sage-deep)' : 'var(--ink-3)',
+                cursor: 'pointer',
+              }}
+            >
+              <Icon name={opt.value as IconName} size={22} strokeWidth={1.7} />
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

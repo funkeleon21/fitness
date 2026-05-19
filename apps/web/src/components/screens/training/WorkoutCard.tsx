@@ -2,8 +2,8 @@
 
 import { retractWorkoutAction } from '@/app/actions';
 import { useEffect, useRef, useState } from 'react';
-import { Icon } from '../../Icon';
-import type { WorkoutPoint } from '../../types';
+import { Icon, type IconName } from '../../Icon';
+import type { WorkoutIconValue, WorkoutPoint } from '../../types';
 
 interface WorkoutCardProps {
   workout: WorkoutPoint;
@@ -30,6 +30,10 @@ function summarizeSets(sets: Array<{ reps?: number; weight_kg?: number }>): stri
     })
     .filter((s) => s !== '–')
     .join(', ');
+}
+
+function iconNameForWorkout(icon: WorkoutIconValue | null): IconName {
+  return icon ?? 'dumbbell';
 }
 
 export function WorkoutCard({ workout, isToday }: WorkoutCardProps) {
@@ -61,7 +65,7 @@ export function WorkoutCard({ workout, isToday }: WorkoutCardProps) {
             flexShrink: 0,
           }}
         >
-          <Icon name="dumbbell" size={26} strokeWidth={1.7} />
+          <Icon name={iconNameForWorkout(workout.icon)} size={26} strokeWidth={1.7} />
         </div>
 
         <div style={{ flex: 1, minWidth: 0, paddingRight: 28 }}>

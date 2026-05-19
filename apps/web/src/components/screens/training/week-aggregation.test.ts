@@ -16,6 +16,7 @@ function w(input: {
     exercises: input.exercises ?? null,
     mood: null,
     note: null,
+    icon: null,
     template_id: null,
     source: 'manual',
     confidence: null,

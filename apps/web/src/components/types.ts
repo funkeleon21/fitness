@@ -66,6 +66,16 @@ export interface WorkoutExerciseView {
 
 export type WorkoutMoodValue = 'happy' | 'neutral' | 'sad';
 
+export type WorkoutIconValue =
+  | 'dumbbell'
+  | 'biceps'
+  | 'back'
+  | 'leg'
+  | 'body'
+  | 'pulse'
+  | 'footprints'
+  | 'flame';
+
 export interface WorkoutPoint {
   event_id: string;
   occurred_at: string; // ISO
@@ -74,6 +84,7 @@ export interface WorkoutPoint {
   exercises: WorkoutExerciseView[] | null;
   mood: WorkoutMoodValue | null;
   note: string | null;
+  icon: WorkoutIconValue | null;
   template_id: string | null;
   source: string;
   confidence: number | null;
@@ -105,6 +116,7 @@ export interface WorkoutTemplateView {
   id: string;
   label: string;
   exercises: WorkoutExerciseView[];
+  icon: WorkoutIconValue;
   default_duration_min: number | null;
   usage_count: number;
   last_used_at: string | null;

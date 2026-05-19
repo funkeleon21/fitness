@@ -114,6 +114,21 @@ export function WorkoutMemoryRow({ templates, onCreate, onEdit }: WorkoutMemoryR
                 width: '100%',
               }}
             >
+              <div
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 10,
+                  background: 'var(--sage-wash)',
+                  color: 'var(--sage-deep)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <Icon name={t.icon} size={16} strokeWidth={1.7} />
+              </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--ink)' }}>{t.label}</div>
                 <div
