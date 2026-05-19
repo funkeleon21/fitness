@@ -10,29 +10,6 @@ interface WorkoutCardProps {
   isToday: boolean;
 }
 
-function formatTime(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
-}
-
-function countSets(w: WorkoutPoint): number {
-  if (!w.exercises) return 0;
-  return w.exercises.reduce((acc, ex) => acc + ex.sets.length, 0);
-}
-
-// Eine kompakte Info-Zeile statt Übungs-Liste + Pill: Zeit, Dauer, Übungs- und
-// Satz-Count auf einer Zeile zusammengefasst. Details kommen später im Detail-Sheet.
-function buildMeta(workout: WorkoutPoint): string {
-  const parts: string[] = [formatTime(workout.occurred_at)];
-  if (workout.duration_min) parts.push(`${workout.duration_min} min`);
-  const exCount = workout.exercises?.length ?? 0;
-  if (exCount > 0) parts.push(`${exCount} ${exCount === 1 ? 'Übung' : 'Übungen'}`);
-  const sets = countSets(workout);
-  if (sets > 0) parts.push(`${sets} ${sets === 1 ? 'Satz' : 'Sätze'}`);
-  if (workout.corrected) parts.push('korrigiert');
-  return parts.join(' · ');
-}
-
 export function WorkoutCard({ workout, isToday }: WorkoutCardProps) {
   return (
     <div
@@ -60,30 +37,22 @@ export function WorkoutCard({ workout, isToday }: WorkoutCardProps) {
           <Icon name="dumbbell" size={20} strokeWidth={1.7} />
         </div>
 
-        <div style={{ flex: 1, minWidth: 0, paddingRight: 28 }}>
-          <div
-            style={{
-              fontFamily: 'var(--serif)',
-              fontSize: 19,
-              lineHeight: 1.15,
-              color: 'var(--ink)',
-              letterSpacing: '-0.01em',
-            }}
-          >
-            {workout.label}
-          </div>
-          <div
-            style={{
-              marginTop: 3,
-              fontSize: 12,
-              color: 'var(--ink-3)',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}
-          >
-            {buildMeta(workout)}
-          </div>
+        <div
+          style={{
+            flex: 1,
+            minWidth: 0,
+            paddingRight: 28,
+            fontFamily: 'var(--serif)',
+            fontSize: 20,
+            lineHeight: 1.15,
+            color: 'var(--ink)',
+            letterSpacing: '-0.01em',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {workout.label}
         </div>
 
         <div style={{ position: 'absolute', top: 10, right: 8 }}>
