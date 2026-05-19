@@ -2,7 +2,12 @@
 
 import { Icon, type IconName } from '../../Icon';
 import type { WorkoutPoint } from '../../types';
-import { type CalendarWeek, formatWeekRange, getCalendarWeek } from './week-aggregation';
+import {
+  type CalendarWeek,
+  formatWeekRange,
+  getCalendarWeek,
+  getIsoWeek,
+} from './week-aggregation';
 
 interface WeekCardProps {
   allWorkouts: WorkoutPoint[];
@@ -12,15 +17,14 @@ interface WeekCardProps {
 
 export function WeekCard({ allWorkouts, weekOffset, onChange }: WeekCardProps) {
   const week = getCalendarWeek(allWorkouts, weekOffset);
-  const label = week.isCurrent ? 'Diese Woche' : formatWeekRange(week.start, week.end);
+  const label = week.isCurrent
+    ? `Woche ${getIsoWeek(week.start)}`
+    : formatWeekRange(week.start, week.end);
   const canForward = weekOffset < 0;
 
   return (
-    <div className="card rise" style={{ padding: '20px 18px' }}>
-      <div className="row-between" style={{ marginBottom: 16 }}>
-        <div className="h-card" style={{ fontSize: 20 }}>
-          Diese Woche
-        </div>
+    <div className="card rise" style={{ padding: '14px 16px' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
         <WeekNav
           label={label}
           onBack={() => onChange(weekOffset - 1)}
@@ -33,7 +37,7 @@ export function WeekCard({ allWorkouts, weekOffset, onChange }: WeekCardProps) {
           display: 'grid',
           gridTemplateColumns: 'repeat(3, 1fr)',
           gap: 4,
-          marginBottom: 18,
+          marginBottom: 14,
         }}
       >
         <IconStat icon="dumbbell" value={String(week.totals.count)} label="Einheiten" />
@@ -139,11 +143,11 @@ function IconStat({
   label: string;
 }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
       <div
         style={{
-          width: 34,
-          height: 34,
+          width: 30,
+          height: 30,
           borderRadius: '50%',
           background: 'var(--sage-wash)',
           color: 'var(--sage-deep)',
@@ -153,7 +157,7 @@ function IconStat({
           flexShrink: 0,
         }}
       >
-        <Icon name={icon} size={17} strokeWidth={1.7} />
+        <Icon name={icon} size={15} strokeWidth={1.7} />
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         <div
@@ -162,9 +166,9 @@ function IconStat({
             alignItems: 'baseline',
             gap: 3,
             fontFamily: 'var(--serif)',
-            fontSize: 22,
+            fontSize: 20,
             color: 'var(--ink)',
-            lineHeight: 1.1,
+            lineHeight: 1.05,
             letterSpacing: '-0.01em',
           }}
         >
@@ -173,7 +177,7 @@ function IconStat({
             <span
               style={{
                 fontFamily: 'var(--sans)',
-                fontSize: 11,
+                fontSize: 10,
                 fontWeight: 500,
                 color: 'var(--ink-3)',
               }}
@@ -184,7 +188,7 @@ function IconStat({
         </div>
         <div
           style={{
-            fontSize: 11,
+            fontSize: 10,
             color: 'var(--ink-3)',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
@@ -244,16 +248,17 @@ function DayCell({
         flexDirection: 'column',
         alignItems: 'center',
         gap: 6,
-        padding: '8px 0',
-        borderRadius: 10,
+        padding: '8px 0 6px',
+        borderRadius: 14,
         background: isToday ? 'var(--sage-wash)' : 'transparent',
       }}
     >
       <div
         style={{
-          fontSize: 12,
+          fontSize: 13,
           fontWeight: 500,
-          color: isToday ? 'var(--ink)' : 'var(--ink-3)',
+          color: isToday ? 'var(--ink)' : 'var(--ink-2)',
+          letterSpacing: '0.01em',
         }}
       >
         {label}
@@ -268,8 +273,8 @@ function DayMarker({ hasWorkout, isToday }: { hasWorkout: boolean; isToday: bool
     return (
       <div
         style={{
-          width: 26,
-          height: 26,
+          width: 22,
+          height: 22,
           borderRadius: '50%',
           background: 'var(--sage-deep)',
           color: '#fff',
@@ -278,7 +283,7 @@ function DayMarker({ hasWorkout, isToday }: { hasWorkout: boolean; isToday: bool
           justifyContent: 'center',
         }}
       >
-        <Icon name="check" size={14} strokeWidth={2.4} />
+        <Icon name="check" size={12} strokeWidth={2.6} />
       </div>
     );
   }
@@ -286,8 +291,8 @@ function DayMarker({ hasWorkout, isToday }: { hasWorkout: boolean; isToday: bool
     return (
       <div
         style={{
-          width: 26,
-          height: 26,
+          width: 22,
+          height: 22,
           borderRadius: '50%',
           display: 'flex',
           alignItems: 'center',
@@ -308,11 +313,10 @@ function DayMarker({ hasWorkout, isToday }: { hasWorkout: boolean; isToday: bool
   return (
     <div
       style={{
-        width: 26,
-        height: 26,
+        width: 22,
+        height: 22,
         borderRadius: '50%',
-        border: '1px solid var(--hairline-strong)',
-        opacity: 0.5,
+        background: 'var(--surface-3)',
       }}
     />
   );

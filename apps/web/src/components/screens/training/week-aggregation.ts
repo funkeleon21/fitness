@@ -78,11 +78,19 @@ export function getCalendarWeek(
   };
 }
 
-// "07.–14. Mai" für Vergangenheits-Wochen. Aktuelle Woche bekommt im UI das
-// statische Label „Diese Woche", deswegen hier nur das Datumsformat.
+// "07.–14. Mai" für Vergangenheits-Wochen.
 export function formatWeekRange(start: Date, end: Date): string {
   const fmt = (d: Date) =>
     d.toLocaleDateString('de-DE', { day: '2-digit', month: 'short' }).replace('.', '');
   const startStr = start.toLocaleDateString('de-DE', { day: '2-digit' }).replace('.', '');
   return `${startStr}.–${fmt(end)}`;
+}
+
+// ISO-8601-Kalenderwoche (Mo–So, KW1 enthält den ersten Donnerstag des Jahres).
+export function getIsoWeek(date: Date): number {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
 }
