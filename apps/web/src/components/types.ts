@@ -1,3 +1,12 @@
+// UI-Typen leiten wir aus den Core-Schemas ab, damit String-Unions nicht
+// driften können. Aliase erhalten die bisherigen Namen, damit Call-Sites
+// stabil bleiben.
+import type { MealType, WorkoutIcon, WorkoutMood } from '@fitness/core';
+
+export type MealSlotIdValue = MealType;
+export type WorkoutMoodValue = WorkoutMood;
+export type WorkoutIconValue = WorkoutIcon;
+
 export interface WeightPoint {
   event_id: string;
   occurred_at: string; // ISO
@@ -12,8 +21,6 @@ export interface DashboardData {
   trend14d: number | null;
   trend7dChangeKg: number | null;
 }
-
-export type MealSlotIdValue = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 
 export interface MealPoint {
   event_id: string;
@@ -63,18 +70,6 @@ export interface WorkoutExerciseView {
   }>;
   note?: string;
 }
-
-export type WorkoutMoodValue = 'happy' | 'neutral' | 'sad';
-
-export type WorkoutIconValue =
-  | 'dumbbell'
-  | 'biceps'
-  | 'back'
-  | 'leg'
-  | 'body'
-  | 'pulse'
-  | 'footprints'
-  | 'flame';
 
 export interface WorkoutPoint {
   event_id: string;

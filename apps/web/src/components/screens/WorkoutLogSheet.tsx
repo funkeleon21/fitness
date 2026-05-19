@@ -5,18 +5,15 @@ import { useState, useTransition } from 'react';
 import { Icon, type IconName } from '../Icon';
 import { Sheet, SheetCloseButton } from '../Sheet';
 import type { WorkoutMoodValue, WorkoutTemplateView } from '../types';
-
-interface DraftSet {
-  id: string;
-  reps: string;
-  weight_kg: string;
-}
-
-interface DraftExercise {
-  id: string;
-  name: string;
-  sets: DraftSet[];
-}
+import {
+  type DraftExercise,
+  type DraftSet,
+  emptyExercise,
+  emptySet,
+  newId,
+  setToPayload,
+} from './workout-draft';
+import { addButtonStyle, iconButtonStyle, inputStyle } from './workout-styles';
 
 interface WorkoutLogSheetProps {
   onClose: () => void;
@@ -27,35 +24,6 @@ interface WorkoutLogSheetProps {
    *    und template_id im Event landet.
    */
   fromTemplate?: WorkoutTemplateView;
-}
-
-function newId(): string {
-  return Math.random().toString(36).slice(2, 10);
-}
-
-function newSet(): DraftSet {
-  return { id: newId(), reps: '', weight_kg: '' };
-}
-
-function newExercise(): DraftExercise {
-  return { id: newId(), name: '', sets: [newSet()] };
-}
-
-// Wandelt einen Draft-Satz in das Schema-Format. Leere Strings → undefined,
-// damit die optionalen Schema-Felder nicht mit NaN belegt werden.
-function setToPayload(s: DraftSet): { reps?: number; weight_kg?: number } {
-  const out: { reps?: number; weight_kg?: number } = {};
-  const reps = s.reps.trim();
-  if (reps !== '') {
-    const n = Number.parseInt(reps, 10);
-    if (Number.isFinite(n) && n >= 0) out.reps = n;
-  }
-  const weight = s.weight_kg.replace(',', '.').trim();
-  if (weight !== '') {
-    const n = Number.parseFloat(weight);
-    if (Number.isFinite(n) && n >= 0) out.weight_kg = Math.round(n * 10) / 10;
-  }
-  return out;
 }
 
 function templateToDrafts(tpl: WorkoutTemplateView): DraftExercise[] {
@@ -72,7 +40,7 @@ function templateToDrafts(tpl: WorkoutTemplateView): DraftExercise[] {
             reps: s.reps !== undefined ? String(s.reps) : '',
             weight_kg: '',
           }))
-        : [newSet()],
+        : [emptySet()],
   }));
 }
 
@@ -92,7 +60,7 @@ export function WorkoutLogSheet({ onClose, fromTemplate }: WorkoutLogSheetProps)
   const [error, setError] = useState<string | null>(null);
 
   const addExercise = () => {
-    setExercises((prev) => [...prev, newExercise()]);
+    setExercises((prev) => [...prev, emptyExercise()]);
   };
 
   const removeExercise = (id: string) => {
@@ -105,7 +73,7 @@ export function WorkoutLogSheet({ onClose, fromTemplate }: WorkoutLogSheetProps)
 
   const addSet = (exerciseId: string) => {
     setExercises((prev) =>
-      prev.map((e) => (e.id === exerciseId ? { ...e, sets: [...e.sets, newSet()] } : e)),
+      prev.map((e) => (e.id === exerciseId ? { ...e, sets: [...e.sets, emptySet()] } : e)),
     );
   };
 
@@ -442,46 +410,6 @@ function ExerciseBlock({
     </div>
   );
 }
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '10px 12px',
-  borderRadius: 10,
-  border: '0.5px solid var(--hairline-strong)',
-  background: 'var(--surface)',
-  fontFamily: 'var(--sans)',
-  fontSize: 14,
-  color: 'var(--ink)',
-  outline: 'none',
-};
-
-const iconButtonStyle: React.CSSProperties = {
-  width: 28,
-  height: 28,
-  borderRadius: 8,
-  background: 'transparent',
-  border: '0.5px solid var(--hairline)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  cursor: 'pointer',
-  flexShrink: 0,
-};
-
-const addButtonStyle: React.CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 4,
-  padding: '6px 10px',
-  borderRadius: 999,
-  background: 'var(--sage-wash)',
-  color: 'var(--sage-deep)',
-  border: 'none',
-  fontFamily: 'var(--sans)',
-  fontSize: 12,
-  fontWeight: 500,
-  cursor: 'pointer',
-};
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
