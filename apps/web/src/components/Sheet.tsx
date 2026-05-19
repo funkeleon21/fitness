@@ -2,7 +2,7 @@
 
 import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
 import { useSheetDismissDrag } from '@/lib/useSheetDismissDrag';
-import { type CSSProperties, type ReactNode, useEffect, useState } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from './Icon';
 
@@ -50,14 +50,12 @@ export function Sheet({
   const sheetClass = flex ? 'sheet sheet--flex' : 'sheet';
   const dragZoneClass = flex ? 'sheet-flex-header sheet-drag-zone' : 'sheet-drag-zone';
 
-  // Portal-Mount: erst nach Client-Hydrate verfügbar (document.body existiert
-  // serverseitig nicht). Bis dahin rendert die Komponente null — Sheets sind
-  // ohnehin nur per User-Interaktion offen, also ist das kein FOUC.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-  if (!mounted) return null;
+  // SSR-Guard: document.body existiert serverseitig nicht. Sheets werden ohnehin
+  // nur per User-Interaktion geöffnet, sind also clientseitig — der Guard greift
+  // praktisch nie. Kein useState/useEffect-Gate hier, sonst rendert die erste
+  // Phase null, die Refs attachen erst im zweiten Render und der Drag-Hook hat
+  // sein Setup-useEffect bereits ergebnislos verlassen → Pull-to-dismiss tot.
+  if (typeof document === 'undefined') return null;
 
   // Render via Portal an document.body, damit das Sheet IMMER viewport-relativ
   // sitzt — auch wenn es aus einem anderen Sheet heraus geöffnet wird. Der
