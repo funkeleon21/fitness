@@ -96,7 +96,15 @@ export function MealComposerSheet({ templates, onClose }: MealComposerSheetProps
     const empty: RecognizedMeal = {
       label: '',
       items: [
-        { label: '', amount_g: null, kcal: null, protein_g: null, carbs_g: null, fat_g: null },
+        {
+          label: '',
+          amount_g: null,
+          kcal: null,
+          protein_g: null,
+          carbs_g: null,
+          fat_g: null,
+          pantry_item_id: null,
+        },
       ],
       totals: {
         kcal: 0,
@@ -940,7 +948,15 @@ function ItemsChips({
       ...result,
       items: [
         ...result.items,
-        { label: t, amount_g: null, kcal: null, protein_g: null, carbs_g: null, fat_g: null },
+        {
+          label: t,
+          amount_g: null,
+          kcal: null,
+          protein_g: null,
+          carbs_g: null,
+          fat_g: null,
+          pantry_item_id: null,
+        },
       ],
     });
     setDraft('');
@@ -952,22 +968,32 @@ function ItemsChips({
       {result.items.map((item, idx) => (
         <div
           key={`${idx}-${item.label}`}
+          title={item.pantry_item_id ? 'Werte aus deinem Vorrat' : undefined}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
             gap: 6,
             padding: '6px 4px 6px 10px',
-            background: 'var(--surface-2)',
+            background: item.pantry_item_id ? 'var(--sage-wash)' : 'var(--surface-2)',
             borderRadius: 999,
-            border: '0.5px solid var(--hairline)',
+            border: `0.5px solid ${
+              item.pantry_item_id ? 'rgba(110,122,78,0.32)' : 'var(--hairline)'
+            }`,
             fontSize: 12,
-            color: 'var(--ink-2)',
+            color: item.pantry_item_id ? 'var(--sage-deep)' : 'var(--ink-2)',
           }}
         >
+          {item.pantry_item_id && <Icon name="leaf" size={11} strokeWidth={2} aria-hidden="true" />}
           <span style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {item.label}
             {item.amount_g !== null && (
-              <span style={{ color: 'var(--ink-4)', marginLeft: 4 }}>
+              <span
+                style={{
+                  color: item.pantry_item_id ? 'var(--sage-deep)' : 'var(--ink-4)',
+                  marginLeft: 4,
+                  opacity: 0.8,
+                }}
+              >
                 {Math.round(item.amount_g)}g
               </span>
             )}
@@ -1524,6 +1550,9 @@ function insertItemFromLookup(
     protein_g: scale(lookup.nutrients_per_100g.protein_g),
     carbs_g: scale(lookup.nutrients_per_100g.carbs_g),
     fat_g: scale(lookup.nutrients_per_100g.fat_g),
+    // Barcode-Scan trifft den Pantry-Cache: das Item kommt direkt aus dem
+    // Vorrat-Eintrag, also setzen wir pantry_item_id für die UI-Markierung.
+    pantry_item_id: lookup.pantry_item_id,
   };
   const items = [...(prev?.items ?? []), newItem];
 

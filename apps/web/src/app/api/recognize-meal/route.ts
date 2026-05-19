@@ -25,6 +25,18 @@ const recognizedMealItemSchema = z.object({
   protein_g: z.number().min(0).max(1000).nullable(),
   carbs_g: z.number().min(0).max(1000).nullable(),
   fat_g: z.number().min(0).max(1000).nullable(),
+  // Wenn die Komponente klar einem Pantry-Item entspricht (Verpackung im Bild
+  // oder eindeutig wiedererkanntes Produkt), gibt das LLM die ID zurück. Der
+  // Server validiert gegen die mitgegebene Whitelist und überschreibt
+  // kcal/Makros mit den exakten Pantry-Werten × amount_g/100. Bewusst KEINE
+  // uuid()-Validierung im Schema — das LLM halluziniert gelegentlich leere
+  // Strings; die Whitelist filtert das defensiv heraus.
+  pantry_item_id: z
+    .string()
+    .nullable()
+    .describe(
+      'UUID eines Pantry-Items aus der mitgegebenen Liste, wenn diese Komponente eindeutig dieses Produkt ist (z.B. erkennbare Verpackung). Sonst null. Konservativ — falsche Matches überschreiben die User-Daten.',
+    ),
 });
 
 const recognizedMealSchema = z.object({
@@ -97,6 +109,7 @@ Aus 1–3 Fotos einer Mahlzeit (Teller, Verpackung, Komponenten) extrahierst du:
 4. Deine Konfidenz zur Gesamt-Schätzung.
 5. Optional einen Hinweis, was unsicher ist.
 6. Optional: ein Match zu einer existierenden User-Vorlage (suggested_template_id).
+7. Optional pro Item: ein Match zu einem Pantry-Item (pantry_item_id).
 
 Prinzipien:
 - Wissenschaftlich nüchtern. Keine Fake-Präzision: lieber Range im Hinweis als gerundete Einzelzahl ohne Basis.
@@ -113,8 +126,14 @@ Wenn der User dir eine Liste seiner gespeicherten Vorlagen mitgibt (templates), 
 - Sind die Haupt-Komponenten gleich?
 Nur wenn ALLE drei Punkte zutreffen: gib suggested_template_id zurück und schreibe in suggested_template_reason kurz warum. Sonst null. Lieber konservativ — falsche Matches frustrieren den User mehr als ausbleibende.
 
+Pantry-Match (Zutaten-Bibliothek):
+Wenn der User dir eine Liste seines aktiven Vorrats mitgibt (pantry), kannst du pro Item eine pantry_item_id setzen, wenn die Komponente eindeutig diesem Produkt entspricht:
+- Verpackung im Bild lesbar erkennbar und matched mit Label/Marke des Pantry-Items, oder
+- die Komponente ist offensichtlich genau dieses Produkt (z.B. ein Müsli-Brand, das nur im Vorrat steht).
+Wichtig: Pantry-Items haben präzise Nährwerte pro 100 g, die der Server nach deiner Antwort gegen amount_g multipliziert und damit deine kcal/Makro-Schätzung überschreibt. Setze pantry_item_id daher NUR, wenn du sehr sicher bist — eine falsche Zuordnung verfälscht die Werte stärker als eine reine Schätzung. Wenn unsicher: pantry_item_id null lassen. amount_g trotzdem so gut wie möglich schätzen — das ist die Grundlage für die Rechnung.
+
 Refinement-Modus:
-Wenn previous_result + chat_message vorhanden, ist das eine Verfeinerung: nimm previous_result als Ausgangspunkt und passe basierend auf der chat_message an. Behalte items, die der Nutzer nicht anspricht, unverändert. Aktualisiere totals konsistent zu items. Template-Match nicht erneut prüfen — übernimm den Wert aus previous_result.
+Wenn previous_result + chat_message vorhanden, ist das eine Verfeinerung: nimm previous_result als Ausgangspunkt und passe basierend auf der chat_message an. Behalte items, die der Nutzer nicht anspricht, unverändert. Aktualisiere totals konsistent zu items. Template-Match und Pantry-Match nicht erneut prüfen — übernimm die Werte aus previous_result.
 
 Sprache: Deutsch. Werte immer in Gramm bzw. Kilokalorien.
 
@@ -130,7 +149,8 @@ Antworte AUSSCHLIESSLICH mit einem einzigen JSON-Objekt, ohne Markdown-Fences, o
       "kcal": number|null,
       "protein_g": number|null,
       "carbs_g": number|null,
-      "fat_g": number|null
+      "fat_g": number|null,
+      "pantry_item_id": "string|null (UUID eines mitgegebenen Pantry-Items)"
     }
   ],
   "totals": {
@@ -204,6 +224,16 @@ export async function POST(req: Request) {
       );
     }
 
+    // Aktive Pantry-Items für Matching laden — knappe Repräsentation, Top-N
+    // nach last_used_at. Bewusst nicht aus dem Client gespiegelt: RLS sichert
+    // den User ab, und der Server kontrolliert das Token-Budget. Beim
+    // Refinement-Modus wird das Pantry-Match aus previous_result übernommen,
+    // also sparen wir uns den Call.
+    let pantryForPrompt: PantryRef[] = [];
+    if (!previous_result) {
+      pantryForPrompt = await loadPantryForPrompt(supabase);
+    }
+
     const userContent: UserContent = [];
 
     if (previous_result) {
@@ -217,6 +247,13 @@ export async function POST(req: Request) {
       userContent.push({
         type: 'text',
         text: `Gespeicherte Vorlagen des Nutzers (zum Matching):\n${JSON.stringify(templates, null, 2)}`,
+      });
+    }
+
+    if (pantryForPrompt.length > 0) {
+      userContent.push({
+        type: 'text',
+        text: `Aktiver Vorrat des Nutzers (Pantry — Nährwerte je 100 g, zum Matching pro Item):\n${JSON.stringify(pantryForPrompt, null, 2)}`,
       });
     }
 
@@ -298,16 +335,87 @@ export async function POST(req: Request) {
     // Defensive: das LLM kann eine Template-ID halluzinieren oder leeren String
     // statt null liefern. Nur durchlassen, wenn die ID in der mitgegebenen
     // templates-Liste war (oder beim Refinement in previous_result stand).
-    const allowedIds = new Set<string>();
-    if (templates) for (const t of templates) allowedIds.add(t.id);
+    const allowedTemplateIds = new Set<string>();
+    if (templates) for (const t of templates) allowedTemplateIds.add(t.id);
     if (previous_result?.suggested_template_id)
-      allowedIds.add(previous_result.suggested_template_id);
+      allowedTemplateIds.add(previous_result.suggested_template_id);
     const rawId = object.suggested_template_id;
-    const idValid = rawId !== null && rawId.length > 0 && allowedIds.has(rawId);
+    const templateIdValid = rawId !== null && rawId.length > 0 && allowedTemplateIds.has(rawId);
+
+    // Pantry-Match: ID-Whitelist + Override der kcal/Makros mit den exakten
+    // Pantry-Werten × amount_g/100, sobald eine valide ID und amount_g vorliegen.
+    // Beim Refinement übernehmen wir den Wert aus previous_result (LLM ist
+    // angewiesen, Pantry-Match nicht erneut zu prüfen) und die Item-Reihenfolge
+    // ist nicht garantiert — wir matchen daher nicht über Index, sondern lassen
+    // jedes Item für sich validieren.
+    const pantryById = new Map(pantryForPrompt.map((p) => [p.id, p]));
+    if (previous_result) {
+      for (const prevItem of previous_result.items) {
+        if (prevItem.pantry_item_id) {
+          // Re-Hydrate aus DB, falls die ID in dieser Antwort noch valide ist;
+          // andernfalls behalten wir den Wert ohne Override (vorheriger Run
+          // hatte das Item bereits gewogen).
+          if (!pantryById.has(prevItem.pantry_item_id)) {
+            const refreshed = await loadPantryById(supabase, prevItem.pantry_item_id);
+            if (refreshed) pantryById.set(refreshed.id, refreshed);
+          }
+        }
+      }
+    }
+
+    const validatedItems = object.items.map((item) => {
+      const id = item.pantry_item_id;
+      if (!id || id.length === 0 || !pantryById.has(id)) {
+        return { ...item, pantry_item_id: null };
+      }
+      const pantry = pantryById.get(id);
+      if (!pantry || item.amount_g === null) {
+        // Pantry-Item bekannt, aber amount_g fehlt → keine Multiplikation möglich.
+        // ID trotzdem durchlassen, damit die UI das Pantry-Label anzeigen kann.
+        return { ...item, pantry_item_id: id };
+      }
+      const factor = item.amount_g / 100;
+      return {
+        ...item,
+        pantry_item_id: id,
+        kcal: pantry.kcal_per_100g === null ? item.kcal : round1(pantry.kcal_per_100g * factor),
+        protein_g:
+          pantry.protein_g_per_100g === null
+            ? item.protein_g
+            : round1(pantry.protein_g_per_100g * factor),
+        carbs_g:
+          pantry.carbs_g_per_100g === null
+            ? item.carbs_g
+            : round1(pantry.carbs_g_per_100g * factor),
+        fat_g: pantry.fat_g_per_100g === null ? item.fat_g : round1(pantry.fat_g_per_100g * factor),
+      };
+    });
+
+    // Totals aus den (potenziell überschriebenen) Item-Werten neu berechnen,
+    // damit Anzeige und Speicherung konsistent bleiben. Detail-Nährwerte
+    // (sugar, fiber, saturated_fat, salt) hat das LLM separat geschätzt und
+    // bleiben wie geliefert — wir hätten ohne weitere Pantry-Recompute nichts
+    // Besseres anzubieten.
+    const recomputedTotals = {
+      ...object.totals,
+      kcal: round1(validatedItems.reduce((s, it) => s + (it.kcal ?? 0), 0)),
+      protein_g: anyNonNull(validatedItems.map((it) => it.protein_g))
+        ? round1(validatedItems.reduce((s, it) => s + (it.protein_g ?? 0), 0))
+        : object.totals.protein_g,
+      carbs_g: anyNonNull(validatedItems.map((it) => it.carbs_g))
+        ? round1(validatedItems.reduce((s, it) => s + (it.carbs_g ?? 0), 0))
+        : object.totals.carbs_g,
+      fat_g: anyNonNull(validatedItems.map((it) => it.fat_g))
+        ? round1(validatedItems.reduce((s, it) => s + (it.fat_g ?? 0), 0))
+        : object.totals.fat_g,
+    };
+
     const validated: RecognizedMeal = {
       ...object,
-      suggested_template_id: idValid ? rawId : null,
-      suggested_template_reason: idValid ? object.suggested_template_reason : null,
+      items: validatedItems,
+      totals: recomputedTotals,
+      suggested_template_id: templateIdValid ? rawId : null,
+      suggested_template_reason: templateIdValid ? object.suggested_template_reason : null,
     };
 
     return new Response(JSON.stringify({ result: validated }), {
@@ -322,6 +430,57 @@ export async function POST(req: Request) {
       headers: { 'content-type': 'application/json' },
     });
   }
+}
+
+// Knapp-Repräsentation eines Pantry-Items für den Prompt. Nur die Felder, die
+// das LLM zum Matchen braucht — ohne Detail-Nährwerte, ohne first_seen_at etc.,
+// um Tokens zu sparen. Nährwerte sind je 100 g (OFF-Konvention).
+interface PantryRef {
+  id: string;
+  label: string;
+  brand: string | null;
+  kcal_per_100g: number | null;
+  protein_g_per_100g: number | null;
+  carbs_g_per_100g: number | null;
+  fat_g_per_100g: number | null;
+  serving_size_g: number | null;
+}
+
+const PANTRY_LIMIT_FOR_PROMPT = 80;
+
+type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
+
+async function loadPantryForPrompt(supabase: SupabaseClient): Promise<PantryRef[]> {
+  const { data, error } = await supabase
+    .from('pantry_items')
+    .select(
+      'id, label, brand, kcal_per_100g, protein_g_per_100g, carbs_g_per_100g, fat_g_per_100g, serving_size_g',
+    )
+    .eq('is_archived', false)
+    .order('last_used_at', { ascending: false, nullsFirst: false })
+    .limit(PANTRY_LIMIT_FOR_PROMPT);
+  if (error || !data) return [];
+  return data as PantryRef[];
+}
+
+async function loadPantryById(supabase: SupabaseClient, id: string): Promise<PantryRef | null> {
+  const { data, error } = await supabase
+    .from('pantry_items')
+    .select(
+      'id, label, brand, kcal_per_100g, protein_g_per_100g, carbs_g_per_100g, fat_g_per_100g, serving_size_g',
+    )
+    .eq('id', id)
+    .maybeSingle();
+  if (error || !data) return null;
+  return data as PantryRef;
+}
+
+function round1(n: number): number {
+  return Math.round(n * 10) / 10;
+}
+
+function anyNonNull<T>(arr: (T | null)[]): boolean {
+  return arr.some((v) => v !== null);
 }
 
 // LLMs verpacken JSON gerne in ```json ... ``` oder ``` ... ``` trotz expliziter
