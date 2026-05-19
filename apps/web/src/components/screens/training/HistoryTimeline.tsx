@@ -43,24 +43,10 @@ export function HistoryTimeline({ workouts }: HistoryTimelineProps) {
   const groups = groupByDay(workouts);
 
   return (
-    <div style={{ position: 'relative' }}>
-      <div
-        aria-hidden="true"
-        style={{
-          position: 'absolute',
-          left: 5,
-          top: 16,
-          bottom: 16,
-          width: 0,
-          borderLeft: '1px dashed var(--hairline-strong)',
-          opacity: 0.6,
-        }}
-      />
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-        {groups.map((group) => (
-          <DayGroupBlock key={group.key} group={group} />
-        ))}
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {groups.map((group) => (
+        <DayGroupBlock key={group.key} group={group} />
+      ))}
     </div>
   );
 }
@@ -68,32 +54,30 @@ export function HistoryTimeline({ workouts }: HistoryTimelineProps) {
 function DayGroupBlock({ group }: { group: DayGroup }) {
   const isToday = group.diffDays === 0;
   return (
-    <div style={{ position: 'relative' }}>
+    <div>
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 12,
-          marginBottom: 10,
-          paddingLeft: 0,
+          gap: 8,
+          marginBottom: 8,
+          paddingLeft: 2,
         }}
       >
         <div
           aria-hidden="true"
           style={{
-            width: 12,
-            height: 12,
+            width: 8,
+            height: 8,
             borderRadius: '50%',
             background: isToday ? 'var(--sage-deep)' : 'transparent',
             border: isToday ? 'none' : '1.5px solid var(--hairline-strong)',
             flexShrink: 0,
-            position: 'relative',
-            zIndex: 1,
           }}
         />
         <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-2)' }}>{group.label}</div>
       </div>
-      <div style={{ paddingLeft: 24, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {group.workouts.map((w) => (
           <WorkoutCard key={w.event_id} workout={w} isToday={isToday} />
         ))}
