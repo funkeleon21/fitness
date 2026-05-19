@@ -22,7 +22,7 @@ import {
   updateMealTemplate,
   updateWorkoutTemplate,
 } from '@fitness/db';
-import { correctEvent, logMeal, logWeight, logWorkout, retractEvent } from '@fitness/ingestion';
+import { correctEvent, logMeal, logWorkout, retractEvent } from '@fitness/ingestion';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
@@ -215,15 +215,6 @@ function parseOptionalExercisesJson(raw: FormDataEntryValue | null): WorkoutExer
   return out;
 }
 
-export const logWeightAction = withAuth(async ({ supabase, userId }, formData) => {
-  await logWeight(supabase, {
-    user_id: userId,
-    kg: parseKg(formData.get('kg')),
-    occurred_at: parseOccurredAt(formData.get('occurred_at')),
-    source: 'manual',
-  });
-});
-
 export const correctWeightAction = withAuth(async ({ supabase, userId }, formData) => {
   const corrects = formData.get('event_id');
   if (typeof corrects !== 'string') throw new Error('event_id fehlt');
@@ -245,26 +236,6 @@ export const retractWeightAction = withAuth(async ({ supabase, userId }, formDat
     reason: 'manual retraction',
     source: 'manual',
   });
-});
-
-export const logMealAction = withAuth(async ({ supabase, userId }, formData) => {
-  const nutrients = parseMealNutrients(formData);
-  const meal_type = parseOptionalMealType(formData.get('meal_type'));
-  const template_id = parseOptionalUuid(formData.get('template_id'));
-  const occurredAt = parseOccurredAt(formData.get('occurred_at'));
-
-  await logMeal(supabase, {
-    user_id: userId,
-    ...nutrients,
-    meal_type,
-    template_id,
-    occurred_at: occurredAt,
-    source: 'manual',
-  });
-
-  if (template_id) {
-    await recordMealTemplateUsage(supabase, userId, template_id, occurredAt);
-  }
 });
 
 export const createMealTemplateAction = withAuth(async ({ supabase, userId }, formData) => {

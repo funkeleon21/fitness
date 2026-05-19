@@ -1,3 +1,5 @@
+import { wrapApiHandler } from '@/lib/api/handler';
+import { jsonResponse } from '@/lib/api/response';
 import { serverEnv } from '@/lib/env';
 import { createClient } from '@/lib/supabase/server';
 import { createAnthropic } from '@ai-sdk/anthropic';
@@ -37,51 +39,40 @@ Bestätigungs-Mechanik (wichtig!):
 - Falls der Nutzer ablehnt (Tool kommt mit Status „nicht gespeichert" zurück): kurz quittieren, keine Wiederholung.
 - Bei jedem Schreib-Tool: Setze raw_input auf die konkrete Nutzerformulierung, aus der du den Eintrag/Korrekturwunsch extrahiert hast.`;
 
-export async function POST(req: Request) {
-  try {
-    const { messages }: { messages: UIMessage[] } = await req.json();
+export const POST = wrapApiHandler('chat', async (req: Request) => {
+  const { messages }: { messages: UIMessage[] } = await req.json();
 
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      return new Response(JSON.stringify({ error: 'Nicht angemeldet' }), {
-        status: 401,
-        headers: { 'content-type': 'application/json' },
-      });
-    }
-
-    const sections = await buildUserContext(supabase, user.id);
-    const contextBlock = renderContextForPrompt(sections);
-    const systemPrompt = contextBlock
-      ? `${BASE_SYSTEM_PROMPT}\n\n${contextBlock}`
-      : BASE_SYSTEM_PROMPT;
-
-    const tools = buildChatTools({ client: supabase, userId: user.id });
-
-    const { LANGDOCK_API_KEY } = serverEnv();
-    const langdock = createAnthropic({
-      baseURL: 'https://api.langdock.com/anthropic/eu/v1',
-      apiKey: LANGDOCK_API_KEY,
-    });
-
-    const modelMessages = await convertToModelMessages(messages);
-    const result = streamText({
-      model: langdock('claude-sonnet-4-6-default'),
-      system: systemPrompt,
-      messages: modelMessages,
-      tools,
-      // Tool-Loop: max. 5 Schritte pro Anfrage (z.B. list_recent → correct → text)
-      stopWhen: stepCountIs(5),
-    });
-
-    return result.toUIMessageStreamResponse();
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500,
-      headers: { 'content-type': 'application/json' },
-    });
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return jsonResponse({ error: 'Nicht angemeldet' }, 401);
   }
-}
+
+  const sections = await buildUserContext(supabase, user.id);
+  const contextBlock = renderContextForPrompt(sections);
+  const systemPrompt = contextBlock
+    ? `${BASE_SYSTEM_PROMPT}\n\n${contextBlock}`
+    : BASE_SYSTEM_PROMPT;
+
+  const tools = buildChatTools({ client: supabase, userId: user.id });
+
+  const { LANGDOCK_API_KEY } = serverEnv();
+  const langdock = createAnthropic({
+    baseURL: 'https://api.langdock.com/anthropic/eu/v1',
+    apiKey: LANGDOCK_API_KEY,
+  });
+
+  const modelMessages = await convertToModelMessages(messages);
+  const result = streamText({
+    model: langdock('claude-sonnet-4-6-default'),
+    system: systemPrompt,
+    messages: modelMessages,
+    tools,
+    // Tool-Loop: max. 5 Schritte pro Anfrage (z.B. list_recent → correct → text)
+    stopWhen: stepCountIs(5),
+  });
+
+  return result.toUIMessageStreamResponse();
+});

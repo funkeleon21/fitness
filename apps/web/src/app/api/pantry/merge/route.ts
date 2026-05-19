@@ -1,3 +1,5 @@
+import { wrapApiHandler } from '@/lib/api/handler';
+import { jsonResponse } from '@/lib/api/response';
 import { createClient } from '@/lib/supabase/server';
 import { z } from 'zod';
 
@@ -12,14 +14,7 @@ const mergeSchema = z.object({
   target_id: z.string().uuid('target_id muss eine UUID sein'),
 });
 
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'content-type': 'application/json' },
-  });
-}
-
-export async function POST(req: Request) {
+export const POST = wrapApiHandler('pantry-merge', async (req: Request) => {
   const supabase = await createClient();
   const {
     data: { user },
@@ -100,4 +95,4 @@ export async function POST(req: Request) {
   if (delSource.error) return jsonResponse({ error: delSource.error.message }, 500);
 
   return jsonResponse({ ok: true, target_id });
-}
+});

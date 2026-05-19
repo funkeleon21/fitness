@@ -1,3 +1,6 @@
+import { wrapApiHandler } from '@/lib/api/handler';
+import { stripJsonFences } from '@/lib/api/llm-json';
+import { jsonResponse } from '@/lib/api/response';
 import { serverEnv } from '@/lib/env';
 import { createClient } from '@/lib/supabase/server';
 import { createAnthropic } from '@ai-sdk/anthropic';
@@ -91,106 +94,79 @@ const requestSchema = z.object({
   image: z.string().min(1),
 });
 
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'content-type': 'application/json' },
-  });
-}
+export const POST = wrapApiHandler('extract-nutrition-label', async (req: Request) => {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return jsonResponse({ error: 'Nicht angemeldet' }, 401);
 
-export async function POST(req: Request) {
+  let raw: unknown;
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return jsonResponse({ error: 'Nicht angemeldet' }, 401);
+    raw = await req.json();
+  } catch {
+    return jsonResponse({ error: 'Ungueltiger JSON-Body' }, 400);
+  }
+  const parsed = requestSchema.safeParse(raw);
+  if (!parsed.success) {
+    return jsonResponse({ error: 'Ungueltige Eingabe', issues: parsed.error.issues }, 400);
+  }
 
-    let raw: unknown;
-    try {
-      raw = await req.json();
-    } catch {
-      return jsonResponse({ error: 'Ungueltiger JSON-Body' }, 400);
-    }
-    const parsed = requestSchema.safeParse(raw);
-    if (!parsed.success) {
-      return jsonResponse({ error: 'Ungueltige Eingabe', issues: parsed.error.issues }, 400);
-    }
+  const userContent: UserContent = [
+    { type: 'image', image: parsed.data.image },
+    {
+      type: 'text',
+      text: 'Extrahiere die Naehrwerte aus dieser Tabelle und liefere das JSON-Objekt.',
+    },
+  ];
 
-    const userContent: UserContent = [
-      { type: 'image', image: parsed.data.image },
+  const { LANGDOCK_API_KEY } = serverEnv();
+  const langdock = createAnthropic({
+    baseURL: 'https://api.langdock.com/anthropic/eu/v1',
+    apiKey: LANGDOCK_API_KEY,
+  });
+
+  const { text, finishReason, usage } = await generateText({
+    model: langdock('claude-sonnet-4-6-default'),
+    system: SYSTEM_PROMPT,
+    messages: [{ role: 'user', content: userContent }],
+    maxOutputTokens: 1200,
+  });
+
+  const cleaned = stripJsonFences(text);
+  let parsedJson: unknown;
+  try {
+    parsedJson = JSON.parse(cleaned);
+  } catch (jsonErr) {
+    console.error('extract-nutrition-label: JSON-Parse fehlgeschlagen', {
+      finishReason,
+      usage,
+      rawTextHead: text.slice(0, 600),
+      parseError: jsonErr instanceof Error ? jsonErr.message : String(jsonErr),
+    });
+    return jsonResponse(
       {
-        type: 'text',
-        text: 'Extrahiere die Naehrwerte aus dieser Tabelle und liefere das JSON-Objekt.',
+        error:
+          'KI-Antwort war kein gueltiges JSON. Versuch es nochmal oder gib die Werte manuell ein.',
       },
-    ];
-
-    const { LANGDOCK_API_KEY } = serverEnv();
-    const langdock = createAnthropic({
-      baseURL: 'https://api.langdock.com/anthropic/eu/v1',
-      apiKey: LANGDOCK_API_KEY,
-    });
-
-    const { text, finishReason, usage } = await generateText({
-      model: langdock('claude-sonnet-4-6-default'),
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: userContent }],
-      maxOutputTokens: 1200,
-    });
-
-    const cleaned = stripJsonFences(text);
-    let parsedJson: unknown;
-    try {
-      parsedJson = JSON.parse(cleaned);
-    } catch (jsonErr) {
-      console.error('extract-nutrition-label: JSON-Parse fehlgeschlagen', {
-        finishReason,
-        usage,
-        rawTextHead: text.slice(0, 600),
-        parseError: jsonErr instanceof Error ? jsonErr.message : String(jsonErr),
-      });
-      return jsonResponse(
-        {
-          error:
-            'KI-Antwort war kein gueltiges JSON. Versuch es nochmal oder gib die Werte manuell ein.',
-        },
-        502,
-      );
-    }
-
-    const schemaParsed = nutritionLabelSchema.safeParse(parsedJson);
-    if (!schemaParsed.success) {
-      console.error('extract-nutrition-label: Schema-Validation fehlgeschlagen', {
-        finishReason,
-        usage,
-        issues: schemaParsed.error.issues.slice(0, 8),
-      });
-      return jsonResponse(
-        {
-          error: 'KI-Antwort entsprach nicht dem erwarteten Schema. Versuch es nochmal.',
-        },
-        502,
-      );
-    }
-
-    return jsonResponse({ result: schemaParsed.data });
-  } catch (err) {
-    console.error('extract-nutrition-label: unexpected', err);
-    const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
-    return jsonResponse({ error: message }, 500);
+      502,
+    );
   }
-}
 
-// LLMs verpacken JSON gerne in ```json ... ``` trotz expliziter Anweisung.
-// Strippt Fences und Whitespace, mit Fallback auf erstes {...} im Text.
-function stripJsonFences(raw: string): string {
-  const trimmed = raw.trim();
-  const fenceMatch = trimmed.match(/^```(?:json)?\s*\n([\s\S]*?)\n```$/);
-  if (fenceMatch?.[1]) return fenceMatch[1].trim();
-  const firstBrace = trimmed.indexOf('{');
-  const lastBrace = trimmed.lastIndexOf('}');
-  if (firstBrace !== -1 && lastBrace > firstBrace) {
-    return trimmed.slice(firstBrace, lastBrace + 1);
+  const schemaParsed = nutritionLabelSchema.safeParse(parsedJson);
+  if (!schemaParsed.success) {
+    console.error('extract-nutrition-label: Schema-Validation fehlgeschlagen', {
+      finishReason,
+      usage,
+      issues: schemaParsed.error.issues.slice(0, 8),
+    });
+    return jsonResponse(
+      {
+        error: 'KI-Antwort entsprach nicht dem erwarteten Schema. Versuch es nochmal.',
+      },
+      502,
+    );
   }
-  return trimmed;
-}
+
+  return jsonResponse({ result: schemaParsed.data });
+});

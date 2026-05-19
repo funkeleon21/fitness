@@ -1,3 +1,5 @@
+import { wrapApiHandler } from '@/lib/api/handler';
+import { stripJsonFences } from '@/lib/api/llm-json';
 import { serverEnv } from '@/lib/env';
 import { createClient } from '@/lib/supabase/server';
 import { createAnthropic } from '@ai-sdk/anthropic';
@@ -191,7 +193,7 @@ const requestSchema = z.object({
   templates: z.array(templateRefSchema).max(100).optional(),
 });
 
-export async function POST(req: Request) {
+export const POST = wrapApiHandler('recognize-meal', async (req: Request) => {
   try {
     const supabase = await createClient();
     const {
@@ -430,7 +432,7 @@ export async function POST(req: Request) {
       headers: { 'content-type': 'application/json' },
     });
   }
-}
+});
 
 // Knapp-Repräsentation eines Pantry-Items für den Prompt. Nur die Felder, die
 // das LLM zum Matchen braucht — ohne Detail-Nährwerte, ohne first_seen_at etc.,
@@ -481,20 +483,4 @@ function round1(n: number): number {
 
 function anyNonNull<T>(arr: (T | null)[]): boolean {
   return arr.some((v) => v !== null);
-}
-
-// LLMs verpacken JSON gerne in ```json ... ``` oder ``` ... ``` trotz expliziter
-// Anweisung. Strippt fuehrende/nachfolgende Fences und Whitespace, damit
-// JSON.parse direkt damit klarkommt.
-function stripJsonFences(raw: string): string {
-  const trimmed = raw.trim();
-  const fenceMatch = trimmed.match(/^```(?:json)?\s*\n([\s\S]*?)\n```$/);
-  if (fenceMatch?.[1]) return fenceMatch[1].trim();
-  // Fallback: erstes { bis letztes } extrahieren — robust gegen Vor-/Nachgeschwafel
-  const firstBrace = trimmed.indexOf('{');
-  const lastBrace = trimmed.lastIndexOf('}');
-  if (firstBrace !== -1 && lastBrace > firstBrace) {
-    return trimmed.slice(firstBrace, lastBrace + 1);
-  }
-  return trimmed;
 }

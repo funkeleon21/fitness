@@ -53,6 +53,7 @@ Code/Identifier auf Englisch. Doku, Commits, UI-Texte und Kommunikation mit dem 
 - [chat-domain-integration](.claude/skills/chat-domain-integration/SKILL.md) — bei neuer Domäne/Projektion
 - [db-migration](.claude/skills/db-migration/SKILL.md) — bei neuer Drizzle-Migration; wendet sie sofort gegen Prod-DB an
 - [doc-keeper](.claude/skills/doc-keeper/SKILL.md) — feuert automatisch vor `gh pr create` (via Hook); prüft Doc-Drift
+- [error-pattern-guard](.claude/skills/error-pattern-guard/SKILL.md) — **nur** bei klarem Recurrence-Signal („schon wieder", Repo-Beleg, strukturell VibeCoding-typische Fehler-Klasse); schlägt Schutzmaßnahmen vor (mit Empfehlung), Entscheidung beim Nutzer, dann lessons-learned-Eintrag + Safeguard. Default für normale Bugs: **nicht** anwenden.
 
 ## Befehle
 
