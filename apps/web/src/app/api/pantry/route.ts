@@ -1,3 +1,5 @@
+import { wrapApiHandler } from '@/lib/api/handler';
+import { jsonResponse } from '@/lib/api/response';
 import { createClient } from '@/lib/supabase/server';
 import { z } from 'zod';
 
@@ -55,14 +57,7 @@ const createSchema = z.object({
     .optional(),
 });
 
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'content-type': 'application/json' },
-  });
-}
-
-export async function GET(req: Request) {
+export const GET = wrapApiHandler('pantry-get', async (req: Request) => {
   const supabase = await createClient();
   const {
     data: { user },
@@ -127,9 +122,9 @@ export async function GET(req: Request) {
   }));
 
   return jsonResponse({ items: result });
-}
+});
 
-export async function POST(req: Request) {
+export const POST = wrapApiHandler('pantry-post', async (req: Request) => {
   const supabase = await createClient();
   const {
     data: { user },
@@ -189,4 +184,4 @@ export async function POST(req: Request) {
   }
 
   return jsonResponse({ item: { ...insert.data, barcode_count: barcodeCount } });
-}
+});
