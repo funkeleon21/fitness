@@ -24,8 +24,7 @@
   "dependencies": {
     "@fitness/core": "workspace:*",
     "@supabase/supabase-js": "^2.45.0",
-    "drizzle-orm": "^0.36.0",
-    "postgres": "^3.4.0"
+    "drizzle-orm": "^0.36.0"
   },
   "devDependencies": {
     "dotenv": "^16.4.5",
