@@ -64,6 +64,13 @@
       "when": 1778882865087,
       "tag": "0008_married_purifiers",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1779558019000,
+      "tag": "0009_workout_template_icon",
+      "breakpoints": true
     }
   ]
 }

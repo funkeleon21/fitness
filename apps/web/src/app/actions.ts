@@ -4,8 +4,10 @@ import { createClient } from '@/lib/supabase/server';
 import {
   type MealType,
   type WorkoutExercise,
+  type WorkoutIcon,
   type WorkoutMood,
   workoutExerciseSchema,
+  workoutIconSchema,
   workoutMoodSchema,
 } from '@fitness/core';
 import {
@@ -180,6 +182,13 @@ function parseOptionalNote(raw: FormDataEntryValue | null): string | undefined {
   if (trimmed === '') return undefined;
   if (trimmed.length > 500) throw new Error('Notiz zu lang (max. 500 Zeichen)');
   return trimmed;
+}
+
+function parseOptionalIcon(raw: FormDataEntryValue | null): WorkoutIcon | undefined {
+  if (typeof raw !== 'string' || raw === '') return undefined;
+  const result = workoutIconSchema.safeParse(raw);
+  if (!result.success) throw new Error('Ungueltiges Icon');
+  return result.data;
 }
 
 // Übungsarray kommt aus dem Sheet als JSON-String. Validierung pro Element
@@ -439,6 +448,7 @@ export const retractWorkoutAction = withAuth(async ({ supabase, userId }, formDa
 export const createWorkoutTemplateAction = withAuth(async ({ supabase, userId }, formData) => {
   const label = parseLabel(formData.get('label'));
   const exercises = parseOptionalExercisesJson(formData.get('exercises'));
+  const icon = parseOptionalIcon(formData.get('icon'));
   const default_duration_min = parseOptionalNonNegativeNumber(
     formData.get('default_duration_min'),
     'default_duration_min',
@@ -449,6 +459,7 @@ export const createWorkoutTemplateAction = withAuth(async ({ supabase, userId },
     user_id: userId,
     label,
     exercises,
+    icon,
     default_duration_min,
   });
 });
@@ -459,6 +470,7 @@ export const updateWorkoutTemplateAction = withAuth(async ({ supabase, userId },
 
   const label = parseLabel(formData.get('label'));
   const exercises = parseOptionalExercisesJson(formData.get('exercises'));
+  const icon = parseOptionalIcon(formData.get('icon'));
   const default_duration_min = parseOptionalNonNegativeNumber(
     formData.get('default_duration_min'),
     'default_duration_min',
@@ -468,6 +480,7 @@ export const updateWorkoutTemplateAction = withAuth(async ({ supabase, userId },
   await updateWorkoutTemplate(supabase, userId, id, {
     label,
     exercises: exercises ?? [],
+    icon,
     default_duration_min: default_duration_min ?? null,
   });
 });
@@ -507,6 +520,9 @@ export const logWorkoutFromTemplateAction = withAuth(async ({ supabase, userId }
     duration_min,
     mood,
     note,
+    // Snapshot des Template-Icons mit ins Event — wenn das Template später
+    // umgestellt wird, behält die historische Einheit ihr ursprüngliches Icon.
+    icon: tpl.icon,
     template_id: tpl.id,
     occurred_at,
     source: 'manual',

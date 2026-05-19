@@ -29,6 +29,23 @@ export type WorkoutExercise = z.infer<typeof workoutExerciseSchema>;
 export const workoutMoodSchema = z.enum(['happy', 'neutral', 'sad']);
 export type WorkoutMood = z.infer<typeof workoutMoodSchema>;
 
+// Kuratierte Icon-Auswahl für Workout-Vorlagen. Bewusst geschlossene Liste:
+// freie Icons wären schwer konsistent darzustellen und würden den Picker
+// unscharf machen. Erweiterung ist eine Code-Änderung (neuer SVG in Icon.tsx +
+// Listen-Eintrag hier).
+export const workoutIconSchema = z.enum([
+  'dumbbell',
+  'biceps',
+  'back',
+  'leg',
+  'body',
+  'pulse',
+  'footprints',
+  'flame',
+]);
+export type WorkoutIcon = z.infer<typeof workoutIconSchema>;
+export const DEFAULT_WORKOUT_ICON: WorkoutIcon = 'dumbbell';
+
 export const workoutLoggedPayloadSchema = z.object({
   // Frei wählbar — z.B. "Push-Day", "Beine", "5km Lauf". UI rendert das groß
   // im Verlauf, analog zum Mahlzeit-Label.
@@ -43,6 +60,10 @@ export const workoutLoggedPayloadSchema = z.object({
   // Frei-Text-Bemerkung — Tagesform, Kontext, Schmerzen, was die KI später
   // korrelieren kann. Max 500 Zeichen, sonst wird's ein Tagebuch.
   note: z.string().max(500).optional(),
+  // Icon-Snapshot zum Zeitpunkt des Loggens. Wird bei from-Template-Einheiten
+  // aus der Vorlage übernommen. Bleibt am Event hängen, auch wenn die Vorlage
+  // später gelöscht oder das Icon geändert wird (Event-Sourcing-Append-only).
+  icon: workoutIconSchema.optional(),
   // ID einer workout_templates-Zeile, falls die Einheit aus einer Vorlage
   // entstanden ist. Inhalte (exercises) sind trotzdem als Snapshot im Payload
   // — Templates können sich ändern.

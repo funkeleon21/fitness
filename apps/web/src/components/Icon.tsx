@@ -45,7 +45,10 @@ export type IconName =
   | 'more-vertical'
   | 'mood-happy'
   | 'mood-neutral'
-  | 'mood-sad';
+  | 'mood-sad'
+  | 'biceps'
+  | 'back'
+  | 'leg';
 
 interface IconProps {
   name: IconName;
@@ -434,6 +437,37 @@ export function Icon({
           <path d="M8 16.3c1-1.5 2.4-2.3 4-2.3s3 .8 4 2.3" />
           <circle cx="9" cy="10" r="0.6" fill="currentColor" />
           <circle cx="15" cy="10" r="0.6" fill="currentColor" />
+        </svg>
+      );
+    case 'biceps':
+      // Gebogener Arm mit Bizeps-Bulge: Oberarm horizontal von links,
+      // Bizeps-Höcker oben in der Mitte, Unterarm nach unten rechts.
+      return (
+        <svg {...props}>
+          <title>{label}</title>
+          <path d="M3 13c2-0.5 4-0.5 6 0M9 13c1.5-2.5 4-3.5 6-1.5M15 11.5c1 1 1.5 2.5 1.5 4.5M3 13v3h13.5" />
+          <path d="M9 10c0.5-1.5 2-2 3.5-1.5" />
+        </svg>
+      );
+    case 'back':
+      // Person von hinten: Kopf oben, Schultern breit, mittlere Linie als
+      // Wirbelsäule, Trapez/Lats-Andeutung.
+      return (
+        <svg {...props}>
+          <title>{label}</title>
+          <circle cx="12" cy="5" r="2.4" />
+          <path d="M6 12c0-2 2-3.5 6-3.5s6 1.5 6 3.5l-1 8h-3l-2-5-2 5H7z" />
+          <path d="M12 10v8" />
+        </svg>
+      );
+    case 'leg':
+      // Bein-Silhouette von vorn: Oberschenkel oben breit, Knie-Andeutung
+      // mittig, Wade nach unten verjüngt.
+      return (
+        <svg {...props}>
+          <title>{label}</title>
+          <path d="M8 3h8l-0.5 6c-0.2 1.5 0 3 0.5 4.5l1 7h-3l-2-7-2 7h-3l1-7c0.5-1.5 0.7-3 0.5-4.5z" />
+          <path d="M9 11h6" />
         </svg>
       );
     default:

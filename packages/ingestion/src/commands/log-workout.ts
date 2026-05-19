@@ -2,6 +2,7 @@ import {
   type EventProvenance,
   type EventSource,
   type WorkoutExercise,
+  type WorkoutIcon,
   type WorkoutMood,
   createWorkoutLogged,
   workoutLoggedEventSchema,
@@ -17,6 +18,7 @@ export interface LogWorkoutInput {
   exercises?: WorkoutExercise[];
   mood?: WorkoutMood;
   note?: string;
+  icon?: WorkoutIcon;
   template_id?: string;
   source?: EventSource;
   external_id?: string | null;
@@ -37,6 +39,7 @@ export async function logWorkout(
     exercises: input.exercises,
     mood: input.mood,
     note: input.note,
+    icon: input.icon,
     template_id: input.template_id,
     source: input.source ?? 'manual',
     external_id: input.external_id ?? null,
