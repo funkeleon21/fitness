@@ -8,6 +8,7 @@ import {
   type NutritionTargets,
   effectiveSlot,
   formatTodayHeading,
+  slotMeta,
 } from '@/lib/nutrition';
 import { useMemo, useState, useTransition } from 'react';
 import { Icon, type IconName } from '../Icon';
@@ -269,6 +270,7 @@ function MacroStat({
   label,
   target,
   targetUnit,
+  targetKind = 'goal',
 }: {
   icon: IconName;
   value: number;
@@ -276,8 +278,13 @@ function MacroStat({
   label: string;
   target: number;
   targetUnit: string;
+  targetKind?: 'goal' | 'limit';
 }) {
-  const pct = Math.min(100, target > 0 ? (value / target) * 100 : 0);
+  const rawPct = target > 0 ? (value / target) * 100 : 0;
+  const pct = Math.min(100, rawPct);
+  const over = targetKind === 'limit' && rawPct > 100;
+  const barColor = over ? 'var(--amber)' : undefined;
+  const targetPrefix = targetKind === 'limit' ? 'max. ' : 'von ';
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
       <Icon name={icon} size={18} stroke="var(--sage-deep)" strokeWidth={1.6} />
@@ -285,7 +292,7 @@ function MacroStat({
         style={{
           fontFamily: 'var(--serif)',
           fontSize: 22,
-          color: 'var(--ink)',
+          color: over ? 'var(--amber)' : 'var(--ink)',
           lineHeight: 1.1,
           letterSpacing: '-0.01em',
         }}
@@ -305,10 +312,11 @@ function MacroStat({
         {label}
       </div>
       <div className="progress" style={{ height: 4 }}>
-        <span style={{ width: `${pct}%` }} />
+        <span style={{ width: `${pct}%`, ...(barColor ? { background: barColor } : {}) }} />
       </div>
       <div style={{ fontSize: 10, color: 'var(--ink-4)', fontFamily: 'var(--mono)' }}>
-        von {target.toLocaleString('de-DE')} {targetUnit}
+        {targetPrefix}
+        {target.toLocaleString('de-DE')} {targetUnit}
       </div>
     </div>
   );
@@ -543,9 +551,10 @@ function SlotRow({
               display: 'inline-block',
               padding: '4px 10px',
               borderRadius: 999,
-              background: 'var(--surface-2)',
+              background: slot.tint,
               fontSize: 12,
-              color: 'var(--ink-2)',
+              color: slot.iconColor,
+              fontWeight: 500,
             }}
           >
             {totalKcal} kcal
@@ -640,7 +649,7 @@ function FoodMemoryCard({
             padding: 0,
           }}
         >
-          Bearbeiten
+          Verwalten
         </button>
       </div>
 
@@ -706,7 +715,7 @@ function FoodMemoryCard({
       {filtered.length === 0 ? (
         <div style={{ color: 'var(--ink-3)', fontSize: 13, padding: '14px 0 4px' }}>
           {templates.length === 0
-            ? 'Noch keine Vorlagen. Tippe „Bearbeiten" für die erste.'
+            ? 'Noch keine Vorlagen. Tippe „Verwalten" für die erste.'
             : 'Keine passenden Gerichte gefunden.'}
         </div>
       ) : (
@@ -780,6 +789,7 @@ function FoodMemoryCardItem({
   onEdit: () => void;
 }) {
   const protein = template.protein_g !== null && template.protein_g > 0 ? template.protein_g : null;
+  const meta = slotMeta(template.slot);
 
   return (
     <div
@@ -791,23 +801,26 @@ function FoodMemoryCardItem({
         display: 'flex',
         flexDirection: 'column',
         opacity: pending ? 0.6 : 1,
+        position: 'relative',
       }}
     >
       <button
         type="button"
-        onClick={onEdit}
+        onClick={onLog}
+        disabled={pending}
+        aria-label={`${template.label} loggen`}
         className="pressable"
         style={{
           background: 'transparent',
           border: 'none',
           padding: 0,
           textAlign: 'left',
-          cursor: 'pointer',
+          cursor: pending ? 'wait' : 'pointer',
           width: '100%',
         }}
       >
-        <FoodPlaceholder label={template.label} />
-        <div style={{ padding: '10px 12px 4px' }}>
+        <FoodPlaceholder label={template.label} slot={meta} />
+        <div style={{ padding: '10px 12px 12px' }}>
           <div
             style={{
               fontSize: 13,
@@ -833,44 +846,56 @@ function FoodMemoryCardItem({
           )}
         </div>
       </button>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '4px 10px 10px' }}>
-        <button
-          type="button"
-          onClick={onLog}
-          disabled={pending}
-          aria-label={`${template.label} loggen`}
-          className="pressable"
-          style={{
-            width: 30,
-            height: 30,
-            borderRadius: '50%',
-            background: 'var(--surface)',
-            border: '0.5px solid var(--hairline)',
-            color: 'var(--ink-2)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: pending ? 'wait' : 'pointer',
-          }}
-        >
-          <Icon name="plus" size={14} strokeWidth={2} />
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={onEdit}
+        disabled={pending}
+        aria-label={`${template.label} bearbeiten`}
+        className="pressable"
+        style={{
+          position: 'absolute',
+          top: 6,
+          right: 6,
+          width: 28,
+          height: 28,
+          borderRadius: '50%',
+          background: 'rgba(255,255,255,0.85)',
+          border: '0.5px solid var(--hairline)',
+          color: 'var(--ink-3)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: pending ? 'wait' : 'pointer',
+          backdropFilter: 'blur(4px)',
+        }}
+      >
+        <Icon name="edit" size={12} strokeWidth={1.8} />
+      </button>
     </div>
   );
 }
 
-// Platzhalter-Tile: Gradient + Mono-Initialen vom Label. Bild-Upload kommt später.
-function FoodPlaceholder({ label }: { label: string }) {
+// Platzhalter-Tile: Slot-Akzent (wenn vorhanden) sonst deterministischer Hash-Tint.
+// Bild-Upload kommt später.
+function FoodPlaceholder({ label, slot }: { label: string; slot: MealSlotMeta | null }) {
   const initials = label
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 2)
     .map((w) => w[0]?.toUpperCase() ?? '')
     .join('');
-  // Deterministischer Tint pro Label
-  const hue = Array.from(label).reduce((acc, c) => (acc * 31 + c.charCodeAt(0)) % 360, 0);
-  const bg = `linear-gradient(135deg, hsl(${hue}, 30%, 78%), hsl(${(hue + 40) % 360}, 28%, 88%))`;
+  // Slot-Farbe gewinnt, damit Food-Memory- und Mahlzeiten-Liste die gleiche
+  // Akzent-Sprache sprechen.
+  let bg: string;
+  let fg: string;
+  if (slot) {
+    bg = `linear-gradient(135deg, ${slot.tint}, color-mix(in srgb, ${slot.tint} 55%, transparent))`;
+    fg = slot.iconColor;
+  } else {
+    const hue = Array.from(label).reduce((acc, c) => (acc * 31 + c.charCodeAt(0)) % 360, 0);
+    bg = `linear-gradient(135deg, hsl(${hue}, 30%, 78%), hsl(${(hue + 40) % 360}, 28%, 88%))`;
+    fg = 'rgba(20,18,12,0.55)';
+  }
   return (
     <div
       style={{
@@ -879,7 +904,7 @@ function FoodPlaceholder({ label }: { label: string }) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        color: 'rgba(20,18,12,0.55)',
+        color: fg,
         fontFamily: 'var(--serif)',
         fontSize: 28,
         letterSpacing: '0.04em',

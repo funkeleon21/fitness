@@ -336,28 +336,6 @@ export function PantrySheet({ onClose }: PantrySheetProps) {
           </button>
           <button
             type="button"
-            onClick={() => {
-              setPhotoError(null);
-              photoInputRef.current?.click();
-            }}
-            disabled={photoBusy}
-            className="filter-pill"
-            style={{
-              fontFamily: 'var(--mono)',
-              fontSize: 11,
-              letterSpacing: '0.06em',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              opacity: photoBusy ? 0.5 : 1,
-            }}
-            aria-label="Nährwert-Tabelle abfotografieren"
-          >
-            <Icon name="camera" size={12} />
-            {photoBusy ? 'LIES…' : 'FOTO'}
-          </button>
-          <button
-            type="button"
             onClick={() => setCreating({})}
             className="filter-pill"
             style={{ fontFamily: 'var(--mono)', fontSize: 11, letterSpacing: '0.06em' }}

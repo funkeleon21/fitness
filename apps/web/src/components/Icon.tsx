@@ -16,6 +16,7 @@ export type IconName =
   | 'star'
   | 'moon'
   | 'sun'
+  | 'coffee'
   | 'footprints'
   | 'water'
   | 'muscle'
@@ -195,6 +196,17 @@ export function Icon({
           <title>{label}</title>
           <circle cx="12" cy="12" r="4" />
           <path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4" />
+        </svg>
+      );
+    case 'coffee':
+      // Kaffeetasse mit Henkel + zwei Dampfwellen — klassisches Frühstück/Morgen-Symbol.
+      return (
+        <svg {...props}>
+          <title>{label}</title>
+          <path d="M6 11h11a1 1 0 0 1 1 1v3a5 5 0 0 1-5 5h-3a5 5 0 0 1-5-5v-3a1 1 0 0 1 1-1z" />
+          <path d="M18 12h1.5a2.5 2.5 0 0 1 0 5H18" />
+          <path d="M9 3c-.6 1 0 2 .6 2.6.6.6 1.2 1.6.6 2.4" />
+          <path d="M13 3c-.6 1 0 2 .6 2.6.6.6 1.2 1.6.6 2.4" />
         </svg>
       );
     case 'footprints':

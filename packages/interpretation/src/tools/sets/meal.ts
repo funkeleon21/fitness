@@ -44,7 +44,7 @@ export const mealTools: ChatToolset = ({ client, userId }) => ({
         .max(2000)
         .nullable()
         .describe(
-          'Zucker in Gramm (Teilmenge der Kohlenhydrate). null wenn nicht abschätzbar — z.B. bei Mischgerichten oder ohne Verpackungs-Angabe.',
+          'Zucker in Gramm (Teilmenge der Kohlenhydrate). Bei eindeutig identifizierbaren Lebensmitteln (Obst, Joghurt, Säfte, Süßes, Marken-Produkte) realistisch aus Standardwerten ableiten. null nur bei völlig diffusen Mischgerichten.',
         ),
       fiber_g: z
         .number()
@@ -52,7 +52,7 @@ export const mealTools: ChatToolset = ({ client, userId }) => ({
         .max(2000)
         .nullable()
         .describe(
-          'Ballaststoffe in Gramm. null wenn nicht abschätzbar. Bei Vollkorn/Gemüse-lastigen Gerichten gerne abschätzen.',
+          'Ballaststoffe in Gramm. Bei Obst, Gemüse, Vollkorn, Hülsenfrüchten realistisch abschätzen (Apfel ~3g, Vollkornbrot ~5g/Scheibe, Linsen ~8g/100g). null nur bei diffusen Mischgerichten ohne erkennbare faserreiche Komponenten.',
         ),
       saturated_fat_g: z
         .number()
@@ -60,7 +60,7 @@ export const mealTools: ChatToolset = ({ client, userId }) => ({
         .max(2000)
         .nullable()
         .describe(
-          'Gesättigte Fettsäuren in Gramm (Teilmenge von fat_g). null wenn nicht abschätzbar.',
+          'Gesättigte Fettsäuren in Gramm (Teilmenge von fat_g). Bei Tier-Produkten (Butter, Käse, Sahne, fettes Fleisch, Wurst) und Kokos/Palm realistisch abschätzen — meist 30–60% von fat_g. null nur bei diffusen Mischgerichten.',
         ),
       salt_g: z
         .number()
@@ -68,7 +68,7 @@ export const mealTools: ChatToolset = ({ client, userId }) => ({
         .max(200)
         .nullable()
         .describe(
-          'Salz in Gramm. null wenn nicht abschätzbar. Bei Fast-Food/Fertiggerichten realistisch hoch (2–5g).',
+          'Salz in Gramm. Bei Fast-Food/Fertiggerichten/Wurst/Käse realistisch hoch (2–5g). Bei selbstgekochten Mahlzeiten Standardwerte (~1g pro Hauptgang). null nur bei wirklich nicht abschätzbaren Fällen.',
         ),
       meal_type: z
         .enum(['breakfast', 'lunch', 'dinner', 'snack'])
