@@ -1,3 +1,5 @@
+import { wrapApiHandler } from '@/lib/api/handler';
+import { jsonResponse } from '@/lib/api/response';
 import { serverEnv } from '@/lib/env';
 import { createClient } from '@/lib/supabase/server';
 import { createAnthropic } from '@ai-sdk/anthropic';
@@ -52,59 +54,48 @@ Tools:
 - set_nutrition_targets: alle Felder auf einmal setzen. Felder, die du auf null lässt, werden NICHT geändert — bei Erstberechnung also IMMER alle 8 setzen.
 - list_recent_weight_entries: falls du zusätzlich den Gewichts-Trend brauchst (selten nötig).`;
 
-export async function POST(req: Request) {
-  try {
-    const { messages }: { messages: UIMessage[] } = await req.json();
+export const POST = wrapApiHandler('nutrition-coach', async (req: Request) => {
+  const { messages }: { messages: UIMessage[] } = await req.json();
 
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      return new Response(JSON.stringify({ error: 'Nicht angemeldet' }), {
-        status: 401,
-        headers: { 'content-type': 'application/json' },
-      });
-    }
-
-    const sections = await buildUserContext(supabase, user.id);
-    // Mahlzeiten-Kontext lenkt vom Ziel ab; nur Gewicht + bestehende Ziele.
-    const relevantSections = sections.filter((s) =>
-      ['body.weight', 'nutrition.targets'].includes(s.domain),
-    );
-    const contextBlock = renderContextForPrompt(relevantSections);
-    const systemPrompt = contextBlock
-      ? `${COACH_SYSTEM_PROMPT}\n\n${contextBlock}`
-      : COACH_SYSTEM_PROMPT;
-
-    const tools = buildChatTools(
-      { client: supabase, userId: user.id },
-      {
-        include: ['get_nutrition_targets', 'set_nutrition_targets', 'list_recent_weight_entries'],
-      },
-    );
-
-    const { LANGDOCK_API_KEY } = serverEnv();
-    const langdock = createAnthropic({
-      baseURL: 'https://api.langdock.com/anthropic/eu/v1',
-      apiKey: LANGDOCK_API_KEY,
-    });
-
-    const modelMessages = await convertToModelMessages(messages);
-    const result = streamText({
-      model: langdock('claude-sonnet-4-6-default'),
-      system: systemPrompt,
-      messages: modelMessages,
-      tools,
-      stopWhen: stepCountIs(5),
-    });
-
-    return result.toUIMessageStreamResponse();
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unbekannter Fehler';
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500,
-      headers: { 'content-type': 'application/json' },
-    });
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return jsonResponse({ error: 'Nicht angemeldet' }, 401);
   }
-}
+
+  const sections = await buildUserContext(supabase, user.id);
+  // Mahlzeiten-Kontext lenkt vom Ziel ab; nur Gewicht + bestehende Ziele.
+  const relevantSections = sections.filter((s) =>
+    ['body.weight', 'nutrition.targets'].includes(s.domain),
+  );
+  const contextBlock = renderContextForPrompt(relevantSections);
+  const systemPrompt = contextBlock
+    ? `${COACH_SYSTEM_PROMPT}\n\n${contextBlock}`
+    : COACH_SYSTEM_PROMPT;
+
+  const tools = buildChatTools(
+    { client: supabase, userId: user.id },
+    {
+      include: ['get_nutrition_targets', 'set_nutrition_targets', 'list_recent_weight_entries'],
+    },
+  );
+
+  const { LANGDOCK_API_KEY } = serverEnv();
+  const langdock = createAnthropic({
+    baseURL: 'https://api.langdock.com/anthropic/eu/v1',
+    apiKey: LANGDOCK_API_KEY,
+  });
+
+  const modelMessages = await convertToModelMessages(messages);
+  const result = streamText({
+    model: langdock('claude-sonnet-4-6-default'),
+    system: systemPrompt,
+    messages: modelMessages,
+    tools,
+    stopWhen: stepCountIs(5),
+  });
+
+  return result.toUIMessageStreamResponse();
+});
