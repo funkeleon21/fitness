@@ -135,10 +135,18 @@ export function PantrySheet({ onClose }: PantrySheetProps) {
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  // Wenn der Foto-Flow aus dem „Barcode unbekannt"-Prompt heraus startet, soll
+  // der Barcode nach erfolgreicher Extraktion automatisch ans neue Pantry-Item
+  // hängen (POST /api/pantry trägt ihn dann in pantry_barcodes ein, nächster
+  // Scan trifft den Cache). Ref statt State, weil's nur den nächsten Upload
+  // betrifft und keinen Re-Render braucht.
+  const pendingBarcodeRef = useRef<string | null>(null);
 
   async function handleNutritionPhoto(file: File) {
     setPhotoError(null);
     setPhotoBusy(true);
+    const pendingBarcode = pendingBarcodeRef.current;
+    pendingBarcodeRef.current = null;
     try {
       const dataUrl = await resizeImageFile(file);
       const res = await fetch('/api/extract-nutrition-label', {
@@ -149,7 +157,10 @@ export function PantrySheet({ onClose }: PantrySheetProps) {
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? 'Extraktion fehlgeschlagen');
       const result = body.result as NutritionLabelResult;
-      setCreating({ prefillNutrition: result });
+      setCreating({
+        prefillNutrition: result,
+        ...(pendingBarcode ? { prefillBarcode: pendingBarcode } : {}),
+      });
     } catch (e) {
       setPhotoError(e instanceof Error ? e.message : 'Extraktion fehlgeschlagen');
     } finally {
@@ -502,7 +513,15 @@ export function PantrySheet({ onClose }: PantrySheetProps) {
       {notFoundPrompt && (
         <NotFoundPrompt
           barcode={notFoundPrompt}
+          photoBusy={photoBusy}
           onCancel={() => setNotFoundPrompt(null)}
+          onPhoto={() => {
+            const code = notFoundPrompt;
+            pendingBarcodeRef.current = code;
+            setNotFoundPrompt(null);
+            setPhotoError(null);
+            photoInputRef.current?.click();
+          }}
           onCreateManually={() => {
             const code = notFoundPrompt;
             setNotFoundPrompt(null);
@@ -560,11 +579,15 @@ function ScanBannerView({ banner, onDismiss }: { banner: ScanBanner; onDismiss: 
 
 function NotFoundPrompt({
   barcode,
+  photoBusy,
   onCancel,
+  onPhoto,
   onCreateManually,
 }: {
   barcode: string;
+  photoBusy: boolean;
   onCancel: () => void;
+  onPhoto: () => void;
   onCreateManually: () => void;
 }) {
   return (
@@ -580,18 +603,35 @@ function NotFoundPrompt({
         </div>
       }
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{ fontSize: 13, color: 'var(--ink-3)' }}>
           Für <span style={{ fontFamily: 'var(--mono)', color: 'var(--ink)' }}>{barcode}</span> gibt
-          es weder in deinem Vorrat noch bei Open Food Facts einen Treffer. Du kannst das Produkt
-          manuell anlegen — der Code wird als Alias gespeichert, sodass der nächste Scan direkt aus
-          dem Vorrat trifft.
+          es weder in deinem Vorrat noch bei Open Food Facts einen Treffer. Foto der Nährwerttabelle
+          ist meistens der schnellste Weg — der Barcode wird automatisch dran gehängt und der
+          nächste Scan trifft direkt deinen Vorrat.
         </div>
+        <button
+          type="button"
+          onClick={onPhoto}
+          disabled={photoBusy}
+          className="pressable btn-primary"
+          style={{
+            padding: '14px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            opacity: photoBusy ? 0.5 : 1,
+          }}
+        >
+          <Icon name="camera" size={16} />
+          {photoBusy ? 'Lies Nährwerttabelle…' : 'Nährwerttabelle fotografieren'}
+        </button>
         <div style={{ display: 'flex', gap: 8 }}>
           <button
             type="button"
             onClick={onCreateManually}
-            className="pressable btn-primary"
+            className="filter-pill"
             style={{ flex: 1, padding: '12px' }}
           >
             Manuell anlegen
