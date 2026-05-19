@@ -1,7 +1,9 @@
 'use client';
 
+import { useBodyScrollLock } from '@/lib/useBodyScrollLock';
 import { useSheetDismissDrag } from '@/lib/useSheetDismissDrag';
-import type { CSSProperties, ReactNode } from 'react';
+import { type CSSProperties, type ReactNode, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from './Icon';
 
 interface SheetProps {
@@ -43,10 +45,26 @@ export function Sheet({
   backdropStyle,
   children,
 }: SheetProps) {
+  useBodyScrollLock();
   const { ref, handleRef, backdropRef, style: dragStyle } = useSheetDismissDrag({ onClose });
   const sheetClass = flex ? 'sheet sheet--flex' : 'sheet';
   const dragZoneClass = flex ? 'sheet-flex-header sheet-drag-zone' : 'sheet-drag-zone';
-  return (
+
+  // Portal-Mount: erst nach Client-Hydrate verfügbar (document.body existiert
+  // serverseitig nicht). Bis dahin rendert die Komponente null — Sheets sind
+  // ohnehin nur per User-Interaktion offen, also ist das kein FOUC.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  if (!mounted) return null;
+
+  // Render via Portal an document.body, damit das Sheet IMMER viewport-relativ
+  // sitzt — auch wenn es aus einem anderen Sheet heraus geöffnet wird. Der
+  // umgebende `.sheet` hat ein transform (slideUp-Animation + Drag-Translate)
+  // und würde sonst als „containing block" für `position: fixed` wirken, was
+  // verschachtelte Sheets auf die Größe des Parent-Sheets stutzt.
+  return createPortal(
     // biome-ignore lint/a11y/useKeyWithClickEvents: backdrop is a presentational click target; sheet has its own X-button + Escape via document listener
     <div
       ref={backdropRef}
@@ -71,7 +89,8 @@ export function Sheet({
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
