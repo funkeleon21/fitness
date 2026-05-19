@@ -1,3 +1,4 @@
+import type { WorkoutMood } from '@fitness/core';
 import { getWorkoutProjection, listWorkoutTemplates } from '@fitness/db';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { UserContextSection } from '../types';
@@ -8,6 +9,17 @@ function formatDate(d: Date): string {
 
 function formatTime(d: Date): string {
   return d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+}
+
+function moodLabel(mood: WorkoutMood): string {
+  switch (mood) {
+    case 'happy':
+      return 'gut';
+    case 'neutral':
+      return 'okay';
+    case 'sad':
+      return 'schlecht';
+  }
 }
 
 function summarizeExercises(
@@ -55,15 +67,19 @@ export async function getWorkoutContext(
   }
 
   // Letzte Einheiten (max 4) — gibt dem Chat Kontext für „gestern", „letzte
-  // Push-Day".
+  // Push-Day". Stimmung und Notiz werden mitgeführt, weil sie die KI-Aussage
+  // („deine letzten Push-Days fühlten sich schwerer an") überhaupt erst möglich
+  // machen — ohne sie wäre die Domäne für den Chat halbblind.
   if (projection.recent.length > 0) {
     lines.push('- Letzte Einheiten:');
     for (const w of projection.recent.slice(0, 4)) {
       const exSummary = summarizeExercises(w.exercises);
       const duration = w.duration_min ? `, ${w.duration_min} min` : '';
       const exSuffix = exSummary ? ` — ${exSummary}` : '';
+      const moodSuffix = w.mood ? ` · Stimmung: ${moodLabel(w.mood)}` : '';
+      const noteSuffix = w.note ? ` · Notiz: „${w.note}"` : '';
       lines.push(
-        `  - ${formatDate(w.occurred_at)} ${formatTime(w.occurred_at)} ${w.label}${duration}${exSuffix}`,
+        `  - ${formatDate(w.occurred_at)} ${formatTime(w.occurred_at)} ${w.label}${duration}${exSuffix}${moodSuffix}${noteSuffix}`,
       );
     }
   }

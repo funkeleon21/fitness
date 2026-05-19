@@ -2,6 +2,7 @@ import {
   type EventProvenance,
   type EventSource,
   type WorkoutExercise,
+  type WorkoutMood,
   createWorkoutLogged,
   workoutLoggedEventSchema,
 } from '@fitness/core';
@@ -14,6 +15,8 @@ export interface LogWorkoutInput {
   occurred_at: Date;
   duration_min?: number;
   exercises?: WorkoutExercise[];
+  mood?: WorkoutMood;
+  note?: string;
   template_id?: string;
   source?: EventSource;
   external_id?: string | null;
@@ -32,6 +35,8 @@ export async function logWorkout(
     occurred_at: input.occurred_at,
     duration_min: input.duration_min,
     exercises: input.exercises,
+    mood: input.mood,
+    note: input.note,
     template_id: input.template_id,
     source: input.source ?? 'manual',
     external_id: input.external_id ?? null,

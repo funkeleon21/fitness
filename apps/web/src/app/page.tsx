@@ -70,6 +70,8 @@ function workoutToPoint(w: WorkoutDataPoint): WorkoutPoint {
     label: w.label,
     duration_min: w.duration_min,
     exercises: w.exercises,
+    mood: w.mood,
+    note: w.note,
     template_id: w.template_id,
     source: w.source,
     confidence: w.confidence,

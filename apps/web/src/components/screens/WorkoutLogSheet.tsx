@@ -2,9 +2,9 @@
 
 import { logWorkoutAction, logWorkoutFromTemplateAction } from '@/app/actions';
 import { useState, useTransition } from 'react';
-import { Icon } from '../Icon';
+import { Icon, type IconName } from '../Icon';
 import { Sheet, SheetCloseButton } from '../Sheet';
-import type { WorkoutTemplateView } from '../types';
+import type { WorkoutMoodValue, WorkoutTemplateView } from '../types';
 
 interface DraftSet {
   id: string;
@@ -87,6 +87,8 @@ export function WorkoutLogSheet({ onClose, fromTemplate }: WorkoutLogSheetProps)
   const [exercises, setExercises] = useState<DraftExercise[]>(
     fromTemplate ? templateToDrafts(fromTemplate) : [],
   );
+  const [mood, setMood] = useState<WorkoutMoodValue | null>(null);
+  const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const addExercise = () => {
@@ -156,6 +158,8 @@ export function WorkoutLogSheet({ onClose, fromTemplate }: WorkoutLogSheetProps)
     fd.set('label', trimmedLabel);
     if (duration.trim() !== '') fd.set('duration_min', duration);
     if (serialized.length > 0) fd.set('exercises', JSON.stringify(serialized));
+    if (mood) fd.set('mood', mood);
+    if (note.trim() !== '') fd.set('note', note.trim());
     if (fromTemplate) fd.set('template_id', fromTemplate.id);
 
     startTransition(async () => {
@@ -282,6 +286,19 @@ export function WorkoutLogSheet({ onClose, fromTemplate }: WorkoutLogSheetProps)
             </div>
           )}
         </div>
+
+        <MoodPicker value={mood} onChange={setMood} />
+
+        <Field label="Notiz (optional)">
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Wie hat sich's angefühlt? Schmerzen, Tagesform, Kontext…"
+            maxLength={500}
+            rows={3}
+            style={{ ...inputStyle, resize: 'vertical', minHeight: 64, lineHeight: 1.4 }}
+          />
+        </Field>
 
         {error && (
           <div
@@ -473,6 +490,60 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span style={{ fontSize: 12, color: 'var(--ink-3)', fontWeight: 500 }}>{label}</span>
       {children}
     </label>
+  );
+}
+
+const MOOD_OPTIONS: Array<{ value: WorkoutMoodValue; icon: IconName; label: string }> = [
+  { value: 'happy', icon: 'mood-happy', label: 'gut' },
+  { value: 'neutral', icon: 'mood-neutral', label: 'okay' },
+  { value: 'sad', icon: 'mood-sad', label: 'schlecht' },
+];
+
+function MoodPicker({
+  value,
+  onChange,
+}: {
+  value: WorkoutMoodValue | null;
+  onChange: (next: WorkoutMoodValue | null) => void;
+}) {
+  return (
+    <div>
+      <div style={{ marginBottom: 8, fontSize: 12, color: 'var(--ink-3)', fontWeight: 500 }}>
+        Wie hat sich's angefühlt? (optional)
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+        {MOOD_OPTIONS.map((opt) => {
+          const active = value === opt.value;
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => onChange(active ? null : opt.value)}
+              aria-pressed={active}
+              className="pressable"
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 4,
+                padding: '10px 6px',
+                borderRadius: 12,
+                background: active ? 'var(--sage-wash)' : 'var(--surface)',
+                border: `0.5px solid ${active ? 'var(--sage-deep)' : 'var(--hairline-strong)'}`,
+                color: active ? 'var(--sage-deep)' : 'var(--ink-3)',
+                fontFamily: 'var(--sans)',
+                fontSize: 12,
+                fontWeight: 500,
+                cursor: 'pointer',
+              }}
+            >
+              <Icon name={opt.icon} size={24} strokeWidth={1.6} />
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

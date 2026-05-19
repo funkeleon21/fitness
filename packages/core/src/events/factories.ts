@@ -12,7 +12,12 @@ import {
   type EventCorrectedEvent,
   type EventRetractedEvent,
 } from './system/correction';
-import { WORKOUT_LOGGED, type WorkoutExercise, type WorkoutLoggedEvent } from './training/workout';
+import {
+  WORKOUT_LOGGED,
+  type WorkoutExercise,
+  type WorkoutLoggedEvent,
+  type WorkoutMood,
+} from './training/workout';
 
 export interface NewWeightLoggedInput {
   user_id: string;
@@ -100,6 +105,8 @@ export interface NewWorkoutLoggedInput {
   occurred_at: Date;
   duration_min?: number;
   exercises?: WorkoutExercise[];
+  mood?: WorkoutMood;
+  note?: string;
   template_id?: string;
   source: EventSource;
   external_id?: string | null;
@@ -125,6 +132,8 @@ export function createWorkoutLogged(input: NewWorkoutLoggedInput): WorkoutLogged
       label: input.label,
       ...(input.duration_min !== undefined ? { duration_min: input.duration_min } : {}),
       ...(input.exercises !== undefined ? { exercises: input.exercises } : {}),
+      ...(input.mood !== undefined ? { mood: input.mood } : {}),
+      ...(input.note !== undefined ? { note: input.note } : {}),
       ...(input.template_id !== undefined ? { template_id: input.template_id } : {}),
     },
   };

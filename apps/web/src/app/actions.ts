@@ -1,7 +1,13 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
-import { type MealType, type WorkoutExercise, workoutExerciseSchema } from '@fitness/core';
+import {
+  type MealType,
+  type WorkoutExercise,
+  type WorkoutMood,
+  workoutExerciseSchema,
+  workoutMoodSchema,
+} from '@fitness/core';
 import {
   createMealTemplate,
   createWorkoutTemplate,
@@ -159,6 +165,21 @@ function asTemplateNutrients(n: MealNutrients) {
 
 function parseBool(raw: FormDataEntryValue | null): boolean {
   return typeof raw === 'string' && raw === 'true';
+}
+
+function parseOptionalMood(raw: FormDataEntryValue | null): WorkoutMood | undefined {
+  if (typeof raw !== 'string' || raw === '') return undefined;
+  const result = workoutMoodSchema.safeParse(raw);
+  if (!result.success) throw new Error('Ungueltiger Mood-Wert');
+  return result.data;
+}
+
+function parseOptionalNote(raw: FormDataEntryValue | null): string | undefined {
+  if (typeof raw !== 'string') return undefined;
+  const trimmed = raw.trim();
+  if (trimmed === '') return undefined;
+  if (trimmed.length > 500) throw new Error('Notiz zu lang (max. 500 Zeichen)');
+  return trimmed;
 }
 
 // Übungsarray kommt aus dem Sheet als JSON-String. Validierung pro Element
@@ -386,6 +407,8 @@ export const logWorkoutAction = withAuth(async ({ supabase, userId }, formData) 
     600,
   );
   const exercises = parseOptionalExercisesJson(formData.get('exercises'));
+  const mood = parseOptionalMood(formData.get('mood'));
+  const note = parseOptionalNote(formData.get('note'));
   const occurred_at = parseOccurredAt(formData.get('occurred_at'));
 
   await logWorkout(supabase, {
@@ -393,6 +416,8 @@ export const logWorkoutAction = withAuth(async ({ supabase, userId }, formData) 
     label,
     duration_min,
     exercises,
+    mood,
+    note,
     occurred_at,
     source: 'manual',
   });
@@ -471,6 +496,8 @@ export const logWorkoutFromTemplateAction = withAuth(async ({ supabase, userId }
     'duration_min',
     600,
   );
+  const mood = parseOptionalMood(formData.get('mood'));
+  const note = parseOptionalNote(formData.get('note'));
   const occurred_at = parseOccurredAt(formData.get('occurred_at'));
 
   await logWorkout(supabase, {
@@ -478,6 +505,8 @@ export const logWorkoutFromTemplateAction = withAuth(async ({ supabase, userId }
     label,
     exercises,
     duration_min,
+    mood,
+    note,
     template_id: tpl.id,
     occurred_at,
     source: 'manual',

@@ -3,10 +3,12 @@ import {
   EVENT_RETRACTED,
   WORKOUT_LOGGED,
   type WorkoutExercise,
+  type WorkoutMood,
   eventCorrectedPayloadSchema,
   eventRetractedPayloadSchema,
   workoutExerciseSchema,
   workoutLoggedPayloadSchema,
+  workoutMoodSchema,
 } from '@fitness/core';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -19,6 +21,8 @@ export interface WorkoutDataPoint {
   label: string;
   duration_min: number | null;
   exercises: WorkoutExercise[] | null;
+  mood: WorkoutMood | null;
+  note: string | null;
   template_id: string | null;
   source: string;
   confidence: number | null;
@@ -103,6 +107,10 @@ export function projectWorkoutEvents(
     label?: string;
     duration_min?: number;
     exercises?: WorkoutExercise[];
+    // mood/note dürfen via Correction explizit auf null zurückgesetzt werden — der
+    // Nutzer kann eine versehentlich gewählte Stimmung oder Notiz wieder entfernen.
+    mood?: WorkoutMood | null;
+    note?: string | null;
   };
   type Correction = {
     id: string;
@@ -145,6 +153,8 @@ export function projectWorkoutEvents(
         label: parsed.data.label,
         duration_min: parsed.data.duration_min ?? null,
         exercises: parsed.data.exercises ?? null,
+        mood: parsed.data.mood ?? null,
+        note: parsed.data.note ?? null,
         template_id: parsed.data.template_id ?? null,
         source: row.source,
         confidence: row.confidence,
@@ -171,6 +181,21 @@ export function projectWorkoutEvents(
       if (np.exercises !== undefined) {
         const exercisesParsed = parseExercisesArray(np.exercises);
         if (exercisesParsed !== null) fields.exercises = exercisesParsed;
+      }
+      if (np.mood !== undefined) {
+        if (np.mood === null) {
+          fields.mood = null;
+        } else {
+          const moodParsed = workoutMoodSchema.safeParse(np.mood);
+          if (moodParsed.success) fields.mood = moodParsed.data;
+        }
+      }
+      if (np.note !== undefined) {
+        if (np.note === null) {
+          fields.note = null;
+        } else if (typeof np.note === 'string' && np.note.length <= 500) {
+          fields.note = np.note;
+        }
       }
 
       if (Object.keys(fields).length === 0) continue;
@@ -210,6 +235,8 @@ export function projectWorkoutEvents(
       if (correction.fields.duration_min !== undefined)
         point.duration_min = correction.fields.duration_min;
       if (correction.fields.exercises !== undefined) point.exercises = correction.fields.exercises;
+      if (correction.fields.mood !== undefined) point.mood = correction.fields.mood;
+      if (correction.fields.note !== undefined) point.note = correction.fields.note;
       anyApplied = true;
     }
     if (anyApplied) point.corrected = true;
@@ -224,6 +251,8 @@ export function projectWorkoutEvents(
       label: point.label,
       duration_min: point.duration_min,
       exercises: point.exercises,
+      mood: point.mood,
+      note: point.note,
       template_id: point.template_id,
       source: point.source,
       confidence: point.confidence,

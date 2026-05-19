@@ -23,6 +23,12 @@ export const workoutExerciseSchema = z.object({
 });
 export type WorkoutExercise = z.infer<typeof workoutExerciseSchema>;
 
+// Wie sich das Training angefühlt hat. Bewusst auf 3 Stufen begrenzt — die KI
+// kann daraus über die Zeit Korrelationen mit Schlaf, Ernährung, Volumen ziehen.
+// Mehr Stufen bringen kaum Signalqualität, aber mehr Reibung beim Loggen.
+export const workoutMoodSchema = z.enum(['happy', 'neutral', 'sad']);
+export type WorkoutMood = z.infer<typeof workoutMoodSchema>;
+
 export const workoutLoggedPayloadSchema = z.object({
   // Frei wählbar — z.B. "Push-Day", "Beine", "5km Lauf". UI rendert das groß
   // im Verlauf, analog zum Mahlzeit-Label.
@@ -32,6 +38,11 @@ export const workoutLoggedPayloadSchema = z.object({
   // Übungen mit Sätzen. Bei reinen Cardio-Einheiten (5km Lauf) bleibt das leer
   // oder fehlt ganz — label + duration_min reichen dann.
   exercises: z.array(workoutExerciseSchema).max(30).optional(),
+  // Stimmung zum Training. 3 Stufen (siehe workoutMoodSchema).
+  mood: workoutMoodSchema.optional(),
+  // Frei-Text-Bemerkung — Tagesform, Kontext, Schmerzen, was die KI später
+  // korrelieren kann. Max 500 Zeichen, sonst wird's ein Tagebuch.
+  note: z.string().max(500).optional(),
   // ID einer workout_templates-Zeile, falls die Einheit aus einer Vorlage
   // entstanden ist. Inhalte (exercises) sind trotzdem als Snapshot im Payload
   // — Templates können sich ändern.
