@@ -10,36 +10,47 @@ export interface MealSlotMeta {
   iconColor: string;
 }
 
+// Pro Slot eine eigene weiche Akzentfarbe + ein eindeutiges Icon. Die Tint-Werte
+// sind warme/kühle Pastelltöne, die mit den restlichen Surface-Farben harmonieren
+// (sage-wash, amber). iconColor ist die tiefere Variante für Icon-Stroke und
+// Akzent-Bars in der Mahlzeiten-Liste.
 export const MEAL_SLOTS: MealSlotMeta[] = [
   {
     id: 'breakfast',
     label: 'Frühstück',
     icon: 'sun',
-    tint: 'rgba(226,195,148,0.36)',
-    iconColor: '#c49855',
+    tint: 'rgba(240,199,117,0.32)',
+    iconColor: '#c89a4a',
   },
   {
     id: 'lunch',
     label: 'Mittagessen',
-    icon: 'sun',
-    tint: 'rgba(226,195,148,0.36)',
-    iconColor: '#c49855',
+    icon: 'flame',
+    tint: 'rgba(217,130,100,0.28)',
+    iconColor: '#b85a3e',
   },
   {
     id: 'dinner',
     label: 'Abendessen',
     icon: 'moon',
-    tint: 'rgba(226,195,148,0.36)',
-    iconColor: '#c49855',
+    tint: 'rgba(120,130,200,0.30)',
+    iconColor: '#5d6ba8',
   },
   {
     id: 'snack',
     label: 'Snacks',
-    icon: 'moon',
+    icon: 'star',
     tint: 'rgba(178,158,222,0.34)',
     iconColor: '#8975c7',
   },
 ];
+
+// Lookup-Helper: für ein meal_type (oder null) das Slot-Meta liefern. Wird in
+// FoodMemoryCardItem genutzt, um die Akzentfarbe des Templates zu spiegeln.
+export function slotMeta(slotId: MealSlotId | null): MealSlotMeta | null {
+  if (slotId === null) return null;
+  return MEAL_SLOTS.find((s) => s.id === slotId) ?? null;
+}
 
 // Auto-Slot per Uhrzeit. Wird als Fallback verwendet, wenn kein expliziter
 // meal_type im Event-Payload steht.
