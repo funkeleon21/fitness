@@ -161,8 +161,8 @@ function Header({
         <button
           type="button"
           onClick={onOpenCoach}
-          aria-label="Tagesziele berechnen"
-          title="Tagesziele berechnen"
+          aria-label="Ernährungs-Coach öffnen"
+          title="Ernährungs-Coach"
           className="pressable"
           style={{
             width: 38,
@@ -337,10 +337,10 @@ function MealSlotsCard({
   onSlotPlus: (slot: MealSlotId) => void;
   onOpenSlot: (slot: MealSlotId) => void;
 }) {
-  const [expanded, setExpanded] = useState(true);
+  const allEmpty = MEAL_SLOTS.every((s) => (mealsBySlot.get(s.id) ?? []).length === 0);
 
   return (
-    <div className="card rise" style={{ animationDelay: '60ms', padding: '20px 18px 8px' }}>
+    <div className="card rise" style={{ animationDelay: '60ms', padding: '20px 18px' }}>
       <div className="row-between" style={{ marginBottom: 6 }}>
         <div className="h-card" style={{ fontSize: 19 }}>
           Deine Mahlzeiten
@@ -348,25 +348,38 @@ function MealSlotsCard({
         <button
           type="button"
           onClick={onOpenComposer}
+          aria-label="Mahlzeit hinzufügen"
+          title="Mahlzeit hinzufügen"
           className="pressable"
           style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '8px 14px',
+            width: 32,
+            height: 32,
+            borderRadius: '50%',
             background: 'var(--sage-wash)',
-            color: 'var(--sage-deep)',
             border: 'none',
-            borderRadius: 999,
-            fontFamily: 'var(--sans)',
-            fontSize: 13,
-            fontWeight: 500,
+            color: 'var(--sage-deep)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             cursor: 'pointer',
           }}
         >
-          <Icon name="plus" size={14} strokeWidth={2} /> Mahlzeit hinzufügen
+          <Icon name="plus" size={14} strokeWidth={2} />
         </button>
       </div>
+
+      {allEmpty && (
+        <div
+          style={{
+            marginTop: 6,
+            marginBottom: 4,
+            fontSize: 13,
+            color: 'var(--ink-3)',
+          }}
+        >
+          Heute noch keine Mahlzeit erfasst.
+        </div>
+      )}
 
       <div style={{ display: 'flex', flexDirection: 'column' }}>
         {MEAL_SLOTS.map((slot, i) => (
@@ -374,35 +387,11 @@ function MealSlotsCard({
             key={slot.id}
             slot={slot}
             meals={mealsBySlot.get(slot.id) ?? []}
-            collapsed={!expanded && i >= 2}
             onPlus={() => onSlotPlus(slot.id)}
             onOpen={() => onOpenSlot(slot.id)}
             isLast={i === MEAL_SLOTS.length - 1}
           />
         ))}
-      </div>
-
-      <div style={{ display: 'flex', justifyContent: 'center', marginTop: 4, paddingBottom: 4 }}>
-        <button
-          type="button"
-          onClick={() => setExpanded((e) => !e)}
-          aria-label={expanded ? 'Einklappen' : 'Ausklappen'}
-          className="pressable"
-          style={{
-            width: 32,
-            height: 32,
-            borderRadius: '50%',
-            background: 'var(--surface-2)',
-            border: '0.5px solid var(--hairline)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'var(--ink-3)',
-            cursor: 'pointer',
-          }}
-        >
-          <Icon name="chevrons-up-down" size={14} strokeWidth={1.6} />
-        </button>
       </div>
     </div>
   );
@@ -411,19 +400,16 @@ function MealSlotsCard({
 function SlotRow({
   slot,
   meals,
-  collapsed,
   onPlus,
   onOpen,
   isLast,
 }: {
   slot: MealSlotMeta;
   meals: MealPoint[];
-  collapsed: boolean;
   onPlus: () => void;
   onOpen: () => void;
   isLast: boolean;
 }) {
-  if (collapsed) return null;
   const hasMeals = meals.length > 0;
   const totalKcal = meals.reduce((s, m) => s + m.kcal, 0);
 
@@ -441,27 +427,18 @@ function SlotRow({
         }}
       >
         <SlotIcon slot={slot} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div
-            style={{
-              fontFamily: 'var(--serif)',
-              fontSize: 17,
-              lineHeight: 1.1,
-              color: 'var(--ink)',
-              letterSpacing: '-0.01em',
-            }}
-          >
-            {slot.label}
-          </div>
-          <div
-            style={{
-              marginTop: 4,
-              fontSize: 13,
-              color: 'var(--ink-3)',
-            }}
-          >
-            Noch nichts hinzugefügt
-          </div>
+        <div
+          style={{
+            flex: 1,
+            minWidth: 0,
+            fontFamily: 'var(--serif)',
+            fontSize: 17,
+            lineHeight: 1.1,
+            color: 'var(--ink)',
+            letterSpacing: '-0.01em',
+          }}
+        >
+          {slot.label}
         </div>
         <button
           type="button"
@@ -469,8 +446,8 @@ function SlotRow({
           aria-label={`${slot.label} hinzufügen`}
           className="pressable"
           style={{
-            width: 38,
-            height: 38,
+            width: 32,
+            height: 32,
             borderRadius: 10,
             background: 'transparent',
             border: '1px dashed var(--hairline-strong)',
@@ -482,7 +459,7 @@ function SlotRow({
             flexShrink: 0,
           }}
         >
-          <Icon name="plus" size={16} strokeWidth={2} />
+          <Icon name="plus" size={14} strokeWidth={2} />
         </button>
       </div>
     );
@@ -637,19 +614,23 @@ function FoodMemoryCard({
         <button
           type="button"
           onClick={onCreate}
+          aria-label="Neue Vorlage anlegen"
+          title="Neue Vorlage"
           className="pressable"
           style={{
-            background: 'transparent',
+            width: 32,
+            height: 32,
+            borderRadius: '50%',
+            background: 'var(--sage-wash)',
             border: 'none',
             color: 'var(--sage-deep)',
-            fontFamily: 'var(--sans)',
-            fontSize: 13,
-            fontWeight: 500,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             cursor: 'pointer',
-            padding: 0,
           }}
         >
-          Verwalten
+          <Icon name="plus" size={14} strokeWidth={2} />
         </button>
       </div>
 
@@ -715,7 +696,7 @@ function FoodMemoryCard({
       {filtered.length === 0 ? (
         <div style={{ color: 'var(--ink-3)', fontSize: 13, padding: '14px 0 4px' }}>
           {templates.length === 0
-            ? 'Noch keine Vorlagen. Tippe „Verwalten" für die erste.'
+            ? 'Noch keine Vorlagen. Tippe oben auf +, um die erste anzulegen.'
             : 'Keine passenden Gerichte gefunden.'}
         </div>
       ) : (
