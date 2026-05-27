@@ -17,7 +17,7 @@ const BarcodeScannerOverlay = dynamic(
   { ssr: false },
 );
 
-type Stage = 'capture' | 'analyzing' | 'review' | 'saving';
+type Stage = 'capture' | 'describe' | 'analyzing' | 'review' | 'saving';
 
 interface CapturedImage {
   id: string;
@@ -92,37 +92,33 @@ export function MealComposerSheet({ templates, onClose }: MealComposerSheetProps
     }
   }
 
-  function skipToManualReview() {
-    const empty: RecognizedMeal = {
-      label: '',
-      items: [
-        {
-          label: '',
-          amount_g: null,
-          kcal: null,
-          protein_g: null,
-          carbs_g: null,
-          fat_g: null,
-          pantry_item_id: null,
-        },
-      ],
-      totals: {
-        kcal: 0,
-        protein_g: null,
-        carbs_g: null,
-        fat_g: null,
-        sugar_g: null,
-        fiber_g: null,
-        saturated_fat_g: null,
-        salt_g: null,
-      },
-      confidence: 1,
-      hint: null,
-      suggested_template_id: null,
-      suggested_template_reason: null,
-    };
-    setResult(empty);
-    setStage('review');
+  async function runDescribeAnalysis(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    setStage('analyzing');
+    setError(null);
+    // Chat startet leer — die initiale Beschreibung lebt im Mahlzeit-Titel + Items.
+    // Bubbles erscheinen erst, wenn der User wirklich nachjustiert.
+    setChatLog([]);
+    try {
+      const res = await fetch('/api/recognize-meal', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          images: [],
+          chat_message: trimmed,
+          templates: templatesPayload,
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? 'KI-Erkennung fehlgeschlagen');
+      const recognized = body.result as RecognizedMeal;
+      setResult(recognized);
+      setStage('review');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unbekannter Fehler');
+      setStage('describe');
+    }
   }
 
   async function logFromSuggestedTemplate(templateId: string) {
@@ -261,8 +257,21 @@ export function MealComposerSheet({ templates, onClose }: MealComposerSheetProps
             onRemoveImage={(id) => setImages((cur) => cur.filter((i) => i.id !== id))}
             onAnalyze={() => runAnalysis(images)}
             onOpenScanner={() => setScannerOpen(true)}
-            onSkip={skipToManualReview}
+            onDescribe={() => {
+              setError(null);
+              setStage('describe');
+            }}
             error={error ?? scanError}
+          />
+        )}
+
+        {stage === 'describe' && (
+          <DescribeStage
+            slot={slot}
+            onSlotChange={setSlot}
+            onBack={() => setStage('capture')}
+            onSubmit={runDescribeAnalysis}
+            error={error}
           />
         )}
 
@@ -328,14 +337,24 @@ export function MealComposerSheet({ templates, onClose }: MealComposerSheetProps
  * ──────────────────────────────────────────────────────────── */
 
 function SheetHeader({ stage, onClose }: { stage: Stage; onClose: () => void }) {
+  // Review-Stage zeigt den Mahlzeit-Titel selbst — kein redundanter Sheet-Header.
   const title =
     stage === 'capture'
       ? 'Mahlzeit erfassen'
-      : stage === 'analyzing'
-        ? 'KI analysiert…'
-        : stage === 'review'
-          ? 'Prüfen & verfeinern'
-          : 'Speichern';
+      : stage === 'describe'
+        ? 'Beschreiben'
+        : stage === 'analyzing'
+          ? 'KI analysiert…'
+          : stage === 'review'
+            ? null
+            : 'Speichern';
+  if (!title) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 4 }}>
+        <SheetCloseButton onClose={onClose} />
+      </div>
+    );
+  }
   return (
     <div className="row-between" style={{ marginBottom: 14 }}>
       <div className="h-card" style={{ fontSize: 22 }}>
@@ -356,7 +375,7 @@ function CaptureStage({
   onRemoveImage,
   onAnalyze,
   onOpenScanner,
-  onSkip,
+  onDescribe,
   error,
 }: {
   images: CapturedImage[];
@@ -364,7 +383,7 @@ function CaptureStage({
   onRemoveImage: (id: string) => void;
   onAnalyze: () => void;
   onOpenScanner: () => void;
-  onSkip: () => void;
+  onDescribe: () => void;
   error: string | null;
 }) {
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -462,7 +481,7 @@ function CaptureStage({
         style={{ display: 'none' }}
       />
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
         <CaptureTile
           icon="camera"
           label="Foto aufnehmen"
@@ -476,6 +495,7 @@ function CaptureStage({
           onClick={() => galleryRef.current?.click()}
         />
         <CaptureTile icon="pattern" label="Barcode" onClick={onOpenScanner} />
+        <CaptureTile icon="edit" label="Beschreiben" onClick={onDescribe} />
       </div>
 
       {error && (
@@ -502,25 +522,8 @@ function CaptureStage({
         }}
       >
         {images.length === 0
-          ? 'Erst ein Bild auswählen'
+          ? 'Wähle eine Eingabe oben'
           : `Analyse starten (${images.length} Bild${images.length === 1 ? '' : 'er'})`}
-      </button>
-
-      <button
-        type="button"
-        onClick={onSkip}
-        className="pressable"
-        style={{
-          background: 'transparent',
-          border: 'none',
-          color: 'var(--ink-3)',
-          fontSize: 13,
-          fontFamily: 'var(--sans)',
-          cursor: 'pointer',
-          padding: 4,
-        }}
-      >
-        Lieber selbst beschreiben →
       </button>
     </div>
   );
@@ -532,7 +535,7 @@ function CaptureTile({
   disabled = false,
   onClick,
 }: {
-  icon: 'camera' | 'photo-stack' | 'pattern';
+  icon: 'camera' | 'photo-stack' | 'pattern' | 'edit';
   label: string;
   disabled?: boolean;
   onClick: () => void;
@@ -563,6 +566,99 @@ function CaptureTile({
 }
 
 /* ──────────────────────────────────────────────────────────────
+ * Stage 1b — Describe (text-first, kein Bild)
+ * ──────────────────────────────────────────────────────────── */
+
+function DescribeStage({
+  slot,
+  onSlotChange,
+  onBack,
+  onSubmit,
+  error,
+}: {
+  slot: MealSlotId;
+  onSlotChange: (slot: MealSlotId) => void;
+  onBack: () => void;
+  onSubmit: (text: string) => void;
+  error: string | null;
+}) {
+  const [text, setText] = useState('');
+  const trimmed = text.trim();
+  const canSubmit = trimmed.length >= 2;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingBottom: 12 }}>
+      <div style={{ fontSize: 13, color: 'var(--ink-3)', lineHeight: 1.5 }}>
+        Beschreibe in eigenen Worten, was du gegessen hast. Die KI matched gegen deinen Vorrat und
+        schlägt Mengen vor — anpassen kannst du danach im Chat.
+      </div>
+
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder={'z.B. 2 Eier, 1 Scheibe Vollkornbrot mit Butter,\nKaffee schwarz'}
+        rows={5}
+        style={{
+          width: '100%',
+          background: 'var(--surface)',
+          border: '0.5px solid var(--hairline-strong)',
+          borderRadius: 12,
+          padding: '12px 14px',
+          fontSize: 15,
+          lineHeight: 1.45,
+          fontFamily: 'var(--sans)',
+          color: 'var(--ink)',
+          outline: 'none',
+          resize: 'vertical',
+          minHeight: 120,
+        }}
+      />
+
+      <Field label="Mahlzeitslot">
+        <SlotPicker value={slot} onChange={onSlotChange} />
+      </Field>
+
+      {error && (
+        <div
+          style={{
+            color: 'var(--amber)',
+            fontSize: 12,
+            fontFamily: 'var(--mono)',
+            letterSpacing: '0.04em',
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+        <button
+          type="button"
+          onClick={onBack}
+          className="pressable btn-secondary"
+          style={{ flex: '0 0 auto', padding: '12px 18px' }}
+        >
+          Zurück
+        </button>
+        <button
+          type="button"
+          onClick={() => onSubmit(trimmed)}
+          disabled={!canSubmit}
+          className="pressable btn-primary"
+          style={{
+            flex: 1,
+            padding: '14px',
+            opacity: canSubmit ? 1 : 0.5,
+          }}
+        >
+          KI verstehen lassen
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────────
  * Stage 2 — Analyzing
  * ──────────────────────────────────────────────────────────── */
 
@@ -588,7 +684,7 @@ function AnalyzingStage() {
         }}
       />
       <div style={{ fontSize: 14, color: 'var(--ink-3)' }}>
-        KI analysiert dein Bild — einen Moment.
+        KI versteht deine Mahlzeit — einen Moment.
       </div>
       <div
         style={{
@@ -640,6 +736,7 @@ function ReviewStage({
   onBackToCapture: () => void;
 }) {
   const [chatInput, setChatInput] = useState('');
+  const [editOpen, setEditOpen] = useState(false);
 
   function sendChat() {
     const trimmed = chatInput.trim();
@@ -656,8 +753,10 @@ function ReviewStage({
     onChange({ ...result, suggested_template_id: null, suggested_template_reason: null });
   }
 
+  const canProceed = result.label.trim().length > 0 && result.totals.kcal > 0;
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {matchedTemplate && (
         <TemplateMatchBanner
           template={matchedTemplate}
@@ -667,8 +766,248 @@ function ReviewStage({
         />
       )}
 
-      <ConfidenceBanner confidence={result.confidence} hint={result.hint} />
+      <Summary result={result} />
 
+      <Hairline />
+
+      <SlotSection slot={slot} onSlotChange={onSlotChange} />
+
+      <Hairline />
+
+      <Conversation
+        chatLog={chatLog}
+        chatInput={chatInput}
+        setChatInput={setChatInput}
+        refining={refining}
+        sendChat={sendChat}
+      />
+
+      {editOpen && (
+        <>
+          <Hairline />
+          <ManualEditPanel
+            scanError={scanError}
+            onOpenScanner={onOpenScanner}
+            onDismissScanError={onDismissScanError}
+            result={result}
+            onChange={onChange}
+          />
+        </>
+      )}
+
+      <Hairline />
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
+        <button
+          type="button"
+          onClick={onNext}
+          disabled={!canProceed}
+          className="pressable btn-primary"
+          style={{
+            width: '100%',
+            padding: '14px 16px',
+            fontSize: 15,
+            opacity: canProceed ? 1 : 0.5,
+          }}
+        >
+          Speichern
+        </button>
+        <div
+          style={{
+            display: 'flex',
+            gap: 18,
+            fontSize: 12,
+            color: 'var(--ink-3)',
+          }}
+        >
+          <button
+            type="button"
+            onClick={onBackToCapture}
+            className="pressable"
+            style={{
+              background: 'transparent',
+              border: 'none',
+              padding: 0,
+              color: 'inherit',
+              fontSize: 'inherit',
+              cursor: 'pointer',
+            }}
+          >
+            ← Zurück
+          </button>
+          <button
+            type="button"
+            onClick={() => setEditOpen((v) => !v)}
+            aria-expanded={editOpen}
+            className="pressable"
+            style={{
+              background: 'transparent',
+              border: 'none',
+              padding: 0,
+              color: 'inherit',
+              fontSize: 'inherit',
+              cursor: 'pointer',
+            }}
+          >
+            {editOpen ? 'Korrektur schließen' : 'Werte direkt eingeben'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Hairline() {
+  return <div style={{ height: '0.5px', background: 'var(--hairline)', width: '100%' }} />;
+}
+
+function Summary({ result }: { result: RecognizedMeal }) {
+  const t = result.totals;
+  const macroParts: string[] = [];
+  if (t.protein_g !== null) macroParts.push(`P ${Math.round(t.protein_g)} g`);
+  if (t.carbs_g !== null) macroParts.push(`KH ${Math.round(t.carbs_g)} g`);
+  if (t.fat_g !== null) macroParts.push(`F ${Math.round(t.fat_g)} g`);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div
+        style={{
+          fontFamily: 'var(--serif)',
+          fontSize: 24,
+          lineHeight: 1.15,
+          letterSpacing: '-0.015em',
+          color: 'var(--ink)',
+        }}
+      >
+        {result.label || 'Mahlzeit ohne Namen'}
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+        <span
+          style={{
+            fontFamily: 'var(--serif)',
+            fontSize: 40,
+            lineHeight: 1,
+            color: 'var(--ink)',
+            letterSpacing: '-0.025em',
+          }}
+        >
+          {Math.round(t.kcal).toLocaleString('de-DE')}
+        </span>
+        <span style={{ fontSize: 15, color: 'var(--ink-3)' }}>kcal</span>
+      </div>
+
+      {macroParts.length > 0 && (
+        <div className="mono-sm" style={{ fontSize: 11.5, lineHeight: 1.5 }}>
+          {macroParts.join(' · ')}
+        </div>
+      )}
+
+      {result.items.length > 0 && <ItemsLine items={result.items} />}
+
+      {result.hint && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 6,
+            fontSize: 12,
+            color: 'var(--ink-3)',
+            lineHeight: 1.45,
+            marginTop: 2,
+          }}
+        >
+          <Icon
+            name="sparkle"
+            size={12}
+            strokeWidth={1.8}
+            stroke={result.confidence < 0.85 ? 'var(--amber)' : 'var(--sage-deep)'}
+            style={{ marginTop: 2, flexShrink: 0 }}
+          />
+          <span>{result.hint}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ItemsLine({ items }: { items: RecognizedMeal['items'] }) {
+  return (
+    <div
+      style={{
+        fontSize: 13,
+        color: 'var(--ink-2)',
+        lineHeight: 1.55,
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '0 2px',
+      }}
+    >
+      {items.map((item, idx) => {
+        const isPantry = item.pantry_item_id !== null;
+        return (
+          <span
+            key={`${idx}-${item.label}`}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'baseline',
+              gap: 4,
+              color: isPantry ? 'var(--sage-deep)' : 'var(--ink-2)',
+            }}
+            title={isPantry ? 'Werte aus deinem Vorrat' : undefined}
+          >
+            {isPantry && (
+              <Icon
+                name="leaf"
+                size={10}
+                strokeWidth={2}
+                aria-hidden="true"
+                style={{ transform: 'translateY(1px)' }}
+              />
+            )}
+            <span>
+              {item.label}
+              {item.amount_g !== null && (
+                <span style={{ color: 'var(--ink-4)', marginLeft: 3 }}>
+                  {Math.round(item.amount_g)} g
+                </span>
+              )}
+            </span>
+            {idx < items.length - 1 && (
+              <span style={{ color: 'var(--ink-4)', marginRight: 4 }}>·</span>
+            )}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function SlotSection({
+  slot,
+  onSlotChange,
+}: {
+  slot: MealSlotId;
+  onSlotChange: (slot: MealSlotId) => void;
+}) {
+  return <SlotPicker value={slot} onChange={onSlotChange} />;
+}
+
+function ManualEditPanel({
+  scanError,
+  onOpenScanner,
+  onDismissScanError,
+  result,
+  onChange,
+}: {
+  scanError: string | null;
+  onOpenScanner: () => void;
+  onDismissScanError: () => void;
+  result: RecognizedMeal;
+  onChange: (r: RecognizedMeal) => void;
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <Field label="Bezeichnung">
         <input
           type="text"
@@ -729,42 +1068,6 @@ function ReviewStage({
       </Field>
 
       <MacrosBlock result={result} onChange={onChange} />
-
-      <Field label="Mahlzeitslot">
-        <SlotPicker value={slot} onChange={onSlotChange} />
-      </Field>
-
-      <ChatPanel
-        chatLog={chatLog}
-        chatInput={chatInput}
-        setChatInput={setChatInput}
-        refining={refining}
-        sendChat={sendChat}
-      />
-
-      <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-        <button
-          type="button"
-          onClick={onBackToCapture}
-          className="pressable btn-secondary"
-          style={{ flex: '0 0 auto', padding: '12px 18px' }}
-        >
-          Zurück
-        </button>
-        <button
-          type="button"
-          onClick={onNext}
-          disabled={result.label.trim().length === 0 || result.totals.kcal <= 0}
-          className="pressable btn-primary"
-          style={{
-            flex: 1,
-            padding: '12px 16px',
-            opacity: result.label.trim().length === 0 || result.totals.kcal <= 0 ? 0.5 : 1,
-          }}
-        >
-          Weiter
-        </button>
-      </div>
     </div>
   );
 }
@@ -886,40 +1189,6 @@ function TemplateMatchBanner({
           {pending ? 'Logge…' : 'Direkt loggen'}
         </button>
       </div>
-    </div>
-  );
-}
-
-function ConfidenceBanner({
-  confidence,
-  hint,
-}: {
-  confidence: number;
-  hint: string | null;
-}) {
-  if (confidence >= 0.85 && !hint) return null;
-  const level = confidence >= 0.85 ? 'hoch' : confidence >= 0.6 ? 'mittel' : 'niedrig';
-  const bg =
-    confidence >= 0.85
-      ? 'var(--sage-wash)'
-      : confidence >= 0.6
-        ? 'rgba(196,152,85,0.16)'
-        : 'rgba(196,152,85,0.24)';
-  const color = confidence >= 0.85 ? 'var(--sage-deep)' : 'var(--amber)';
-
-  return (
-    <div
-      style={{
-        background: bg,
-        color,
-        borderRadius: 12,
-        padding: '10px 12px',
-        fontSize: 12,
-        lineHeight: 1.45,
-      }}
-    >
-      <strong style={{ fontWeight: 600 }}>Konfidenz: {level}</strong>
-      {hint ? ` · ${hint}` : ' · verfeinere im Chat unten, wenn etwas nicht stimmt.'}
     </div>
   );
 }
@@ -1226,7 +1495,7 @@ function SlotPicker({
   );
 }
 
-function ChatPanel({
+function Conversation({
   chatLog,
   chatInput,
   setChatInput,
@@ -1240,33 +1509,14 @@ function ChatPanel({
   sendChat: () => void;
 }) {
   return (
-    <div
-      style={{
-        background: 'var(--surface-2)',
-        borderRadius: 14,
-        padding: '12px',
-        border: '0.5px solid var(--hairline)',
-      }}
-    >
-      <div
-        style={{
-          fontFamily: 'var(--mono)',
-          fontSize: 10.5,
-          letterSpacing: '0.06em',
-          color: 'var(--ink-4)',
-          marginBottom: chatLog.length > 0 ? 8 : 6,
-        }}
-      >
-        VERFEINERN
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {chatLog.length > 0 && (
         <div
           style={{
             display: 'flex',
             flexDirection: 'column',
-            gap: 6,
-            marginBottom: 10,
-            maxHeight: 140,
+            gap: 8,
+            maxHeight: 200,
             overflowY: 'auto',
           }}
         >
@@ -1275,13 +1525,13 @@ function ChatPanel({
               key={turn.id}
               style={{
                 alignSelf: turn.role === 'user' ? 'flex-end' : 'flex-start',
-                background: turn.role === 'user' ? 'var(--sage-wash)' : 'var(--surface)',
-                color: turn.role === 'user' ? 'var(--sage-deep)' : 'var(--ink-2)',
-                fontSize: 12,
-                padding: '6px 10px',
-                borderRadius: 12,
+                background: turn.role === 'user' ? 'var(--sage-deep)' : 'var(--surface-2)',
+                color: turn.role === 'user' ? '#fff' : 'var(--ink-2)',
+                fontSize: 13,
+                padding: '8px 12px',
+                borderRadius: 16,
                 maxWidth: '85%',
-                lineHeight: 1.4,
+                lineHeight: 1.45,
               }}
             >
               {turn.text}
@@ -1289,7 +1539,18 @@ function ChatPanel({
           ))}
         </div>
       )}
-      <div style={{ display: 'flex', gap: 6 }}>
+
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          background: 'var(--surface-2)',
+          borderRadius: 999,
+          padding: '4px 4px 4px 16px',
+          border: '0.5px solid var(--hairline)',
+        }}
+      >
         <input
           type="text"
           value={chatInput}
@@ -1301,16 +1562,19 @@ function ChatPanel({
             }
           }}
           placeholder={
-            refining ? 'Aktualisiere…' : 'z.B. "war doppelte Portion" oder "mit extra Käse"'
+            refining
+              ? 'Aktualisiere…'
+              : chatLog.length === 0
+                ? 'Was möchtest du ändern?'
+                : 'Weiter verfeinern…'
           }
           disabled={refining}
           style={{
             flex: 1,
-            background: 'var(--surface)',
-            border: '0.5px solid var(--hairline)',
-            borderRadius: 10,
-            padding: '8px 10px',
-            fontSize: 13,
+            background: 'transparent',
+            border: 'none',
+            padding: '10px 0',
+            fontSize: 14,
             outline: 'none',
             color: 'var(--ink)',
           }}
@@ -1324,7 +1588,7 @@ function ChatPanel({
           style={{
             width: 36,
             height: 36,
-            borderRadius: 10,
+            borderRadius: '50%',
             background: 'var(--sage-deep)',
             color: '#fff',
             border: 'none',
@@ -1333,6 +1597,7 @@ function ChatPanel({
             justifyContent: 'center',
             cursor: refining ? 'wait' : 'pointer',
             opacity: chatInput.trim().length === 0 ? 0.4 : 1,
+            flexShrink: 0,
           }}
         >
           <Icon name="arrow-right" size={14} strokeWidth={2} />
